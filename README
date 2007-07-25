@@ -1,0 +1,245 @@
+====================================================================
+MOD_AUTH_CAS 0.9.4 README
+====================================================================
+Apache CAS Authentication Module
+Version 0.9.4
+7/19/2007
+
+====================================================================
+LICENSE
+====================================================================
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+====================================================================
+INTRODUCTION 
+====================================================================
+The purpose of this module is to allow an Apache web server to interact
+with an authentication server that conforms to the CAS version 1 or 2
+protocol as specified by Yale/JA-SIG.  At the time of this writing, the CAS
+protocol specification is here:
+
+http://www.ja-sig.org/products/cas/overview/protocol/index.html
+
+====================================================================
+NEW FEATURES AND FUNCTIONS IN THIS RELEASE 
+====================================================================
+Everything, since this is the first release!
+
+====================================================================
+BUG FIXES 
+====================================================================
+-fixed a segmentation fault when 'newArgs' became NULL after
+ removing CAS parameters (bug discovered by Steve Maresca)
+
+====================================================================
+KNOWN LIMITATIONS
+====================================================================
+These limitations are known to exists in this release of the software:
+
+* CAS Proxy Validation is not implemented in this version.
+
+* CAS Ticket Validation can only be performed over an SSL connection.
+  The CAS protocol does not explicitly require this, but to not do so
+  leaves this system open to a man-in-the-middle attack.
+
+* mod_auth_cas sessions for renewed credentials are specific to the path
+  that required the renew.  If '/a/' and '/a/b/' have CASRenew set
+  to 'on', a separate renew will be required for each path.
+
+====================================================================
+GETTING STARTED
+====================================================================
+
+SOFTWARE DEPENDENCIES
+--------------------------------------------------------------------
+The module was built and tested on the following libraries/versions:
+
+OpenSSL - 0.9.8c
+Apache Portable Runtime - 1.2.8
+Apache Portable Runtime Utilities - 1.2.7
+Apache Web Server - 2.2.3
+
+Compatibility with other versions will depend on those other libraries.
+
+INSTALLATION INSTRUCTIONS
+--------------------------------------------------------------------
+Ensure that the follow files are in the working directory:
+mod_auth_cas.c
+mod_auth_cas.h
+
+COMPILE INSTRUCTIONS
+--------------------------------------------------------------------
+Use the APache eXtenSion tool (APXS) to compile and install this 
+object as a dynamically shared object (DSO):
+
+apxs2 -i -c mod_auth_cas.c
+
+If you want to install this for an Apache 2.0 server, please edit
+mod_auth_cas.h and modify the line that says:
+#undef APACHE2_0
+
+to
+
+#define APACHE2_0
+
+CONFIGURING THE SOFTWARE
+--------------------------------------------------------------------
+First, you must tell Apache to load the module.  In your httpd.conf,
+add:
+
+LoadModule auth_cas_module /path/to/mod_auth_cas.so
+
+The following are valid configuration options and their default:
+
+Valid Server/VirtualHost Directives
+-----------------------------------
+Directive: 	CASVersion
+Default:	2
+Description:	The version of the CAS protocol to adhere to (1 or 2).
+		This affects whether Gateway mode is available and how
+		the CAS validation response is parsed.
+
+Directive: 	CASDebug
+Default:	Off
+Description:	Enable or disable debugging mode for troubleshooting.
+
+Directive: 	CASValidateServer
+Default:	On
+Description:	If set to 'On', mod_auth_cas will validate that the certificate
+		presented by the server specified in CASLoginURL is both
+		signed by the Certificate Authority specified in CASCertificatePath
+		and that the hostname matches the Common Name of the certificate.
+
+Directive: 	CASCertificatePath
+Default:	/etc/ssl/certs/
+Description:	The path to the X509 certificate of the Certificate Authority for
+		the server in CASLoginURL and CASValidateURL.  This may be either
+		a file, or a directory containing the certificate files linked to
+		by their hashed names.
+
+Directive: 	CASLoginURL
+Default:	https://login.uconn.edu/cas/login
+Description:	The URL to redirect users to when they attempt to access a CAS
+		protected resource and do not have an existing session.  The
+		'service', 'renew', and 'gateway' parameters will be appended to
+		this by mod_auth_cas if necessary.
+
+Directive: 	CASValidateURL
+Default:	https://login.uconn.edu/cas/serviceValidate
+Description:	The URL to use when validating a ticket presented by a client in
+		the HTTP query string (ticket=...).
+
+Directive: 	CASProxyValidateURL
+Default:	https://login.uconn.edu/cas/proxyValidate
+Description:	The URL to use when performing a proxy validation.  This is currently
+		an unimplemented feature, so setting this will have no effect.
+
+Directive: 	CASCookiePath
+Default:	/tmp/cas/
+Description:	When users first authenticate to mod_auth_cas with a valid service ticket,
+		a local session is established.  Information about this session (the
+		username, time of creation, last activity time, the resource initially
+		requested, and whether or not the credentials were renewed) is stored
+		in this file.  This location should be writable by the web server.
+
+Directive: 	CASCookieEntropy
+Default:	32
+Description:	When creating a local session, this many random bytes are used to
+		create a unique session identifier.  Using large values for this
+		field may result in delays when generating session IDs if not
+		enough entropy is available.
+
+Directive: 	CASTimeout
+Default:	7200 (2 hours)
+Description:	This is the hard limit, in seconds, for a mod_auth_cas session (whether
+		it is idle or not).  When a session has reached this age and a new
+		request is made, the user is redirected to the CASLoginURL to
+		obtain a new service ticket.  When this new ticket is validated,
+		they will be assigned a new mod_auth_cas session.
+
+Directive: 	CASIdleTimeout
+Default:	3600 (1 hour)
+Description:	This is a limit, in seconds, of how long a mod_auth_cas session can be idle.
+		When a request comes in, if it has been inactive for CASIdleTimeout
+		seconds, the user is redirected to the CASLoginURL to obtain a new
+		service ticket.
+
+Directive: 	CASCacheCleanInterval
+Default:	1800 (30 minutes)
+Description:	This is the minimum amount of time that must pass inbetween cache
+		cleanings.  When a new ticket is issued, or when an expired session
+		is presented, the time of the last cache clean is compared against
+		this value.  If CASCacheCleanInterval seconds have passed since the
+		last cleaning, then all files in CASCookiePath are examined and if
+		they have expired, they are removed.  This is merely to prevent the
+		file system from becoming excessively cluttered.
+
+Valid Directory/.htaccess Directives
+------------------------------------
+Directive: 	CASRenew
+Default:	Off
+Description:	If this is set to 'On', when a user attempts to access this CAS protected
+		resource, mod_auth_cas forces the user to renew their credentials with the
+		CAS server if they have not already done so by redirecting them to
+		the CASLoginURL with the 'service' parameter and 'gateway' parameters set.
+
+Directive: 	CASGateway
+Default:	Off
+Description:	If this is set to 'On', mod_auth_cas will redirect a user to the CASLoginURL
+		with the 'service' parameter and 'gateway' parameters set.  If the user
+		has an existing CAS session, they will be redirected back to this resource
+		with a valid service ticket that mod_auth_cas will validate and set the proper
+		environment variables.  If the user does not have an existing CAS session,
+		they are redirected back to this resource and mod_auth_cas will allow anonymous
+		access.
+
+Directive: 	CASCookie
+Default:	MOD_AUTH_CAS
+Description:	The name of the cookie used to store the session ID over HTTP connections.
+		It should be changed if it will interfere with the application protected
+		by mod_auth_cas.
+
+Directive: 	CASSecureCookie
+Default:	MOD_AUTH_CAS_S
+Description:	The name of the cookie used to store the session ID over HTTPS connections.
+		It should be changed if it will interfere with the application protected
+		by mod_auth_cas.
+
+Directive: 	CASGatewayCookie
+Default:	MOD_AUTH_CAS_G
+Description:	The name of the cookie used to store whether or not the user has attempted
+		to access this resource before.  It should be changed if it will interfere
+		with the application protected by mod_auth_cas.
+
+====================================================================
+CONTRIBUTORS 
+====================================================================  
+Author:
+Phil Ames 	<phillip [dot] ames [at] uconn [dot] edu>
+
+Designers:
+Phil Ames 	<phillip [dot] ames [at] uconn [dot] edu>
+Matt Smith 	<matt [dot] smith [at] uconn [dot] edu>
+
+Portions of this module are based on code from a CAS module by Yale.
+See comments in mod_auth_cas.c
+
+====================================================================
+CONTACT INFORMATION AND WEBSITE
+====================================================================
+We welcome your feedback, suggestions and contributions. Contact us
+via email if you have questions, feedback, code submissions, 
+and bug reports.
+
+====================================================================

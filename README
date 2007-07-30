@@ -39,8 +39,9 @@ Everything, since this is the first release!
 ====================================================================
 BUG FIXES 
 ====================================================================
--fixed a segmentation fault when 'newArgs' became NULL after
- removing CAS parameters (bug discovered by Steve Maresca)
+-fixed issue MAS-1 where some artifacts of other memory locations
+ appeared in places they shouldn't, corrupting parameters in the
+ query string
 
 ====================================================================
 KNOWN LIMITATIONS

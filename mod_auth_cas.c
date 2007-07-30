@@ -14,8 +14,8 @@
  * 
  * mod_auth_cas.c
  * Apache CAS Authentication Module
- * Version 0.9.4
- * 7/19/2007
+ * Version 0.9.5
+ * 7/30/2007
  *
  * Author:
  * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>
@@ -1043,7 +1043,10 @@ static int cas_authenticate(request_rec *r)
 	/* the presence of a ticket overrides all */
 	ticket = getCASTicket(r);
 	cookieString = getCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie));
-	removeCASParams(r);
+
+	/* BUG: see README limitations section
+	 */
+	//removeCASParams(r);
 
 	/* first, handle the gateway case */
 	if(d->CASGateway == TRUE && ticket == NULL) {

@@ -281,8 +281,7 @@ static char *getCASLoginURL(request_rec *r, cas_cfg *c)
  */
 static char *getCASService(request_rec *r, cas_cfg *c)
 {
-	char *host = r->server->server_hostname;
-	char *scheme, *serviceHost, *servicePath;
+	char *scheme, *service;
 	apr_port_t port = r->connection->local_addr->port;
 	apr_byte_t printPort = FALSE;
 
@@ -297,18 +296,16 @@ static char *getCASService(request_rec *r, cas_cfg *c)
 #else
 	scheme = (char *) ap_http_scheme(r);
 #endif
+	
 	if(printPort == TRUE)
-		serviceHost = apr_psprintf(r->pool, "%s://%s:%u", scheme, host, port);
+		service = apr_psprintf(r->pool, "%s://%s:%u%s%s", scheme, r->server->server_hostname, port, r->uri, escapeQueryString(r));
 	else
-		serviceHost = apr_psprintf(r->pool, "%s://%s", scheme, host);
-
-
-	servicePath = apr_psprintf(r->pool, "%s%s%s", r->uri, (r->args != NULL ? "%3f" : ""), (r->args != NULL ? escapeQueryString(r) : ""));
+		service = apr_psprintf(r->pool, "%s://%s%s%s", scheme, r->server->server_hostname, r->uri, escapeQueryString(r));
 
 	if(c->CASDebug)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "CAS Service '%s'", servicePath);
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "CAS Service '%s'", service);
 
-	return(apr_pstrcat(r->pool, serviceHost, servicePath, NULL));
+	return(service);
 }
 
 
@@ -316,8 +313,8 @@ static char *getCASService(request_rec *r, cas_cfg *c)
 static void redirectRequest(request_rec *r, cas_cfg *c)
 {
 	char *destination;
-	char *loginURL = getCASLoginURL(r, c);
 	char *service = getCASService(r, c);
+	char *loginURL = getCASLoginURL(r, c);
 	char *renew = getCASRenew(r);
 	char *gateway = getCASGateway(r);
 	destination = apr_pstrcat(r->pool, loginURL, "?service=", service, renew, gateway, NULL);
@@ -333,7 +330,9 @@ static void removeCASParams(request_rec *r)
 {
 	char *newArgs, *oldArgs, *p;
 	apr_byte_t copy = TRUE;
+	apr_byte_t changed = FALSE;
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
+	int oldlen = 0, i = 0;
 
 	if(r->args == NULL)
 		return;
@@ -342,30 +341,50 @@ static void removeCASParams(request_rec *r)
 	p = newArgs = apr_pcalloc(r->pool, strlen(oldArgs));
 	while(*oldArgs != '\0') {
 		/* stop copying when a CAS parameter is encountered */
-		if(strncmp(oldArgs, "ticket=", 7) == 0)
+		if(strncmp(oldArgs, "ticket=", 7) == 0) {
 			copy = FALSE;
-		if(strncmp(oldArgs, "renew=", 6) == 0)
+			changed = TRUE;
+		}
+		if(strncmp(oldArgs, "renew=", 6) == 0) {
 			copy = FALSE;
-		if(strncmp(oldArgs, "gateway=", 8) == 0)
+			changed = TRUE;
+		}
+		if(strncmp(oldArgs, "gateway=", 8) == 0) {
 			copy = FALSE;
+			changed = TRUE;
+		}
 		if(copy)
 			*p++ = *oldArgs++;
 		/* restart copying on a new parameter */
 		else if(*oldArgs++ == '&')
 			copy = TRUE;
 	}
-	if(strlen(newArgs) >= 1 && *(p-1) == '&')
+
+	/* if the last character is a ? or &, strip it */
+	if(strlen(newArgs) >= 1 && (*(p-1) == '&' || *(p-1) == '?'))
 		p--;
+	/* null terminate the string */
 	*p = '\0';
 	
-	if(c->CASDebug)
+	if(c->CASDebug && changed == TRUE)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Modified r->args (old '%s', new '%s')", r->args, newArgs);
 
-	if(strlen(newArgs) != 0)
-		r->args = apr_pstrndup(r->pool, newArgs, strlen(newArgs));
-	else
+	if(strlen(newArgs) != 0) {
+		i = 0;
+		oldlen = strlen(r->args);
+		oldArgs = r->args;
+		while(*newArgs != '\0') {
+			*oldArgs++ = *newArgs++;
+			i++;
+		}
+		*oldArgs = '\0';
+		while(i != oldlen) {
+			*(oldArgs++) = '\0';
+			i++;
+		}
+	} else
 		r->args = NULL;
-	
+
 	return;
 }
 
@@ -470,9 +489,9 @@ static char *escapeQueryString(request_rec *r)
 	char escaped = FALSE;
 
 	if(r->args == NULL)
-		return NULL;
+		return "";
 
-	size = strlen(r->args);
+	size = strlen(r->args) + 3; /* allocate 3 extra for '?' => '%3f' */
 
 	for(i = 0; i < size; i++) {
 		for(j = 0; j < strlen(rfc1738); j++) {
@@ -486,6 +505,8 @@ static char *escapeQueryString(request_rec *r)
 	/* allocate new memory to return the encoded URL */
 	p = rv = apr_pcalloc(r->pool, size);
 	q = r->args;
+	sprintf(p, "%%3f");
+	p += 3;
 	do {
 		escaped = FALSE;
 		for(i = 0; i < strlen(rfc1738); i++) {
@@ -1044,9 +1065,7 @@ static int cas_authenticate(request_rec *r)
 	ticket = getCASTicket(r);
 	cookieString = getCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie));
 
-	/* BUG: see README limitations section
-	 */
-	//removeCASParams(r);
+	removeCASParams(r);
 
 	/* first, handle the gateway case */
 	if(d->CASGateway == TRUE && ticket == NULL) {

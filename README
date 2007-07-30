@@ -1,9 +1,9 @@
 ====================================================================
-MOD_AUTH_CAS 0.9.4 README
+MOD_AUTH_CAS 0.9.5 README
 ====================================================================
 Apache CAS Authentication Module
-Version 0.9.4
-7/19/2007
+Version 0.9.5
+7/30/2007
 
 ====================================================================
 LICENSE
@@ -56,6 +56,16 @@ These limitations are known to exists in this release of the software:
 * mod_auth_cas sessions for renewed credentials are specific to the path
   that required the renew.  If '/a/' and '/a/b/' have CASRenew set
   to 'on', a separate renew will be required for each path.
+ 
+ * The 'removeCASParams()' function (which is supposed to remove the
+  ticket, the gateway, and renew fields in the URL) sometimes corrupts
+  the user supplied variables and leaks some information.  It might
+  have something to do with where the memory is allocated from, or
+  something not being null terminated, but in the mean time, it is not
+  called in order to avoid unexpected behavior, and applications can
+  access the ticket, renew, and gateway parameters (not necessarily
+  a bad thing, but this prevents them from using those parameters in
+  their own code)
 
 ====================================================================
 GETTING STARTED

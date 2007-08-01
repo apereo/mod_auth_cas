@@ -14,8 +14,8 @@
  * 
  * mod_auth_cas.c
  * Apache CAS Authentication Module
- * Version 0.9.5
- * 7/30/2007
+ * Version 0.9.6
+ * 8/1/2007
  *
  * Author:
  * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>
@@ -59,6 +59,7 @@ static void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASVersion = CAS_DEFAULT_VERSION;
 	c->CASDebug = CAS_DEFAULT_DEBUG;
 	c->CASValidateServer = CAS_DEFAULT_VALIDATE_SERVER;
+	c->CASValidateDepth = CAS_DEFAULT_VALIDATE_DEPTH;
 	c->CASCertificatePath = CAS_DEFAULT_CA_PATH;
 	c->CASCookiePath = CAS_DEFAULT_COOKIE_PATH;
 	c->CASCookieEntropy = CAS_DEFAULT_COOKIE_ENTROPY;
@@ -142,6 +143,14 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Certificate Authority file '%s' is not a regular file or directory", value));
 			c->CASCertificatePath = apr_pstrdup(cmd->pool, value);
 		break;
+		case cmd_validate_depth:
+			i = atoi(value);
+			if(i > 0)
+				c->CASValidateDepth = i;
+			else
+				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid CASValidateDepth (%s) specified", value));
+		break;
+
 		case cmd_cookie_path:
 			if(apr_stat(&f, value, APR_FINFO_TYPE, cmd->temp_pool) == APR_INCOMPLETE)
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Could not find Cookie Path '%s'", value));
@@ -970,8 +979,7 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 			return(NULL);
 		}
 
-
-		SSL_CTX_set_verify_depth(ctx, 1);
+		SSL_CTX_set_verify_depth(ctx, c->CASValidateDepth);
 	}
 
 	ssl = SSL_new(ctx);
@@ -1130,6 +1138,7 @@ static const command_rec cas_cmds [] = {
 
 	/* ssl related options */
 	AP_INIT_TAKE1("CASValidateServer", cfg_readCASParameter, (void *) cmd_validate_server, RSRC_CONF, "Require validation of CAS server SSL certificate for successful authentication (On or Off)"),
+	AP_INIT_TAKE1("CASValidateDepth", cfg_readCASParameter, (void *) cmd_validate_depth, RSRC_CONF, "Define the number of chained certificates required for a successful validation"),
 	AP_INIT_TAKE1("CASCertificatePath", cfg_readCASParameter, (void *) cmd_ca_path, RSRC_CONF, "Path to the X509 certificate for the CASServer Certificate Authority"),
 
 	/* pertinent CAS urls */

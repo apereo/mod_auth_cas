@@ -14,8 +14,8 @@
  * 
  * mod_auth_cas.h
  * Apache CAS Authentication Module
- * Version 0.9.5
- * 7/30/2007
+ * Version 0.9.6
+ * 8/1/2007
  *
  * Author:
  * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>
@@ -29,6 +29,7 @@
 #define CAS_DEFAULT_RENEW FALSE
 #define CAS_DEFAULT_GATEWAY FALSE
 #define CAS_DEFAULT_VALIDATE_SERVER 1
+#define CAS_DEFAULT_VALIDATE_DEPTH 9
 #define CAS_DEFAULT_CA_PATH "/etc/ssl/certs/"
 #define CAS_DEFAULT_COOKIE_PATH "/tmp/cas/"
 #define CAS_DEFAULT_LOGIN_URL "https://login.uconn.edu/cas/login"
@@ -48,6 +49,7 @@ typedef struct cas_cfg {
 	unsigned int CASVersion;
 	unsigned int CASDebug;
 	unsigned int CASValidateServer;
+	unsigned int CASValidateDepth;
 	unsigned int CASCacheCleanInterval;
 	unsigned int CASCookieEntropy;
 	unsigned int CASTimeout;
@@ -75,7 +77,7 @@ typedef struct cas_cache_entry {
 	apr_byte_t renewed;
 } cas_cache_entry;
 
-typedef enum { cmd_version, cmd_debug, cmd_validate_server, cmd_ca_path, cmd_cookie_path, cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy, cmd_session_timeout, cmd_idle_timeout, cmd_cache_interval } valid_cmds;
+typedef enum { cmd_version, cmd_debug, cmd_validate_server, cmd_validate_depth, cmd_ca_path, cmd_cookie_path, cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy, cmd_session_timeout, cmd_idle_timeout, cmd_cache_interval } valid_cmds;
 
 module AP_MODULE_DECLARE_DATA auth_cas_module;
 static apr_byte_t cas_setURL(apr_pool_t *pool, apr_uri_t *uri, const char *url);

@@ -1,9 +1,9 @@
 ====================================================================
-MOD_AUTH_CAS 0.9.5 README
+MOD_AUTH_CAS 0.9.6 README
 ====================================================================
 Apache CAS Authentication Module
-Version 0.9.5
-7/30/2007
+Version 0.9.6
+8/1/2007
 
 ====================================================================
 LICENSE
@@ -34,14 +34,13 @@ http://www.ja-sig.org/products/cas/overview/protocol/index.html
 ====================================================================
 NEW FEATURES AND FUNCTIONS IN THIS RELEASE 
 ====================================================================
-Everything, since this is the first release!
+CASValidateDepth added to resolve issue MAS-2
 
 ====================================================================
 BUG FIXES 
 ====================================================================
--fixed issue MAS-1 where some artifacts of other memory locations
- appeared in places they shouldn't, corrupting parameters in the
- query string
+-fixed MAS-2 reported by Josh Kelley/Paul Ortman regarding SSL
+ certificate depth
 
 ====================================================================
 KNOWN LIMITATIONS
@@ -121,6 +120,11 @@ Description:	If set to 'On', mod_auth_cas will validate that the certificate
 		presented by the server specified in CASLoginURL is both
 		signed by the Certificate Authority specified in CASCertificatePath
 		and that the hostname matches the Common Name of the certificate.
+
+Directive:	CASValidateDepth
+Default:	9
+Description:	This directive will set the maximum depth for chained certificate
+		validation.  The default (according to OpenSSL documentation) is 9.
 
 Directive: 	CASCertificatePath
 Default:	/etc/ssl/certs/

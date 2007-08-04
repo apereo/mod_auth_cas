@@ -1,9 +1,7 @@
 ====================================================================
-MOD_AUTH_CAS 0.9.6 README
+MOD_AUTH_CAS 0.9.7 README
 ====================================================================
 Apache CAS Authentication Module
-Version 0.9.6
-8/1/2007
 
 ====================================================================
 LICENSE
@@ -39,8 +37,9 @@ CASValidateDepth added to resolve issue MAS-2
 ====================================================================
 BUG FIXES 
 ====================================================================
--fixed MAS-2 reported by Josh Kelley/Paul Ortman regarding SSL
- certificate depth
+-Fixed MAS-3 which caused mod_auth_cas to 'eat' cookies in the
+request that would break things like mod_proxy (reported by Josh
+Kelley)
 
 ====================================================================
 KNOWN LIMITATIONS

@@ -14,8 +14,7 @@
  * 
  * mod_auth_cas.c
  * Apache CAS Authentication Module
- * Version 0.9.6
- * 8/1/2007
+ * Version 0.9.7
  *
  * Author:
  * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>
@@ -429,7 +428,7 @@ static char *getCASCookie(request_rec *r, char *cookieName)
 {
 	char *cookie, *tokenizerCtx, *rv = NULL;
 	apr_byte_t cookieFound = FALSE;
-	char *cookies = (char *) apr_table_get(r->headers_in, "Cookie");
+	char *cookies = apr_pstrdup(r->pool, (char *) apr_table_get(r->headers_in, "Cookie"));
 
 	if(cookies != NULL) {
 		/* tokenize on ; to find the cookie we want */

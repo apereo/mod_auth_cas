@@ -99,6 +99,10 @@ add:
 
 LoadModule auth_cas_module /path/to/mod_auth_cas.so
 
+Then, in the location(s) you want to protect, use the following directive:
+
+AuthType CAS
+
 The following are valid configuration options and their default:
 
 Valid Server/VirtualHost Directives

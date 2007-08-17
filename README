@@ -191,7 +191,7 @@ Description:	This is the minimum amount of time that must pass inbetween cache
 Valid Directory/.htaccess Directives
 ------------------------------------
 Directive:	CASScope
-Default:	
+Default:	Off	
 Description:	Use this directive with an argument as a relative path (e.g. /application/) to specify
 		the scope for which a mod_auth_cas cookie is valid.  This is beneficial to prevent
 		additional round trips to the CAS server.  Assume someone authenticates to /application/subdir/

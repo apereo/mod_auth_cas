@@ -35,6 +35,8 @@ NEW FEATURES AND FUNCTIONS IN THIS RELEASE
 CASRenew and CASGateway now accept relative paths as arguments
 which define the paths they are relevant for.
 
+CASScope was added.
+
 ====================================================================
 BUG FIXES 
 ====================================================================

@@ -1,5 +1,5 @@
 ====================================================================
-MOD_AUTH_CAS 0.9.7 README
+MOD_AUTH_CAS 0.9.8 README
 ====================================================================
 Apache CAS Authentication Module
 
@@ -32,14 +32,13 @@ http://www.ja-sig.org/products/cas/overview/protocol/index.html
 ====================================================================
 NEW FEATURES AND FUNCTIONS IN THIS RELEASE 
 ====================================================================
-CASValidateDepth added to resolve issue MAS-2
+CASRenew and CASGateway now accept relative paths as arguments
+which define the paths they are relevant for.
 
 ====================================================================
 BUG FIXES 
 ====================================================================
--Fixed MAS-3 which caused mod_auth_cas to 'eat' cookies in the
-request that would break things like mod_proxy (reported by Josh
-Kelley)
+-None
 
 ====================================================================
 KNOWN LIMITATIONS
@@ -52,10 +51,6 @@ These limitations are known to exists in this release of the software:
   The CAS protocol does not explicitly require this, but to not do so
   leaves this system open to a man-in-the-middle attack.
 
-* mod_auth_cas sessions for renewed credentials are specific to the path
-  that required the renew.  If '/a/' and '/a/b/' have CASRenew set
-  to 'on', a separate renew will be required for each path.
- 
 ====================================================================
 GETTING STARTED
 ====================================================================
@@ -195,22 +190,33 @@ Description:	This is the minimum amount of time that must pass inbetween cache
 
 Valid Directory/.htaccess Directives
 ------------------------------------
+Directive:	CASScope
+Default:	
+Description:	Use this directive with an argument as a relative path (e.g. /application/) to specify
+		the scope for which a mod_auth_cas cookie is valid.  This is beneficial to prevent
+		additional round trips to the CAS server.  Assume someone authenticates to /application/subdir/
+		and then browses to /application/ - without CASScope set, each request would result in
+		a round trip to the CAS server and a new cookie being created (one for each directory).
+		CASScope would set one cookie, which will be presented on access to both directories.
+		Note that if someone accessed /application/ and then /application/subdir/ this would not
+		be an issue, but that order of access can not be guaranteed.  To disable this feature,
+		the special argument 'Off' will return to per-directory cookie paths for this directory
+		and subdirectories.
+
 Directive: 	CASRenew
 Default:	Off
-Description:	If this is set to 'On', when a user attempts to access this CAS protected
-		resource, mod_auth_cas forces the user to renew their credentials with the
-		CAS server if they have not already done so by redirecting them to
-		the CASLoginURL with the 'service' parameter and 'gateway' parameters set.
+Description:	Use this directive with an argument as a relative path (e.g. /application/secure/
+		for http://www.example.com/application/secure/*) to force a user to renew their
+		credentials when accessing that directory.  The argument MUST be a relative path.
+		To disable this requirement, the special argument 'Off' will disable this requirement
+		for this directory and subdirectories.
 
 Directive: 	CASGateway
 Default:	Off
-Description:	If this is set to 'On', mod_auth_cas will redirect a user to the CASLoginURL
-		with the 'service' parameter and 'gateway' parameters set.  If the user
-		has an existing CAS session, they will be redirected back to this resource
-		with a valid service ticket that mod_auth_cas will validate and set the proper
-		environment variables.  If the user does not have an existing CAS session,
-		they are redirected back to this resource and mod_auth_cas will allow anonymous
-		access.
+Description:	Use this directive with an argument as a relative path (e.g. /application/insecure/
+		for http://www.example.com/application/insecure/*) to allow anonymous access to that directory.
+		The argument MUST be a relative path. To disable this feature, the special argument 'Off'
+		will reinstate the requirement for authentication.
 
 Directive: 	CASCookie
 Default:	MOD_AUTH_CAS

@@ -515,7 +515,6 @@ static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, ap
 {
 	char *headerString, *currentCookies;
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
-	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
 
 	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s", cookieName, cookieValue, (secure ? ";Secure" : ""), getCASScope(r));
 

@@ -14,7 +14,7 @@
  * 
  * mod_auth_cas.h
  * Apache CAS Authentication Module
- * Version 0.9.7
+ * Version 0.9.8
  *
  * Author:
  * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>
@@ -25,8 +25,9 @@
 
 #define CAS_DEFAULT_VERSION 2
 #define CAS_DEFAULT_DEBUG FALSE
-#define CAS_DEFAULT_RENEW FALSE
-#define CAS_DEFAULT_GATEWAY FALSE
+#define CAS_DEFAULT_SCOPE NULL
+#define CAS_DEFAULT_RENEW NULL
+#define CAS_DEFAULT_GATEWAY NULL
 #define CAS_DEFAULT_VALIDATE_SERVER 1
 #define CAS_DEFAULT_VALIDATE_DEPTH 9
 #define CAS_DEFAULT_CA_PATH "/etc/ssl/certs/"
@@ -61,8 +62,9 @@ typedef struct cas_cfg {
 } cas_cfg;
 
 typedef struct cas_dir_cfg {
-	unsigned int CASForceRenew;
-	unsigned int CASGateway;
+	char *CASScope;
+	char *CASRenew;
+	char *CASGateway;
 	char *CASCookie;
 	char *CASSecureCookie;
 	char *CASGatewayCookie;

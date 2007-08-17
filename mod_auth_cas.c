@@ -14,7 +14,7 @@
  * 
  * mod_auth_cas.c
  * Apache CAS Authentication Module
- * Version 0.9.7
+ * Version 0.9.8
  *
  * Author:
  * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>
@@ -76,7 +76,8 @@ static void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 static void *cas_create_dir_config(apr_pool_t *pool, char *path)
 {
 	cas_dir_cfg *c = apr_pcalloc(pool, sizeof(cas_dir_cfg));
-	c->CASForceRenew = CAS_DEFAULT_RENEW;
+	c->CASScope = CAS_DEFAULT_SCOPE;
+	c->CASRenew = CAS_DEFAULT_RENEW;
 	c->CASGateway = CAS_DEFAULT_GATEWAY;
 	c->CASCookie = CAS_DEFAULT_COOKIE;
 	c->CASSecureCookie = CAS_DEFAULT_SCOOKIE;
@@ -90,9 +91,18 @@ static void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 	cas_dir_cfg *base = BASE;
 	cas_dir_cfg *add = ADD;
 
-	/* true overrides false, otherwise we inherit the previous directory's setting */
-	c->CASForceRenew = (add->CASForceRenew == TRUE ? TRUE : base->CASForceRenew);
-	c->CASGateway = (add->CASGateway == TRUE ? TRUE : base->CASGateway);
+	/* inherit the previous directory's setting if applicable */
+	c->CASScope = (add->CASScope != CAS_DEFAULT_SCOPE ? add->CASScope : base->CASScope);
+	if(add->CASScope != NULL && strcasecmp(add->CASScope, "Off") == 0)
+		c->CASScope = NULL;
+
+	c->CASRenew = (add->CASRenew != CAS_DEFAULT_RENEW ? add->CASRenew : base->CASRenew);
+	if(add->CASRenew != NULL && strcasecmp(add->CASRenew, "Off") == 0)
+		c->CASRenew = NULL;
+
+	c->CASGateway = (add->CASGateway != CAS_DEFAULT_GATEWAY ? add->CASGateway : base->CASGateway);
+	if(add->CASGateway != NULL && strcasecmp(add->CASGateway, "Off") == 0)
+		c->CASGateway = NULL;
 
 	c->CASCookie = (add->CASCookie != CAS_DEFAULT_COOKIE ? add->CASCookie : base->CASCookie);
 	c->CASSecureCookie = (add->CASSecureCookie != CAS_DEFAULT_SCOOKIE ? add->CASSecureCookie : base->CASSecureCookie);
@@ -247,12 +257,61 @@ static char *getCASPath(request_rec *r)
 	return(rv);
 }
 
+static char *getCASScope(request_rec *r)
+{
+	char *rv = NULL, *requestPath = getCASPath(r);
+	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
+	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
+
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Determining CAS scope (path: %s, CASScope: %s, CASRenew: %s, CASGateway: %s)", requestPath, d->CASScope, d->CASRenew, d->CASGateway);
+
+	if (d->CASGateway != NULL) {
+		/* the gateway path should be a subset of the request path */
+		if(strncmp(d->CASGateway, requestPath, strlen(d->CASGateway)) == 0)
+			rv = d->CASGateway;
+		else {
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: CASGateway (%s) not a substring of request path, using request path (%s) for cookie", d->CASGateway, requestPath);
+			rv = requestPath;
+		}
+	}
+
+	if(d->CASRenew != NULL) {
+		if(rv != NULL) {
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: CASRenew (%s) and CASGateway (%s) set, CASRenew superceding.", d->CASRenew, d->CASGateway);
+		}
+		if(strncmp(d->CASRenew, requestPath, strlen(d->CASRenew)) == 0)
+			rv = d->CASRenew;
+		else {
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: CASRenew (%s) not a substring of request path, using request path (%s) for cookie", d->CASRenew, requestPath);
+			rv = requestPath;
+		}
+
+	}
+
+	/* neither gateway nor renew was set */
+	if(rv == NULL) {
+		if(d->CASScope != NULL) {
+			if(strncmp(d->CASScope, requestPath, strlen(d->CASScope)) == 0)
+				rv = d->CASScope;
+			else {
+				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: CASScope (%s) not a substring of request path, using request path (%s) for cookie", d->CASScope, requestPath);
+				rv = requestPath;
+			}
+		}
+		else
+			rv = requestPath;
+	}
+
+	return (rv);
+}
+
 static char *getCASGateway(request_rec *r)
 {
 	char *rv = "";
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
-	if(d->CASGateway == TRUE && c->CASVersion > 1) { /* gateway not supported in CAS v1 */
+	if(d->CASGateway != NULL && c->CASVersion > 1) { /* gateway not supported in CAS v1 */
 		rv = "&gateway=true";
 	}
 	return rv;
@@ -262,7 +321,7 @@ static char *getCASRenew(request_rec *r)
 {
 	char *rv = "";
 	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
-	if(d->CASForceRenew == TRUE) {
+	if(d->CASRenew != NULL) {
 		rv = "&renew=true";
 	}
 	return rv;
@@ -458,7 +517,7 @@ static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, ap
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
 
-	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s", cookieName, cookieValue, (secure ? ";Secure" : ""), (d->CASForceRenew == TRUE ? getCASPath(r) : "/"));
+	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s", cookieName, cookieValue, (secure ? ";Secure" : ""), getCASScope(r));
 
 	/* use r->err_headers_out so we always print our headers (even on 302 redirect) - headers_out only prints on 2xx responses */
 	apr_table_add(r->err_headers_out, "Set-Cookie", headerString);
@@ -726,7 +785,7 @@ static char *createCASCookie(request_rec *r, char *user)
 			createFailed = TRUE;
 		} else {
 			t = apr_time_now();
-			apr_file_printf(f, "%s\n%" APR_TIME_T_FMT "\n%" APR_TIME_T_FMT "\n%s\n%u\n", user, t, t, getCASPath(r), d->CASForceRenew);
+			apr_file_printf(f, "%s\n%" APR_TIME_T_FMT "\n%" APR_TIME_T_FMT "\n%s\n%u\n", user, t, t, getCASPath(r), d->CASRenew == NULL ? 0 : 1);
 			apr_file_close(f);
 			if(c->CASDebug)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' created for user '%s'", rv, user);
@@ -853,15 +912,15 @@ static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, cha
 	}
 
 	/* see if this cookie contained 'renewed' credentials if this directory requires it */
-	if(cache.renewed == FALSE && d->CASForceRenew == TRUE) {
+	if(cache.renewed == FALSE && d->CASRenew != NULL) {
 		if(c->CASDebug)
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' does not contain renewed credentials", cookie);
 		return FALSE;
-	} else if(d->CASForceRenew == TRUE && cache.renewed == TRUE) {
+	} else if(d->CASRenew != NULL && cache.renewed == TRUE) {
 		/* make sure the paths match */
-		if(apr_strnatcmp(cache.path, getCASPath(r)) != 0) {
+		if(strncasecmp(cache.path, getCASScope(r), strlen(getCASScope(r))) != 0) {
 			if(c->CASDebug)
-				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' does not contain renewed credentials for path '%s'", cookie, getCASPath(r));
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' does not contain renewed credentials for scope '%s' (path '%s')", cookie, getCASScope(r), getCASPath(r));
 			return FALSE;
 		}
 	}
@@ -1075,7 +1134,7 @@ static int cas_authenticate(request_rec *r)
 	removeCASParams(r);
 
 	/* first, handle the gateway case */
-	if(d->CASGateway == TRUE && ticket == NULL) {
+	if(d->CASGateway != NULL && ticket == NULL && cookieString == NULL) {
 		cookieString = getCASCookie(r, d->CASGatewayCookie);
 		if(cookieString == NULL) { /* they have not made a gateway trip yet */
 			if(c->CASDebug)
@@ -1132,8 +1191,9 @@ static const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASVersion", cfg_readCASParameter, (void *) cmd_version, RSRC_CONF, "Set CAS Protocol Version (1 or 2)"),
 	AP_INIT_TAKE1("CASDebug", cfg_readCASParameter, (void *) cmd_debug, RSRC_CONF, "Enable or disable debug mode (On or Off)"),
 	/* cas protocol options */
-	AP_INIT_FLAG("CASRenew", ap_set_flag_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASForceRenew), ACCESS_CONF|OR_AUTHCFG, "Force credential renew (On or Off)"),
-	AP_INIT_FLAG("CASGateway", ap_set_flag_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASGateway), ACCESS_CONF|OR_AUTHCFG, "Allow anonymous access if no CAS session is established (On or Off), v2 only"),
+	AP_INIT_TAKE1("CASScope", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASScope), ACCESS_CONF|OR_AUTHCFG, "Define the scope that this CAS sessions is valid for (e.g. /app/ will validate this session for /app/*)"),
+	AP_INIT_TAKE1("CASRenew", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASRenew), ACCESS_CONF|OR_AUTHCFG, "Force credential renew (/app/secure/ will require renew on /app/secure/*)"),
+	AP_INIT_TAKE1("CASGateway", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASGateway), ACCESS_CONF|OR_AUTHCFG, "Allow anonymous access if no CAS session is established on this path (e.g. /app/insecure/ will allow gateway access to /app/insecure/*), CAS v2 only"),
 
 	/* ssl related options */
 	AP_INIT_TAKE1("CASValidateServer", cfg_readCASParameter, (void *) cmd_validate_server, RSRC_CONF, "Require validation of CAS server SSL certificate for successful authentication (On or Off)"),

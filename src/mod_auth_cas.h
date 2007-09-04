@@ -14,7 +14,7 @@
  * 
  * mod_auth_cas.h
  * Apache CAS Authentication Module
- * Version 0.9.9
+ * Version 1.0
  *
  * Author:
  * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>
@@ -76,6 +76,7 @@ typedef struct cas_cache_entry {
 	apr_time_t lastactive;
 	char *path;
 	apr_byte_t renewed;
+	apr_byte_t secure;
 } cas_cache_entry;
 
 typedef enum { cmd_version, cmd_debug, cmd_validate_server, cmd_validate_depth, cmd_ca_path, cmd_cookie_path, cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy, cmd_session_timeout, cmd_idle_timeout, cmd_cache_interval } valid_cmds;

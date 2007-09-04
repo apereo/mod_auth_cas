@@ -1,5 +1,5 @@
 ====================================================================
-MOD_AUTH_CAS 0.9.8 README
+MOD_AUTH_CAS 1.0 README
 ====================================================================
 Apache CAS Authentication Module
 
@@ -32,15 +32,16 @@ http://www.ja-sig.org/products/cas/overview/protocol/index.html
 ====================================================================
 NEW FEATURES AND FUNCTIONS IN THIS RELEASE 
 ====================================================================
-CASRenew and CASGateway now accept relative paths as arguments
-which define the paths they are relevant for.
-
-CASScope was added.
+-None
 
 ====================================================================
 BUG FIXES 
 ====================================================================
--None
+-The transport protocol (HTTP/HTTPS) is now used as another check
+in the cookie validation process.  Cookies must only be transmitted
+via the channel they were originally sent over.  Transmitting an
+HTTP cookie over HTTPS (or vice versa) invalidates this cookie.  This
+is to limit the usefulness of a cookie that an attacker can intercept.
 
 ====================================================================
 KNOWN LIMITATIONS

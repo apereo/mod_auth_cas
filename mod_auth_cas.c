@@ -14,7 +14,7 @@
  * 
  * mod_auth_cas.c
  * Apache CAS Authentication Module
- * Version 0.9.9
+ * Version 1.0
  *
  * Author:
  * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>
@@ -655,6 +655,15 @@ static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_c
 	else
 		cache->renewed = FALSE;
 
+	apr_file_gets(line, sizeof(line), f);
+	if(sscanf(line, "%u", &i) != 1)
+		return FALSE;
+
+	if(i != 0)
+		cache->secure = TRUE;
+	else
+		cache->secure = FALSE;
+
 	apr_file_unlock(f);
 	apr_file_close(f);
 	return TRUE;
@@ -784,7 +793,7 @@ static char *createCASCookie(request_rec *r, char *user)
 			createFailed = TRUE;
 		} else {
 			t = apr_time_now();
-			apr_file_printf(f, "%s\n%" APR_TIME_T_FMT "\n%" APR_TIME_T_FMT "\n%s\n%u\n", user, t, t, getCASPath(r), d->CASRenew == NULL ? 0 : 1);
+			apr_file_printf(f, "%s\n%" APR_TIME_T_FMT "\n%" APR_TIME_T_FMT "\n%s\n%u\n%u\n", user, t, t, getCASPath(r), d->CASRenew == NULL ? 0 : 1, (isSSL(r) == TRUE ? 1 : 0) );
 			apr_file_close(f);
 			if(c->CASDebug)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' created for user '%s'", rv, user);
@@ -901,6 +910,19 @@ static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, cha
 
 	path = apr_psprintf(r->pool, "%s%s", c->CASCookiePath, cookie);
 
+	/* 
+	 * mitigate session hijacking by not allowing cookies transmitted in the clear to be submitted
+	 * for HTTPS URLs and by voiding HTTPS cookies sent in the clear
+	 */
+	if( (isSSL(r) == TRUE && cache.secure == FALSE) || (isSSL(r) == FALSE && cache.secure == TRUE) ) {
+		/* delete this file since it is no longer valid */
+		apr_file_remove(path, r->pool);
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' not transmitted via proper HTTP(S) channel, expiring", cookie);
+		CASCleanCache(r, c);
+		return FALSE;
+	}
+
 	if(cache.issued < (apr_time_now()-(c->CASTimeout*((apr_time_t) APR_USEC_PER_SEC))) || cache.lastactive < (apr_time_now()-(c->CASIdleTimeout*((apr_time_t) APR_USEC_PER_SEC)))) {
 		/* delete this file since it is no longer valid */
 		apr_file_remove(path, r->pool);
@@ -939,7 +961,7 @@ static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, cha
 
 	apr_file_seek(f, APR_SET, &begin);
 	apr_file_trunc(f, begin);
-	apr_file_printf(f, "%s\n%" APR_TIME_T_FMT "\n%" APR_TIME_T_FMT "\n%s\n%u\n", cache.user, cache.issued, apr_time_now(), cache.path, cache.renewed);
+	apr_file_printf(f, "%s\n%" APR_TIME_T_FMT "\n%" APR_TIME_T_FMT "\n%s\n%u\n%u\n", cache.user, cache.issued, apr_time_now(), cache.path, cache.renewed, cache.secure);
 	apr_file_unlock(f);
 	apr_file_close(f);
 

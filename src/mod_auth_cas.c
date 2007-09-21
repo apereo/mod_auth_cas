@@ -515,6 +515,19 @@ static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, ap
 {
 	char *headerString, *currentCookies;
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
+	apr_finfo_t f;
+
+	/* fix MAS-4 JIRA issue */
+	if(apr_stat(&f, c->CASCookiePath, APR_FINFO_TYPE, r->pool) == APR_INCOMPLETE) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not find Cookie Path '%s'", c->CASCookiePath);
+		return;
+	}
+
+	if(f.filetype != APR_DIR || c->CASCookiePath[strlen(c->CASCookiePath)-1] != '/') {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Cookie Path '%s' is not a directory or does not end in a trailing '/'!", c->CASCookiePath);
+		return;
+	}
+	/* end MAS-4 JIRA issue */
 
 	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s", cookieName, cookieValue, (secure ? ";Secure" : ""), getCASScope(r));
 
@@ -599,6 +612,7 @@ static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_c
 {
 	apr_off_t begin = 0;
 	apr_file_t *f;
+	apr_finfo_t fi;
 	char line[256];
 	char *path;
 	int i;
@@ -617,6 +631,18 @@ static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_c
 			return FALSE;
 		}
 	}
+
+	/* fix MAS-4 JIRA issue */
+	if(apr_stat(&fi, c->CASCookiePath, APR_FINFO_TYPE, r->pool) == APR_INCOMPLETE) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not find Cookie Path '%s'", c->CASCookiePath);
+		return FALSE;
+	}
+
+	if(fi.filetype != APR_DIR || c->CASCookiePath[strlen(c->CASCookiePath)-1] != '/') {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Cookie Path '%s' is not a directory or does not end in a trailing '/'!", c->CASCookiePath);
+		return FALSE;
+	}
+	/* end MAS-4 JIRA issue */
 
 	/* open the file if it exists and make sure that the ticket has not expired */
 	path = apr_psprintf(r->pool, "%s%s", c->CASCookiePath, name);

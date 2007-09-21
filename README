@@ -1,5 +1,5 @@
 ====================================================================
-MOD_AUTH_CAS 1.0 README
+MOD_AUTH_CAS 1.0.1 README
 ====================================================================
 Apache CAS Authentication Module
 
@@ -37,11 +37,7 @@ NEW FEATURES AND FUNCTIONS IN THIS RELEASE
 ====================================================================
 BUG FIXES 
 ====================================================================
--The transport protocol (HTTP/HTTPS) is now used as another check
-in the cookie validation process.  Cookies must only be transmitted
-via the channel they were originally sent over.  Transmitting an
-HTTP cookie over HTTPS (or vice versa) invalidates this cookie.  This
-is to limit the usefulness of a cookie that an attacker can intercept.
+-Fixed JIRA issue MAS-4
 
 ====================================================================
 KNOWN LIMITATIONS

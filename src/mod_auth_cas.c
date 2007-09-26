@@ -14,7 +14,7 @@
  * 
  * mod_auth_cas.c
  * Apache CAS Authentication Module
- * Version 1.0
+ * Version 1.0.2
  *
  * Author:
  * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>
@@ -311,7 +311,7 @@ static char *getCASGateway(request_rec *r)
 	char *rv = "";
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
-	if(d->CASGateway != NULL && c->CASVersion > 1) { /* gateway not supported in CAS v1 */
+	if(d->CASGateway != NULL && strncmp(d->CASGateway, r->parsed_uri.path, strlen(d->CASGateway)) == 0 && c->CASVersion > 1) { /* gateway not supported in CAS v1 */
 		rv = "&gateway=true";
 	}
 	return rv;
@@ -321,7 +321,7 @@ static char *getCASRenew(request_rec *r)
 {
 	char *rv = "";
 	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
-	if(d->CASRenew != NULL) {
+	if(d->CASRenew != NULL && strncmp(d->CASRenew, r->parsed_uri.path, strlen(d->CASRenew)) == 0) {
 		rv = "&renew=true";
 	}
 	return rv;
@@ -1181,7 +1181,7 @@ static int cas_authenticate(request_rec *r)
 	removeCASParams(r);
 
 	/* first, handle the gateway case */
-	if(d->CASGateway != NULL && ticket == NULL && cookieString == NULL) {
+	if(d->CASGateway != NULL && strncmp(d->CASGateway, r->parsed_uri.path, strlen(d->CASGateway)) == 0 && ticket == NULL && cookieString == NULL) {
 		cookieString = getCASCookie(r, d->CASGatewayCookie);
 		if(cookieString == NULL) { /* they have not made a gateway trip yet */
 			if(c->CASDebug)

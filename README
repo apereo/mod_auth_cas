@@ -1,5 +1,5 @@
 ====================================================================
-MOD_AUTH_CAS 1.0.1 README
+MOD_AUTH_CAS 1.0.2 README
 ====================================================================
 Apache CAS Authentication Module
 
@@ -37,7 +37,12 @@ NEW FEATURES AND FUNCTIONS IN THIS RELEASE
 ====================================================================
 BUG FIXES 
 ====================================================================
--Fixed JIRA issue MAS-4
+-Fixed CASGateway handling - gateway mode would be improperly
+invoked even when protecting secured resources in some
+circumstances (discovered by Dale Ogilvie)
+-Fixed CASRenew handling - renew mode would be improperly
+invoked when protecting resources that did not require renew
+in some circumstances
 
 ====================================================================
 KNOWN LIMITATIONS
@@ -74,9 +79,14 @@ mod_auth_cas.h
 COMPILE INSTRUCTIONS
 --------------------------------------------------------------------
 Use the APache eXtenSion tool (APXS) to compile and install this 
-object as a dynamically shared object (DSO):
+object as a dynamically shared object (DSO), by either:
 
+apxs -i -c mod_auth_cas.c
+or
 apxs2 -i -c mod_auth_cas.c
+
+depending on your Linux distribution.
+
 
 If you want to install this for an Apache 2.0 server, please edit
 mod_auth_cas.h and modify the line that says:
@@ -93,9 +103,13 @@ add:
 
 LoadModule auth_cas_module /path/to/mod_auth_cas.so
 
-Then, in the location(s) you want to protect, use the following directive:
+Then, in the location(s) you want to protect, use the following
+directive:
 
 AuthType CAS
+
+Be sure to set authorization parameters in the locations you
+are protecting(e.g. 'require valid-user', 'require group foo')
 
 The following are valid configuration options and their default:
 

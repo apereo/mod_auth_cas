@@ -32,7 +32,8 @@ http://www.ja-sig.org/products/cas/overview/protocol/index.html
 ====================================================================
 NEW FEATURES AND FUNCTIONS IN THIS RELEASE 
 ====================================================================
--None
+-CASAllowWildcardCert directive added based on a patch submitted
+ by Earl Fogel
 
 ====================================================================
 BUG FIXES 

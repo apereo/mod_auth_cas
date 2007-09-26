@@ -14,7 +14,7 @@
  * 
  * mod_auth_cas.c
  * Apache CAS Authentication Module
- * Version 1.0.2
+ * Version 1.0.3
  *
  * Author:
  * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>
@@ -59,6 +59,7 @@ static void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASDebug = CAS_DEFAULT_DEBUG;
 	c->CASValidateServer = CAS_DEFAULT_VALIDATE_SERVER;
 	c->CASValidateDepth = CAS_DEFAULT_VALIDATE_DEPTH;
+	c->CASAllowWildcardCert = CAS_DEFAULT_ALLOW_WILDCARD_CERT;
 	c->CASCertificatePath = CAS_DEFAULT_CA_PATH;
 	c->CASCookiePath = CAS_DEFAULT_COOKIE_PATH;
 	c->CASCookieEntropy = CAS_DEFAULT_COOKIE_ENTROPY;
@@ -144,6 +145,16 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASValidateServer - must be 'On' or 'Off'"));
 		break;
+		case cmd_wildcard_cert:
+			/* if atoi() is used on value here with AP_INIT_FLAG, it works but results in a compile warning, so we use TAKE1 to avoid it */
+			if(apr_strnatcasecmp(value, "On") == 0)
+				c->CASAllowWildcardCert = TRUE;
+			else if(apr_strnatcasecmp(value, "Off") == 0)
+				c->CASAllowWildcardCert = FALSE;
+			else
+				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASValidateServer - must be 'On' or 'Off'"));
+		break;
+
 		case cmd_ca_path:
 			if(apr_stat(&f, value, APR_FINFO_TYPE, cmd->temp_pool) == APR_INCOMPLETE)
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Could not find Certificate Authority file '%s'", value));
@@ -1000,6 +1011,7 @@ static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, cha
 static apr_byte_t check_cert_cn(request_rec *r, cas_cfg *c, SSL_CTX *ctx, X509 *certificate, char *cn)
 {
 	char buf[512];
+	char *domain = cn;
 	X509_STORE *store = SSL_CTX_get_cert_store(ctx);
 	X509_STORE_CTX *xctx = X509_STORE_CTX_new();
 
@@ -1015,8 +1027,17 @@ static apr_byte_t check_cert_cn(request_rec *r, cas_cfg *c, SSL_CTX *ctx, X509 *
 	if(strlen(cn) >= sizeof(buf) - 1)
 		return FALSE;
 
-	if(apr_strnatcmp(buf, cn) == 0)
-		return TRUE;
+	/* patch submitted by Earl Fogel for MAS-5 */
+	if(buf[0] == '*' && c->CASAllowWildcardCert != FALSE) {
+		do {
+			domain = strchr(domain + (domain[0] == '.' ? 1 : 0), '.');
+			if(domain != NULL && apr_strnatcmp(buf+1, domain) == 0)
+				return TRUE;
+		} while (domain != NULL);
+	} else {
+		if(apr_strnatcmp(buf, cn) == 0)
+			return TRUE;
+	}
 	
 	return FALSE;
 }
@@ -1245,6 +1266,7 @@ static const command_rec cas_cmds [] = {
 	/* ssl related options */
 	AP_INIT_TAKE1("CASValidateServer", cfg_readCASParameter, (void *) cmd_validate_server, RSRC_CONF, "Require validation of CAS server SSL certificate for successful authentication (On or Off)"),
 	AP_INIT_TAKE1("CASValidateDepth", cfg_readCASParameter, (void *) cmd_validate_depth, RSRC_CONF, "Define the number of chained certificates required for a successful validation"),
+	AP_INIT_TAKE1("CASAllowWildcardCert", cfg_readCASParameter, (void *) cmd_wildcard_cert, RSRC_CONF, "Allow wildcards in certificates when performing validation (e.g. *.example.com) (On or Off)"),
 	AP_INIT_TAKE1("CASCertificatePath", cfg_readCASParameter, (void *) cmd_ca_path, RSRC_CONF, "Path to the X509 certificate for the CASServer Certificate Authority"),
 
 	/* pertinent CAS urls */

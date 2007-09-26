@@ -1,5 +1,5 @@
 ====================================================================
-MOD_AUTH_CAS 1.0.2 README
+MOD_AUTH_CAS 1.0.3 README
 ====================================================================
 Apache CAS Authentication Module
 
@@ -136,6 +136,14 @@ Directive:	CASValidateDepth
 Default:	9
 Description:	This directive will set the maximum depth for chained certificate
 		validation.  The default (according to OpenSSL documentation) is 9.
+
+Directive:	CASAllowWildcardCert
+Default:	Off
+Description:	This directive determines whether a wildcard certificate can be trusted
+		to verify the CAS server.  For instance, if the CAS server presents a
+		certificate for *.example.com and the hostname portion of the CASValidateURL
+		is 'cas.login.example.com', this directive (if enabled) will accept that
+		certificate.
 
 Directive: 	CASCertificatePath
 Default:	/etc/ssl/certs/

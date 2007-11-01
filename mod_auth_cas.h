@@ -14,7 +14,7 @@
  * 
  * mod_auth_cas.h
  * Apache CAS Authentication Module
- * Version 1.0.3
+ * Version 1.0.4
  *
  * Author:
  * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>
@@ -45,6 +45,7 @@
 #define CAS_DEFAULT_COOKIE "MOD_AUTH_CAS"
 #define CAS_DEFAULT_SCOOKIE "MOD_AUTH_CAS_S"
 #define CAS_DEFAULT_GATEWAY_COOKIE "MOD_CAS_G"
+#define CAS_DEFAULT_AUTHN_HEADER NULL
 
 typedef struct cas_cfg {
 	unsigned int CASVersion;
@@ -70,6 +71,7 @@ typedef struct cas_dir_cfg {
 	char *CASCookie;
 	char *CASSecureCookie;
 	char *CASGatewayCookie;
+	char *CASAuthNHeader;
 } cas_dir_cfg;
 
 typedef struct cas_cache_entry {

@@ -14,7 +14,7 @@
  * 
  * mod_auth_cas.c
  * Apache CAS Authentication Module
- * Version 1.0.3
+ * Version 1.0.4
  *
  * Author:
  * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>
@@ -83,6 +83,7 @@ static void *cas_create_dir_config(apr_pool_t *pool, char *path)
 	c->CASCookie = CAS_DEFAULT_COOKIE;
 	c->CASSecureCookie = CAS_DEFAULT_SCOOKIE;
 	c->CASGatewayCookie = CAS_DEFAULT_GATEWAY_COOKIE;
+	c->CASAuthNHeader = CAS_DEFAULT_AUTHN_HEADER;
 	return(c);
 }
 
@@ -109,6 +110,7 @@ static void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASSecureCookie = (add->CASSecureCookie != CAS_DEFAULT_SCOOKIE ? add->CASSecureCookie : base->CASSecureCookie);
 	c->CASGatewayCookie = (add->CASGatewayCookie != CAS_DEFAULT_GATEWAY_COOKIE ? add->CASGatewayCookie : base->CASGatewayCookie);
 	
+	c->CASAuthNHeader = (add->CASAuthNHeader != CAS_DEFAULT_AUTHN_HEADER ? add->CASAuthNHeader : base->CASAuthNHeader);
 	return(c);
 }
 
@@ -1224,6 +1226,8 @@ static int cas_authenticate(request_rec *r)
 			cookieString = createCASCookie(r, remoteUser);
 			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), cookieString, ssl);
 			r->user = remoteUser;
+			if(d->CASAuthNHeader != NULL)
+				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);
 			return OK;
 		} else {
 			/* sometimes, pages that automatically refresh will re-send the ticket parameter, so let's check any cookies presented or return an error if none */
@@ -1262,6 +1266,7 @@ static const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASScope", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASScope), ACCESS_CONF|OR_AUTHCFG, "Define the scope that this CAS sessions is valid for (e.g. /app/ will validate this session for /app/*)"),
 	AP_INIT_TAKE1("CASRenew", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASRenew), ACCESS_CONF|OR_AUTHCFG, "Force credential renew (/app/secure/ will require renew on /app/secure/*)"),
 	AP_INIT_TAKE1("CASGateway", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASGateway), ACCESS_CONF|OR_AUTHCFG, "Allow anonymous access if no CAS session is established on this path (e.g. /app/insecure/ will allow gateway access to /app/insecure/*), CAS v2 only"),
+	AP_INIT_TAKE1("CASAuthNHeader", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASAuthNHeader), ACCESS_CONF|OR_AUTHCFG, "Specify the HTTP header variable to set with the name of the CAS authenticated user.  By default no headers are added."),
 
 	/* ssl related options */
 	AP_INIT_TAKE1("CASValidateServer", cfg_readCASParameter, (void *) cmd_validate_server, RSRC_CONF, "Require validation of CAS server SSL certificate for successful authentication (On or Off)"),

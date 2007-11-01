@@ -258,6 +258,11 @@ Description:	The name of the cookie used to store whether or not the user has at
 		to access this resource before.  It should be changed if it will interfere
 		with the application protected by mod_auth_cas.
 
+Directive:	CASAuthNHeader
+Default:	None
+Description:	If enabled, this will store the user returned by CAS in an HTTP header
+		accessible to your web applications.
+
 ====================================================================
 CONTRIBUTORS 
 ====================================================================  

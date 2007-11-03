@@ -473,7 +473,7 @@ static char *getCASTicket(request_rec *r)
 	char *tokenizerCtx, *ticket, *args, *rv = NULL;
 	apr_byte_t ticketFound = FALSE;
 
-	if(r->args == NULL)
+	if(r->args == NULL || strlen(r->args) == 0)
 		return NULL;
 
 	args = apr_pstrndup(r->pool, r->args, strlen(r->args));

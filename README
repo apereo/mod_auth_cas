@@ -1,5 +1,5 @@
 ====================================================================
-MOD_AUTH_CAS 1.0.3 README
+MOD_AUTH_CAS 1.0.4 README
 ====================================================================
 Apache CAS Authentication Module
 
@@ -32,18 +32,12 @@ http://www.ja-sig.org/products/cas/overview/protocol/index.html
 ====================================================================
 NEW FEATURES AND FUNCTIONS IN THIS RELEASE 
 ====================================================================
--CASAllowWildcardCert directive added based on a patch submitted
- by Earl Fogel
+-CASAuthNHeader based on a feature request by Matt Smith
 
 ====================================================================
 BUG FIXES 
 ====================================================================
--Fixed CASGateway handling - gateway mode would be improperly
-invoked even when protecting secured resources in some
-circumstances (discovered by Dale Ogilvie)
--Fixed CASRenew handling - renew mode would be improperly
-invoked when protecting resources that did not require renew
-in some circumstances
+-Fixed segfault bug reported by Nicolas Clemeur
 
 ====================================================================
 KNOWN LIMITATIONS

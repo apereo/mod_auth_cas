@@ -412,7 +412,6 @@ static void removeCASParams(request_rec *r)
 	apr_byte_t copy = TRUE;
 	apr_byte_t changed = FALSE;
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
-	int oldlen = 0, i = 0;
 
 	if(r->args == NULL)
 		return;
@@ -449,20 +448,9 @@ static void removeCASParams(request_rec *r)
 	if(c->CASDebug && changed == TRUE)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Modified r->args (old '%s', new '%s')", r->args, newArgs);
 
-	if(strlen(newArgs) != 0) {
-		i = 0;
-		oldlen = strlen(r->args);
-		oldArgs = r->args;
-		while(*newArgs != '\0') {
-			*oldArgs++ = *newArgs++;
-			i++;
-		}
-		*oldArgs = '\0';
-		while(i != oldlen) {
-			*(oldArgs++) = '\0';
-			i++;
-		}
-	} else
+	if(strlen(newArgs) != 0)
+		r->args = apr_pstrndup(r->pool, newArgs, strlen(newArgs));
+	else
 		r->args = NULL;
 
 	return;

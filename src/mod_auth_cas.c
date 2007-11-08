@@ -448,9 +448,10 @@ static void removeCASParams(request_rec *r)
 	if(c->CASDebug && changed == TRUE)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Modified r->args (old '%s', new '%s')", r->args, newArgs);
 
-	if(strlen(newArgs) != 0)
-		r->args = apr_pstrndup(r->pool, newArgs, strlen(newArgs));
-	else
+	if(strlen(newArgs) != 0 && changed == TRUE)
+		/* r->args is by definition larger or the same size than newArgs, so strcpy() is safe */
+		strcpy(r->args, newArgs);
+	else if(strlen(newArgs) == 0)
 		r->args = NULL;
 
 	return;

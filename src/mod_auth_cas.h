@@ -101,7 +101,7 @@ static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, cha
 static char *getCASCookie(request_rec *r, char *cookieName);
 static char *createCASCookie(request_rec *r, char *user);
 static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure);
-static char *escapeQueryString(request_rec *r);
+static char *escapeString(request_rec *r, char *str);
 static char *getCASGateway(request_rec *r);
 static char *getCASRenew(request_rec *r);
 static char *getCASValidateURL(request_rec *r, cas_cfg *c);

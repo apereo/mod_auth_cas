@@ -38,6 +38,7 @@ NEW FEATURES AND FUNCTIONS IN THIS RELEASE
 BUG FIXES 
 ====================================================================
 -Fixed segfault bug reported by Nicolas Clemeur
+-Fixed MAS-8 reported by Dale Ogilvie
 
 ====================================================================
 KNOWN LIMITATIONS

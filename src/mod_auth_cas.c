@@ -378,9 +378,9 @@ static char *getCASService(request_rec *r, cas_cfg *c)
 #endif
 	
 	if(printPort == TRUE)
-		service = apr_psprintf(r->pool, "%s://%s:%u%s%s", scheme, r->server->server_hostname, port, r->uri, escapeQueryString(r));
+		service = apr_psprintf(r->pool, "%s%%3a%%2f%%2f%s%%3a%u%s%s%s", scheme, r->server->server_hostname, port, escapeString(r, r->uri), (r->args != NULL ? "%3f" : ""), escapeString(r, r->args));
 	else
-		service = apr_psprintf(r->pool, "%s://%s%s%s", scheme, r->server->server_hostname, r->uri, escapeQueryString(r));
+		service = apr_psprintf(r->pool, "%s%%3a%%2f%%2f%s%s%s%s", scheme, r->server->server_hostname, escapeString(r, r->uri), (r->args != NULL ? "%3f" : ""), escapeString(r, r->args));
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "CAS Service '%s'", service);
@@ -563,20 +563,20 @@ static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, ap
  * The rfc1738 array below represents the 'unsafe' characters from that section.  No encoding is performed
  * on 'control characters' (0x00-0x1F) or characters not used in US-ASCII (0x80-0xFF) - is this a problem?
  */
-static char *escapeQueryString(request_rec *r)
+static char *escapeString(request_rec *r, char *str)
 {
 	char *rfc1738 = " <>\"%{}|\\^~[]`;/?:@=&#", *rv, *p, *q;
 	int i, j, size;
 	char escaped = FALSE;
 
-	if(r->args == NULL)
+	if(str == NULL)
 		return "";
 
-	size = strlen(r->args) + 3; /* allocate 3 extra for '?' => '%3f' */
+	size = strlen(str);
 
 	for(i = 0; i < size; i++) {
 		for(j = 0; j < strlen(rfc1738); j++) {
-			if(r->args[i] == rfc1738[j]) {
+			if(str[i] == rfc1738[j]) {
 				/* allocate 2 extra bytes for the escape sequence (' ' -> '%20') */
 				size += 2;
 				break;
@@ -585,9 +585,8 @@ static char *escapeQueryString(request_rec *r)
 	}
 	/* allocate new memory to return the encoded URL */
 	p = rv = apr_pcalloc(r->pool, size);
-	q = r->args;
-	sprintf(p, "%%3f");
-	p += 3;
+	q = str;
+
 	do {
 		escaped = FALSE;
 		for(i = 0; i < strlen(rfc1738); i++) {

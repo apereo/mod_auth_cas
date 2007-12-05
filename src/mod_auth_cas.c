@@ -1231,6 +1231,8 @@ static int cas_authenticate(request_rec *r)
 	} else {
 		if(isValidCASCookie(r, c, cookieString, &remoteUser)) {
 			r->user = remoteUser;
+			if(d->CASAuthNHeader != NULL)
+				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);
 			return OK;
 		} else {
 			/* maybe the cookie expired, have the user get a new service ticket */

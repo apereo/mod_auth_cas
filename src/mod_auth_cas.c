@@ -14,7 +14,7 @@
  * 
  * mod_auth_cas.c
  * Apache CAS Authentication Module
- * Version 1.0.4
+ * Version 1.0.5
  *
  * Author:
  * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>

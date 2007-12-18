@@ -417,7 +417,7 @@ static void removeCASParams(request_rec *r)
 		return;
 
 	oldArgs = r->args;
-	p = newArgs = apr_pcalloc(r->pool, strlen(oldArgs));
+	p = newArgs = apr_pcalloc(r->pool, strlen(oldArgs) + 1); /* add 1 for terminating NULL */
 	while(*oldArgs != '\0') {
 		/* stop copying when a CAS parameter is encountered */
 		if(strncmp(oldArgs, "ticket=", 7) == 0) {
@@ -572,7 +572,7 @@ static char *escapeString(request_rec *r, char *str)
 	if(str == NULL)
 		return "";
 
-	size = strlen(str);
+	size = strlen(str) + 1; /* add 1 for terminating NULL */
 
 	for(i = 0; i < size; i++) {
 		for(j = 0; j < strlen(rfc1738); j++) {

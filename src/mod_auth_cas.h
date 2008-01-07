@@ -99,6 +99,7 @@ static void *cas_create_dir_config(apr_pool_t *pool, char *path);
 static void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD);
 static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value);
 static apr_byte_t check_cert_cn(request_rec *r, cas_cfg *c, SSL_CTX *ctx, X509 *certificate, char *cn);
+static void CASCleanupSocket(socket_t s, SSL *ssl, SSL_CTX *ctx);
 static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket);
 static apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **user);
 static apr_byte_t isSSL(request_rec *r);

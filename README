@@ -1,5 +1,5 @@
 ====================================================================
-MOD_AUTH_CAS 1.0.5 README
+MOD_AUTH_CAS 1.0.6 README
 ====================================================================
 Apache CAS Authentication Module
 
@@ -32,13 +32,17 @@ http://www.ja-sig.org/products/cas/overview/protocol/index.html
 ====================================================================
 NEW FEATURES AND FUNCTIONS IN THIS RELEASE 
 ====================================================================
--CASAuthNHeader based on a feature request by Matt Smith
+* Default value for CASCookiePath removed (see updated documentation
+ for CASCookiePath directive)
+* Default LoginURL,ValidateURL, and ProxyValidateURL values changed
+* Rudimentary instructions for compiling as an Apache for Windows
+  module available in README.WIN32
 
 ====================================================================
 BUG FIXES 
 ====================================================================
--Fixed segfault bug reported by Nicolas Clemeur
--Fixed MAS-8 reported by Dale Ogilvie
+* Ensured that sockets are cleaned up with more consistency in
+  getResponseFromServer()
 
 ====================================================================
 KNOWN LIMITATIONS
@@ -85,12 +89,14 @@ depending on your Linux distribution.
 
 
 If you want to install this for an Apache 2.0 server, please edit
-mod_auth_cas.h and modify the line that says:
-#undef APACHE2_0
-
-to
-
+mod_auth_cas.h and uncomment the line that says:
 #define APACHE2_0
+
+or, compile using the following command:
+
+apxs2 -DAPACHE2_0 -i -c mod_auth_cas.c
+
+(order is important - -DAPACHE2_0 must come first)
 
 CONFIGURING THE SOFTWARE
 --------------------------------------------------------------------
@@ -171,7 +177,13 @@ Description:	When users first authenticate to mod_auth_cas with a valid service 
 		a local session is established.  Information about this session (the
 		username, time of creation, last activity time, the resource initially
 		requested, and whether or not the credentials were renewed) is stored
-		in this file.  This location should be writable by the web server.
+		in this directory.  This location should be writable by the web server ONLY.
+		Any user that can write to this location can falsify authentication information
+		by creating a fake data file.
+		NOTE : Some distributions purge the contents of /tmp/ on a reboot, including
+		user created directories.  This will prevent mod_auth_cas from storing
+		cookie information until that directory is created.  To avoid this, try
+		using a different location, such as /var/cache/apache2/mod_auth_cas/
 
 Directive: 	CASCookieEntropy
 Default:	32

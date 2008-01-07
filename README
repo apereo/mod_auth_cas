@@ -155,19 +155,19 @@ Description:	The path to the X509 certificate of the Certificate Authority for
 		by their hashed names.
 
 Directive: 	CASLoginURL
-Default:	https://login.uconn.edu/cas/login
+Default:	https://login.example.com/cas/login
 Description:	The URL to redirect users to when they attempt to access a CAS
 		protected resource and do not have an existing session.  The
 		'service', 'renew', and 'gateway' parameters will be appended to
 		this by mod_auth_cas if necessary.
 
 Directive: 	CASValidateURL
-Default:	https://login.uconn.edu/cas/serviceValidate
+Default:	https://login.example.com/cas/serviceValidate
 Description:	The URL to use when validating a ticket presented by a client in
 		the HTTP query string (ticket=...).
 
 Directive: 	CASProxyValidateURL
-Default:	https://login.uconn.edu/cas/proxyValidate
+Default:	https://login.example.com/cas/proxyValidate
 Description:	The URL to use when performing a proxy validation.  This is currently
 		an unimplemented feature, so setting this will have no effect.
 

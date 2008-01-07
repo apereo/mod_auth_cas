@@ -1,0 +1,73 @@
+====================================================================
+README.win32
+
+This is a *very* rough and dirty description of how to build 
+mod_auth_cas for Apache on Windows.  If you are not familiar with
+building DLLs in Visual Studio for Windows, I suggest you wait
+until the method is improved, likely using MinGW
+
+This build will use Visual C++ 2008 Express Edition, available from
+Microsoft at http://www.microsoft.com/express/vc/
+
+This has only been tested with:
+	apache_2.0.61-win32-x86-openssl-0.9.7m
+	Win32 OpenSSL v0.9.8g
+	Windows Vista Ultimate 32bit
+
+====================================================================
+DOWNLOADS
+The following downloads are required for this build:
+
+Visual C++ 2008 Express Edition
+	http://www.microsoft.com/express/vc/
+
+Apache with SSL for Windows:
+	http://httpd.apache.org/download.cgi
+	"Other Files"
+		binaries/win32/apache_2.xxx-win32-x86-openssl-yyy.msi
+		
+OpenSSL for Windows:
+	http://openssl.org/related/binaries.html
+====================================================================
+
+1) Install Visual C++ 2008 Express Edition
+2) Install Apache
+3) Install OpenSSL
+4) Verify Apache works
+5) Checkout mod_auth_cas from Subversion
+6) Open VC++
+7) File -> New -> Project from Existing Code
+8) What type of project would you like to create?: "Visual C++"
+9) 
+	Project file location: location of mod_auth_cas working copy
+	Project name: mod_auth_cas
+10) How do you want to build the project?:
+	Use Visual Studio
+	Project Type: Dynamically Linked Library (DLL) project
+11) Accept all remaing default until wizard is complete
+12) Project -> Properties
+13) Click Configuration Properties
+	Configuration Manager -> Active Solution Configuration -> "RELEASE"
+14) Click Configuration Properties
+	Configuration: Release
+15) Configuration Properties -> C/C++ -> General
+	Additional Include Directories: c:\OpenSSL\include;"c:\Program Files\Apache Group\Apache2\include"
+16) Configuration Properties -> C/C++ -> Preprocessor
+	Preprocessor Definitions: WIN32
+		*Note -- include APACHE2_0 if building for Apache 2.0*
+17) Configuration Properties -> Linker -> General
+	Additional Library Directories: "C:\Program Files\Apache Group\Apache2\lib";C:\OpenSSL\lib\VC
+18) Configuration Properties -> Linker -> Input
+	Additional Dependencies: libhttpd.lib libapr.lib libaprutil.lib libeay32MD.lib ssleay32MD.lib ws2_32.lib
+19) Click 'OK', return to main project view
+20) Build -> Rebuild Solution
+21) Copy DLL from working_copy\Release\mod_auth_cas.dll to Apache modules directory, C:\Program Files\Apache Group\Apache2\modules
+22) edit httpd.conf to include a block similar to the following:
+
+	CASCertificatePath c:/cacert.pem
+	CASCookiePath c:/temp/
+	<Location /secured >
+		AuthType CAS
+		Require valid-user
+	</Location>
+

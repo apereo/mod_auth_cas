@@ -172,7 +172,7 @@ Description:	The URL to use when performing a proxy validation.  This is current
 		an unimplemented feature, so setting this will have no effect.
 
 Directive: 	CASCookiePath
-Default:	/tmp/cas/
+Default:	/dev/null
 Description:	When users first authenticate to mod_auth_cas with a valid service ticket,
 		a local session is established.  Information about this session (the
 		username, time of creation, last activity time, the resource initially

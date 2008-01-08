@@ -1078,7 +1078,7 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: socket() failed for %s", c->CASValidateURL.hostname);
 		// no need to close(s) here since it was never successfully created
 		CASCleanupSocket(s, ssl, ctx);
-		return NULL;
+		return (NULL);
 	}
 	
 	memset(&sa, 0, sizeof(struct sockaddr_in));
@@ -1089,7 +1089,7 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	if(connect(s, (struct sockaddr *) &sa, sizeof(sa)) < 0) {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: connect() failed to %s:%d", c->CASValidateURL.hostname, ntohs(sa.sin_port));
 		CASCleanupSocket(s, ssl, ctx);
-		return NULL;
+		return (NULL);
 	}
 	
 	/* assign the created connection to an SSL object */
@@ -1104,21 +1104,25 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 		if(apr_stat(&f, c->CASCertificatePath, APR_FINFO_TYPE, r->pool) == APR_INCOMPLETE) {
 			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not load CA certificate: %s", c->CASCertificatePath);
 			CASCleanupSocket(s, ssl, ctx);
+			return (NULL);
 		}
 
 		if(f.filetype == APR_DIR) {
 			if(!(SSL_CTX_load_verify_locations(ctx, 0, c->CASCertificatePath))) {
 				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not load CA certificate path: %s", c->CASCertificatePath);
 				CASCleanupSocket(s, ssl, ctx);
+				return (NULL);
 			}
 		} else if (f.filetype == APR_REG) {
 			if(!(SSL_CTX_load_verify_locations(ctx, c->CASCertificatePath, 0))) {
 				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not load CA certificate file: %s", c->CASCertificatePath);
 				CASCleanupSocket(s, ssl, ctx);
+				return (NULL);
 			}
 		} else {
 			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not process Certificate Authority: %s", c->CASCertificatePath);
 			CASCleanupSocket(s, ssl, ctx);
+			return (NULL);
 		}
 
 		SSL_CTX_set_verify_depth(ctx, c->CASValidateDepth);
@@ -1129,19 +1133,19 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	if(ssl == NULL) {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not create an SSL connection to %s", c->CASValidateURL.hostname);
 		CASCleanupSocket(s, ssl, ctx);
-		return(NULL);
+		return (NULL);
 	}
 
 	if(SSL_set_fd(ssl, s) == 0) {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not bind SSL connection to socket for %s", c->CASValidateURL.hostname);
 		CASCleanupSocket(s, ssl, ctx);
-		return(NULL);
+		return (NULL);
 	}
 
 	if(SSL_connect(ssl) <= 0) {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not perform SSL handshake with %s (check CASCertificatePath)", c->CASValidateURL.hostname);
 		CASCleanupSocket(s, ssl, ctx);
-		return(NULL);
+		return (NULL);
 	}
 
 	/* validate the server certificate if we require it, first by verifying the CA signature, then by verifying the CN of the certificate to the hostname */
@@ -1150,11 +1154,11 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 		if(SSL_get_verify_result(ssl) != X509_V_OK || SSL_get_peer_certificate(ssl) == NULL) {
 			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Certificate not presented or not signed by CA (from %s)", c->CASValidateURL.hostname);
 			CASCleanupSocket(s, ssl, ctx);
-			return(NULL);
+			return (NULL);
 		} else if(check_cert_cn(r, c, ctx, SSL_get_peer_certificate(ssl), c->CASValidateURL.hostname) == FALSE) {
 			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Certificate CN does not match %s", c->CASValidateURL.hostname);
 			CASCleanupSocket(s, ssl, ctx);
-			return(NULL);
+			return (NULL);
 		}
 	}
 
@@ -1166,7 +1170,7 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	if(SSL_write(ssl, validateRequest, strlen(validateRequest)) != strlen(validateRequest)) {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: unable to write CAS validate request to %s%s", c->CASValidateURL.hostname, getCASValidateURL(r, c));
 		CASCleanupSocket(s, ssl, ctx);
-		return(NULL);
+		return (NULL);
 	}
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Request successfully transmitted");
@@ -1188,7 +1192,7 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	if(bytesIn != 0 || i >= sizeof(validateResponse) - 1) {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: oversized response received from %s%s", c->CASValidateURL.hostname, getCASValidateURL(r, c));
 		CASCleanupSocket(s, ssl, ctx);
-		return(NULL);
+		return (NULL);
 	}
 	
 	CASCleanupSocket(s, ssl, ctx);

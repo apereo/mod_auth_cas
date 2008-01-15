@@ -23,6 +23,10 @@
  * Matt Smith      <matt [dot] smith [at] uconn [dot] edu>
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #define CAS_DEFAULT_VERSION 2
 #define CAS_DEFAULT_DEBUG FALSE
 #define CAS_DEFAULT_SCOPE NULL

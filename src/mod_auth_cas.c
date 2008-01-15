@@ -14,7 +14,7 @@
  * 
  * mod_auth_cas.c
  * Apache CAS Authentication Module
- * Version 1.0.6
+ * Version 1.0.7
  *
  * Author:
  * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>
@@ -22,6 +22,10 @@
  * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>
  * Matt Smith      <matt [dot] smith [at] uconn [dot] edu>
  */
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #ifdef WIN32
 #include <winsock2.h>

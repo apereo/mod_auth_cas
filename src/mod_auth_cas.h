@@ -14,7 +14,7 @@
  * 
  * mod_auth_cas.h
  * Apache CAS Authentication Module
- * Version 1.0.6
+ * Version 1.0.7
  *
  * Author:
  * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>
@@ -23,8 +23,26 @@
  * Matt Smith      <matt [dot] smith [at] uconn [dot] edu>
  */
 
+#ifndef MOD_AUTH_CAS_H
+#define MOD_AUTH_CAS_H
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
+
+#include <stddef.h>
+#include "ap_release.h"
+
+#if ((AP_SERVER_MAJORVERSION_NUMBER == 2) && (AP_SERVER_MINORVERSION_NUMBER == 0))
+#define APACHE2_0
+#endif
+
+
+#ifdef WIN32
+typedef SOCKET socket_t;
+#else
+typedef int socket_t;
+#define INVALID_SOCKET -1
 #endif
 
 #define CAS_DEFAULT_VERSION 2
@@ -51,12 +69,6 @@
 #define CAS_DEFAULT_GATEWAY_COOKIE "MOD_CAS_G"
 #define CAS_DEFAULT_AUTHN_HEADER NULL
 
-#ifdef WIN32
-typedef SOCKET socket_t;
-#else
-typedef int socket_t;
-#define INVALID_SOCKET -1
-#endif
 
 typedef struct cas_cfg {
 	unsigned int CASVersion;
@@ -125,9 +137,6 @@ static void removeCASParams(request_rec *r);
 static int cas_authenticate(request_rec *r);
 static void cas_register_hooks(apr_pool_t *p);
 
-/* Uncomment to compile for Apache 2.0, or use -DAPACHE2_0 from gcc command line */
-// #define APACHE2_0
-
 /* apr forward compatibility */
 #ifndef APR_FOPEN_READ
 #define APR_FOPEN_READ		APR_READ
@@ -148,3 +157,7 @@ static void cas_register_hooks(apr_pool_t *p);
 #ifndef APR_FPROT_UREAD
 #define APR_FPROT_UREAD		APR_UREAD
 #endif
+
+
+
+#endif /* MOD_AUTH_CAS_H */

@@ -1,5 +1,5 @@
 ====================================================================
-MOD_AUTH_CAS 1.0.6 README
+MOD_AUTH_CAS 1.0.7 README
 ====================================================================
 Apache CAS Authentication Module
 
@@ -32,17 +32,12 @@ http://www.ja-sig.org/products/cas/overview/protocol/index.html
 ====================================================================
 NEW FEATURES AND FUNCTIONS IN THIS RELEASE 
 ====================================================================
-* Default value for CASCookiePath removed (see updated documentation
- for CASCookiePath directive)
-* Default LoginURL,ValidateURL, and ProxyValidateURL values changed
-* Rudimentary instructions for compiling as an Apache for Windows
-  module available in README.WIN32
+* Improved Apache version detection based on the contents of
+  ap_release.h
 
 ====================================================================
 BUG FIXES 
 ====================================================================
-* Ensured that sockets are cleaned up with more consistency in
-  getResponseFromServer()
 
 ====================================================================
 KNOWN LIMITATIONS
@@ -86,17 +81,6 @@ or
 apxs2 -i -c mod_auth_cas.c
 
 depending on your Linux distribution.
-
-
-If you want to install this for an Apache 2.0 server, please edit
-mod_auth_cas.h and uncomment the line that says:
-#define APACHE2_0
-
-or, compile using the following command:
-
-apxs2 -DAPACHE2_0 -i -c mod_auth_cas.c
-
-(order is important - -DAPACHE2_0 must come first)
 
 CONFIGURING THE SOFTWARE
 --------------------------------------------------------------------

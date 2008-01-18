@@ -33,10 +33,20 @@
 #include <stddef.h>
 #include "ap_release.h"
 
-#if ((AP_SERVER_MAJORVERSION_NUMBER == 2) && (AP_SERVER_MINORVERSION_NUMBER == 0))
-#define APACHE2_0
+#ifndef AP_SERVER_MAJORVERSION_NUMBER
+	#ifndef AP_SERVER_MINORVERSION_NUMBER
+		#define APACHE2_0
+	#endif
 #endif
 
+#ifndef APACHE2_0
+#ifdef AP_SERVER_MAJORVERSION_NUMBER
+	#ifdef AP_SERVER_MINORVERSION_NUMBER
+		#if ((AP_SERVER_MAJORVERSION_NUMBER == 2) && (AP_SERVER_MINORVERSION_NUMBER == 0))
+			#define APACHE2_0
+		#endif
+	#endif
+#endif
 
 #ifdef WIN32
 typedef SOCKET socket_t;

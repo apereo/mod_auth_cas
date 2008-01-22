@@ -679,6 +679,7 @@ static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_c
 	cache->path = "";
 	cache->renewed = FALSE;
 	cache->secure = FALSE;
+	cache->ticket = NULL;
 
 	do {
 		if(e == NULL)
@@ -704,6 +705,8 @@ static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_c
 			cache->renewed = TRUE;
 		else if (apr_strnatcasecmp(e->name, "secure") == 0)
 			cache->secure = TRUE;
+		else if (apr_strnatcasecmp(e->name, "ticket") == 0)
+			cache->ticket = apr_pstrndup(r->pool, val, strlen(val));
 		else
 			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Unknown cookie attribute '%s'", e->name);
 		e = e->next;
@@ -846,6 +849,7 @@ static apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry
 	apr_file_printf(f, "<issued>%" APR_TIME_T_FMT "</issued>\n", cache->issued);
 	apr_file_printf(f, "<lastactive>%" APR_TIME_T_FMT "</lastactive>\n", cache->lastactive);
 	apr_file_printf(f, "<path>%s</path>\n", apr_xml_quote_string(r->pool, cache->path, TRUE));
+	apr_file_printf(f, "<ticket>%s</ticket>\n", apr_xml_quote_string(r->pool, cache->ticket, TRUE));
 	if(cache->renewed != FALSE)
 		apr_file_printf(f, "<renewed />\n");
 	if(cache->secure != FALSE)
@@ -860,7 +864,7 @@ static apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry
 	return TRUE;
 }
 
-static char *createCASCookie(request_rec *r, char *user)
+static char *createCASCookie(request_rec *r, char *user, char *ticket)
 {
 	char *buf, *rv;
 	apr_byte_t createSuccess;
@@ -877,6 +881,7 @@ static char *createCASCookie(request_rec *r, char *user)
 	e.path = getCASPath(r);
 	e.renewed = (d->CASRenew == NULL ? 0 : 1);
 	e.secure = (isSSL(r) == TRUE ? 1 : 0);
+	e.ticket = ticket;
 
 	do {
 		createSuccess = FALSE;
@@ -1307,7 +1312,7 @@ static int cas_authenticate(request_rec *r)
 	/* now, handle when a ticket is present (this will also catch gateway users since ticket != NULL on their trip back) */
 	if(ticket != NULL) {
 		if(isValidCASTicket(r, c, ticket, &remoteUser)) {
-			cookieString = createCASCookie(r, remoteUser);
+			cookieString = createCASCookie(r, remoteUser, ticket);
 			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), cookieString, ssl);
 			r->user = remoteUser;
 			if(d->CASAuthNHeader != NULL)

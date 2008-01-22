@@ -34,18 +34,19 @@
 #include "ap_release.h"
 
 #ifndef AP_SERVER_MAJORVERSION_NUMBER
-        #ifndef AP_SERVER_MINORVERSION_NUMBER
-                #define APACHE2_0
-        #endif
+	#ifndef AP_SERVER_MINORVERSION_NUMBER
+		#define APACHE2_0
+	#endif
 #endif
 
 #ifndef APACHE2_0
-#ifdef AP_SERVER_MAJORVERSION_NUMBER
-        #ifdef AP_SERVER_MINORVERSION_NUMBER
-                #if ((AP_SERVER_MAJORVERSION_NUMBER == 2) && (AP_SERVER_MINORVERSION_NUMBER == 0))
-                        #define APACHE2_0
-                #endif
-        #endif
+	#ifdef AP_SERVER_MAJORVERSION_NUMBER
+		#ifdef AP_SERVER_MINORVERSION_NUMBER
+			#if ((AP_SERVER_MAJORVERSION_NUMBER == 2) && (AP_SERVER_MINORVERSION_NUMBER == 0))
+				#define APACHE2_0
+			#endif
+		#endif
+	#endif
 #endif
 
 #ifdef WIN32
@@ -117,6 +118,7 @@ typedef struct cas_cache_entry {
 	char *path;
 	apr_byte_t renewed;
 	apr_byte_t secure;
+	char *ticket;
 } cas_cache_entry;
 
 typedef enum { cmd_version, cmd_debug, cmd_validate_server, cmd_validate_depth, cmd_wildcard_cert, cmd_ca_path, cmd_cookie_path, cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy, cmd_session_timeout, cmd_idle_timeout, cmd_cache_interval } valid_cmds;
@@ -136,7 +138,7 @@ static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_c
 static void CASCleanCache(request_rec *r, cas_cfg *c);
 static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **user);
 static char *getCASCookie(request_rec *r, char *cookieName);
-static char *createCASCookie(request_rec *r, char *user);
+static char *createCASCookie(request_rec *r, char *user, char *ticket);
 static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure);
 static char *escapeString(request_rec *r, char *str);
 static char *getCASGateway(request_rec *r);

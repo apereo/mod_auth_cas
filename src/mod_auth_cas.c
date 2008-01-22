@@ -168,7 +168,7 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 		case cmd_ca_path:
 			if(apr_stat(&f, value, APR_FINFO_TYPE, cmd->temp_pool) == APR_INCOMPLETE)
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Could not find Certificate Authority file '%s'", value));
-			
+	
 			if(f.filetype != APR_REG && f.filetype != APR_DIR)
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Certificate Authority file '%s' is not a regular file or directory", value));
 			c->CASCertificatePath = apr_pstrdup(cmd->pool, value);
@@ -610,14 +610,17 @@ static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_c
 	apr_off_t begin = 0;
 	apr_file_t *f;
 	apr_finfo_t fi;
-	char line[256];
-	char *path;
+	apr_xml_parser *parser;
+	apr_xml_doc *doc;
+	apr_xml_elem *e;
+	char errbuf[CAS_MAX_ERROR_SIZE];
+	char *path, *val;
 	int i;
 
 	/* first, validate that cookie looks like an MD5 string */
 	if(strlen(name) != APR_MD5_DIGESTSIZE*2) {
 		if(c->CASDebug)
-			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Invalid cache cookie length for '%s', (expecting %d, got %d)", name, APR_MD5_DIGESTSIZE*2, (int) strlen(name));
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Invalid cache cookie length for '%s', (expecting %d, got %u)", name, APR_MD5_DIGESTSIZE*2, strlen(name));
 		return FALSE;
 	}
 
@@ -655,37 +658,56 @@ static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_c
 	/* read the various values we store */
 	apr_file_seek(f, APR_SET, &begin);
 
-	apr_file_gets(line, sizeof(line), f);
-	cache->user = apr_pstrndup(r->pool, line, strlen(line)-1); /* trim the newline */
-
-	apr_file_gets(line, sizeof(line), f);
-	if(sscanf(line, "%" APR_TIME_T_FMT, &(cache->issued)) != 1)
+	if(apr_xml_parse_file(r->pool, &parser, &doc, f, CAS_MAX_XML_SIZE) != APR_SUCCESS) {
+		apr_xml_parser_geterror(parser, errbuf, sizeof(errbuf));
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Error parsing XML content for '%s' (%s)", name, errbuf);
 		return FALSE;
+	}
 
-	apr_file_gets(line, sizeof(line), f);
-	if(sscanf(line, "%" APR_TIME_T_FMT, &(cache->lastactive)) != 1)
-		return FALSE;
+	e = doc->root->first_child;
+	/* XML structure: 
+ 	 * cacheEntry
+	 *	attr
+	 *	attr
+	 *	...
+ 	 */
 
-	apr_file_gets(line, sizeof(line), f);
-	cache->path = apr_pstrndup(r->pool, line, strlen(line)-1);
+	/* initialize things to sane values */
+	cache->user = NULL;
+	cache->issued = 0;
+	cache->lastactive = 0;
+	cache->path = "";
+	cache->renewed = FALSE;
+	cache->secure = FALSE;
 
-	apr_file_gets(line, sizeof(line), f);
-	if(sscanf(line, "%u", &i) != 1)
-		return FALSE;
+	do {
+		if(e == NULL)
+			continue;
 
-	if(i != 0)
-		cache->renewed = TRUE;
-	else
-		cache->renewed = FALSE;
+		/* first_cdata.first is NULL on empty attributes (<attr />) */
+		if(e->first_cdata.first != NULL)
+			val = (char *)  e->first_cdata.first->text;
+		else
+			val = NULL; 
 
-	apr_file_gets(line, sizeof(line), f);
-	if(sscanf(line, "%u", &i) != 1)
-		return FALSE;
-
-	if(i != 0)
-		cache->secure = TRUE;
-	else
-		cache->secure = FALSE;
+		if (apr_strnatcasecmp(e->name, "user") == 0)
+			cache->user = apr_pstrndup(r->pool, val, strlen(val));
+		else if (apr_strnatcasecmp(e->name, "issued") == 0) {
+			if(sscanf(val, "%" APR_TIME_T_FMT, &(cache->issued)) != 1)
+				return FALSE;
+		} else if (apr_strnatcasecmp(e->name, "lastactive") == 0) {
+			if(sscanf(val, "%" APR_TIME_T_FMT, &(cache->lastactive)) != 1)
+				return FALSE;
+		} else if (apr_strnatcasecmp(e->name, "path") == 0)
+			cache->path = apr_pstrndup(r->pool, val, strlen(val));
+		else if (apr_strnatcasecmp(e->name, "renewed") == 0)
+			cache->renewed = TRUE;
+		else if (apr_strnatcasecmp(e->name, "secure") == 0)
+			cache->secure = TRUE;
+		else
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Unknown cookie attribute '%s'", e->name);
+		e = e->next;
+	} while (e != NULL);
 
 	apr_file_unlock(f);
 	apr_file_close(f);
@@ -785,21 +807,79 @@ static void CASCleanCache(request_rec *r, cas_cfg *c)
 
 }
 
+static apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache, apr_byte_t exists)
+{
+	char *path;
+	apr_file_t *f;
+	apr_off_t begin = 0;
+	int i;
+	apr_byte_t lock = FALSE;
+	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
+
+	path = apr_psprintf(r->pool, "%s%s", c->CASCookiePath, name);
+
+	if(exists == FALSE) {
+		if((i = apr_file_open(&f, path, APR_FOPEN_CREATE|APR_FOPEN_WRITE|APR_EXCL, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool)) != APR_SUCCESS) {
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Cookie file '%s' could not be created: %s", path, apr_strerror(i, name, strlen(name)));
+			return FALSE;
+		}
+	} else {
+		if((i = apr_file_open(&f, path, APR_FOPEN_READ|APR_FOPEN_WRITE, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool)) != APR_SUCCESS) {
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Cookie file '%s' could not be opened: %s", path, apr_strerror(i, name, strlen(name)));
+			return FALSE;
+		}
+
+		/* update the file with a new idle time if a write lock can be obtained */
+		if(apr_file_lock(f, APR_FLOCK_EXCLUSIVE) != APR_SUCCESS) {
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: could not obtain an exclusive lock on %s", path);
+			apr_file_close(f);
+			return FALSE;
+		} else
+			lock = TRUE;
+		apr_file_seek(f, APR_SET, &begin);
+		apr_file_trunc(f, begin);
+	}
+
+	/* this is ultra-ghetto, but the APR really doesn't provide any facilities for easy DOM-style XML creation. */
+	apr_file_printf(f, "<cacheEntry xmlns=\"http://uconn.edu/cas/mod_auth_cas\">\n");
+	apr_file_printf(f, "<user>%s</user>\n", apr_xml_quote_string(r->pool, cache->user, TRUE));
+	apr_file_printf(f, "<issued>%" APR_TIME_T_FMT "</issued>\n", cache->issued);
+	apr_file_printf(f, "<lastactive>%" APR_TIME_T_FMT "</lastactive>\n", cache->lastactive);
+	apr_file_printf(f, "<path>%s</path>\n", apr_xml_quote_string(r->pool, cache->path, TRUE));
+	if(cache->renewed != FALSE)
+		apr_file_printf(f, "<renewed />\n");
+	if(cache->secure != FALSE)
+		apr_file_printf(f, "<secure />\n");
+	apr_file_printf(f, "</cacheEntry>\n");
+
+	if(lock != FALSE)
+		apr_file_unlock(f);
+
+	apr_file_close(f);
+
+	return TRUE;
+}
+
 static char *createCASCookie(request_rec *r, char *user)
 {
-	char *path, *buf, *rv;
-	apr_byte_t createFailed;
-	apr_file_t *f;
-	apr_time_t t;
-	int i;
+	char *buf, *rv;
+	apr_byte_t createSuccess;
+	cas_cache_entry e;
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
 	buf = apr_pcalloc(r->pool, c->CASCookieEntropy);
 
 	CASCleanCache(r, c);
 
+	e.user = user;
+	e.issued = apr_time_now();
+	e.lastactive = apr_time_now();
+	e.path = getCASPath(r);
+	e.renewed = (d->CASRenew == NULL ? 0 : 1);
+	e.secure = (isSSL(r) == TRUE ? 1 : 0);
+
 	do {
-		createFailed = FALSE;
+		createSuccess = FALSE;
 		/* this may block since this reads from /dev/random - however, it hasn't been a problem in testing */
 		apr_generate_random_bytes((unsigned char *) buf, c->CASCookieEntropy);
 		rv = (char *) ap_md5_binary(r->pool, (unsigned char *) buf, c->CASCookieEntropy);
@@ -809,19 +889,11 @@ static char *createCASCookie(request_rec *r, char *user)
 		 * shared memory the advantage of NFS shares in a clustered environment or a 
 		 * memory based file systems can be used at the expense of potentially some performance
 		 */
-		path = apr_psprintf(r->pool, "%s%s", c->CASCookiePath, rv);
+		createSuccess = writeCASCacheEntry(r, rv, &e, FALSE);
 
-		if((i = apr_file_open(&f, path, APR_FOPEN_CREATE|APR_FOPEN_WRITE|APR_EXCL, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool)) != APR_SUCCESS) {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Cookie file '%s' could not be opened: %s", path, apr_strerror(i, rv, strlen(rv)));
-			createFailed = TRUE;
-		} else {
-			t = apr_time_now();
-			apr_file_printf(f, "%s\n%" APR_TIME_T_FMT "\n%" APR_TIME_T_FMT "\n%s\n%u\n%u\n", user, t, t, getCASPath(r), d->CASRenew == NULL ? 0 : 1, (isSSL(r) == TRUE ? 1 : 0) );
-			apr_file_close(f);
-			if(c->CASDebug)
-				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' created for user '%s'", rv, user);
-		}
-	} while (createFailed == TRUE);
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' created for user '%s'", rv, user);
+	} while (createSuccess == FALSE);
 
 	return(apr_pstrdup(r->pool, rv));
 }
@@ -918,8 +990,6 @@ static apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, cha
 
 static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **user)
 {
-	apr_off_t begin = 0;
-	apr_file_t *f;
 	char *path;
 	cas_cache_entry cache;
 	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
@@ -972,21 +1042,10 @@ static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, cha
 	/* set the user */
 	*user = apr_pstrndup(r->pool, cache.user, strlen(cache.user));
 
-	if(apr_file_open(&f, path, APR_FOPEN_READ|APR_FOPEN_WRITE, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool) != APR_SUCCESS)
-		return FALSE;
 
-	/* update the file with a new idle time if a write lock can be obtained */
-	if(apr_file_lock(f, APR_FLOCK_EXCLUSIVE) != APR_SUCCESS) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: could not obtain an exclusive lock on %s", path);
-		apr_file_close(f);
-		return TRUE;
-	}
-
-	apr_file_seek(f, APR_SET, &begin);
-	apr_file_trunc(f, begin);
-	apr_file_printf(f, "%s\n%" APR_TIME_T_FMT "\n%" APR_TIME_T_FMT "\n%s\n%u\n%u\n", cache.user, cache.issued, apr_time_now(), cache.path, cache.renewed, cache.secure);
-	apr_file_unlock(f);
-	apr_file_close(f);
+	cache.lastactive = apr_time_now();
+	if(writeCASCacheEntry(r, cookie, &cache, TRUE) == FALSE && c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Could not update cache entry for '%s'", cookie);
 
 	return TRUE;
 }
@@ -1052,7 +1111,7 @@ static void CASCleanupSocket(socket_t s, SSL *ssl, SSL_CTX *ctx)
 /* also inspired by some code from Shawn Bayern */
 static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 {
-	char *validateRequest, validateResponse[1024];
+	char *validateRequest, validateResponse[CAS_MAX_RESPONSE_SIZE];
 	apr_finfo_t f;
 	int i, bytesIn;
 	socket_t s = INVALID_SOCKET;

@@ -34,18 +34,18 @@
 #include "ap_release.h"
 
 #ifndef AP_SERVER_MAJORVERSION_NUMBER
-	#ifndef AP_SERVER_MINORVERSION_NUMBER
-		#define APACHE2_0
-	#endif
+        #ifndef AP_SERVER_MINORVERSION_NUMBER
+                #define APACHE2_0
+        #endif
 #endif
 
 #ifndef APACHE2_0
 #ifdef AP_SERVER_MAJORVERSION_NUMBER
-	#ifdef AP_SERVER_MINORVERSION_NUMBER
-		#if ((AP_SERVER_MAJORVERSION_NUMBER == 2) && (AP_SERVER_MINORVERSION_NUMBER == 0))
-			#define APACHE2_0
-		#endif
-	#endif
+        #ifdef AP_SERVER_MINORVERSION_NUMBER
+                #if ((AP_SERVER_MAJORVERSION_NUMBER == 2) && (AP_SERVER_MINORVERSION_NUMBER == 0))
+                        #define APACHE2_0
+                #endif
+        #endif
 #endif
 
 #ifdef WIN32
@@ -79,6 +79,9 @@ typedef int socket_t;
 #define CAS_DEFAULT_GATEWAY_COOKIE "MOD_CAS_G"
 #define CAS_DEFAULT_AUTHN_HEADER NULL
 
+#define CAS_MAX_RESPONSE_SIZE 1024
+#define CAS_MAX_ERROR_SIZE 1024
+#define CAS_MAX_XML_SIZE 1024
 
 typedef struct cas_cfg {
 	unsigned int CASVersion;

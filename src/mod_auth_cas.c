@@ -620,7 +620,7 @@ static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_c
 	/* first, validate that cookie looks like an MD5 string */
 	if(strlen(name) != APR_MD5_DIGESTSIZE*2) {
 		if(c->CASDebug)
-			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Invalid cache cookie length for '%s', (expecting %d, got %u)", name, APR_MD5_DIGESTSIZE*2, strlen(name));
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Invalid cache cookie length for '%s', (expecting %d, got %d)", name, APR_MD5_DIGESTSIZE*2, (int) strlen(name));
 		return FALSE;
 	}
 
@@ -793,7 +793,7 @@ static void CASCleanCache(request_rec *r, cas_cfg *c)
 				if(cache.issued < (apr_time_now()-(c->CASTimeout*((apr_time_t) APR_USEC_PER_SEC))) || cache.lastactive < (apr_time_now()-(c->CASIdleTimeout*((apr_time_t) APR_USEC_PER_SEC)))) {
 					/* delete this file since it is no longer valid */
 					apr_file_close(cacheFile);
-					apr_file_remove(path, r->pool);
+					deleteCASCacheFile(r, (char *) fi.name);
 					if(c->CASDebug)
 						ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Removing expired cache entry '%s'", fi.name);
 				}
@@ -802,7 +802,7 @@ static void CASCleanCache(request_rec *r, cas_cfg *c)
 					ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Removing corrupt cache entry '%s'", fi.name);
 				/* corrupt file */
 				apr_file_close(cacheFile);
-				apr_file_remove(path, r->pool);
+				deleteCASCacheFile(r, (char *) fi.name);
 			}
 		}
 	} while (i == APR_SUCCESS);
@@ -866,9 +866,11 @@ static apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry
 
 static char *createCASCookie(request_rec *r, char *user, char *ticket)
 {
-	char *buf, *rv;
+	char *path, *buf, *rv;
+	apr_file_t *f;
 	apr_byte_t createSuccess;
 	cas_cache_entry e;
+	int i;
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
 	buf = apr_pcalloc(r->pool, c->CASCookieEntropy);
@@ -900,7 +902,39 @@ static char *createCASCookie(request_rec *r, char *user, char *ticket)
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' created for user '%s'", rv, user);
 	} while (createSuccess == FALSE);
 
+	buf = (char *) ap_md5_binary(r->pool, ticket, strlen(ticket));
+	path = apr_psprintf(r->pool, "%s.%s", c->CASCookiePath, buf);
+
+	if((i = apr_file_open(&f, path, APR_FOPEN_CREATE|APR_FOPEN_WRITE|APR_EXCL, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool)) != APR_SUCCESS) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket to Cookie map file '%s' could not be created: %s", path, apr_strerror(i, buf, strlen(buf)));
+		return FALSE;
+	} else {
+		apr_file_printf(f, "%s", rv);
+		apr_file_close(f);
+	}
+	
 	return(apr_pstrdup(r->pool, rv));
+}
+
+static void deleteCASCacheFile(request_rec *r, char *cookieName)
+{
+	char *path, *ticket;
+	cas_cache_entry e;
+	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
+
+	/* we need this to get the ticket */
+	readCASCacheFile(r, c, cookieName, &e);
+
+	/* delete their cache entry */
+	path = apr_psprintf(r->pool, "%s%s", c->CASCookiePath, cookieName);
+	apr_file_remove(path, r->pool);
+
+	/* delete the ticket -> cache entry mapping */
+	ticket = (char *) ap_md5_binary(r->pool, (unsigned char *) e.ticket, strlen(e.ticket));
+	path = apr_psprintf(r->pool, "%s.%s", c->CASCookiePath, ticket);
+	apr_file_remove(path, r->pool);
+
+	return;
 }
 
 /* functions related to validation of tickets/cache entries */
@@ -1014,7 +1048,7 @@ static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, cha
 	 */
 	if( (isSSL(r) == TRUE && cache.secure == FALSE) || (isSSL(r) == FALSE && cache.secure == TRUE) ) {
 		/* delete this file since it is no longer valid */
-		apr_file_remove(path, r->pool);
+		deleteCASCacheFile(r, cookie);
 		if(c->CASDebug)
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' not transmitted via proper HTTP(S) channel, expiring", cookie);
 		CASCleanCache(r, c);
@@ -1023,7 +1057,7 @@ static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, cha
 
 	if(cache.issued < (apr_time_now()-(c->CASTimeout*((apr_time_t) APR_USEC_PER_SEC))) || cache.lastactive < (apr_time_now()-(c->CASIdleTimeout*((apr_time_t) APR_USEC_PER_SEC)))) {
 		/* delete this file since it is no longer valid */
-		apr_file_remove(path, r->pool);
+		deleteCASCacheFile(r, cookie);
 		if(c->CASDebug)
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' is expired, deleting", cookie);
 		CASCleanCache(r, c);
@@ -1281,6 +1315,11 @@ static int cas_authenticate(request_rec *r)
 	/* Do nothing if we are not the authenticator */
 	if(apr_strnatcasecmp((const char *) ap_auth_type(r), "cas"))
 		return DECLINED;
+
+	if(r->method_number == M_POST) {
+		/* read the POST data here to determine if it is a SAML LogoutRequest */
+		/* not yet implemented :) */
+	} 
 
 	ssl = isSSL(r);
 	c = ap_get_module_config(r->server->module_config, &auth_cas_module);

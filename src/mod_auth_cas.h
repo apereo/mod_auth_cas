@@ -138,7 +138,9 @@ static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_c
 static void CASCleanCache(request_rec *r, cas_cfg *c);
 static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **user);
 static char *getCASCookie(request_rec *r, char *cookieName);
+static apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache, apr_byte_t exists);
 static char *createCASCookie(request_rec *r, char *user, char *ticket);
+static void deleteCASCacheFile(request_rec *r, char *cookieName);
 static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure);
 static char *escapeString(request_rec *r, char *str);
 static char *getCASGateway(request_rec *r);

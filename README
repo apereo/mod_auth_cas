@@ -35,7 +35,10 @@ NEW FEATURES AND FUNCTIONS IN THIS RELEASE
 * Improved Apache version detection based on the contents of
   ap_release.h
 * Cookies are now stored in an XML format, making the data
-  stored more easily extensible.
+  stored more easily extensible for possible future attribute
+  delivery.
+* Support for CAS 3.1 server's single sign out via SAML
+  logoutRequest
 
 ====================================================================
 BUG FIXES 

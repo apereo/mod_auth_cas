@@ -1,6 +1,8 @@
 ====================================================================
 README.win32
 
+!!! Please read the README file first !!!
+
 This is a *very* rough and dirty description of how to build 
 mod_auth_cas for Apache on Windows.  If you are not familiar with
 building DLLs in Visual Studio for Windows, I suggest you wait
@@ -64,6 +66,8 @@ OpenSSL for Windows:
 21) Copy DLL from working_copy\Release\mod_auth_cas.dll to Apache modules directory, C:\Program Files\Apache Group\Apache2\modules
 22) edit httpd.conf to include a block similar to the following:
 
+	CASLoginURL https://login.example.com/cas/login 
+	CASValidateURL https://login.example.com/cas/serviceValidate
 	CASCertificatePath c:/cacert.pem
 	CASCookiePath c:/temp/
 	<Location /secured >

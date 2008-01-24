@@ -903,7 +903,7 @@ static char *createCASCookie(request_rec *r, char *user, char *ticket)
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' created for user '%s'", rv, user);
 	} while (createSuccess == FALSE);
 
-	buf = (char *) ap_md5_binary(r->pool, ticket, strlen(ticket));
+	buf = (char *) ap_md5_binary(r->pool, ticket, (int) strlen(ticket));
 	path = apr_psprintf(r->pool, "%s.%s", c->CASCookiePath, buf);
 
 	if((i = apr_file_open(&f, path, APR_FOPEN_CREATE|APR_FOPEN_WRITE|APR_EXCL, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool)) != APR_SUCCESS) {
@@ -925,7 +925,7 @@ static void expireCASST(request_rec *r, char *ticketname)
 	apr_size_t bytes = APR_MD5_DIGESTSIZE*2;
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 
-	ticket = (char *) ap_md5_binary(r->pool, (unsigned char *) ticketname, strlen(ticketname));
+	ticket = (char *) ap_md5_binary(r->pool, (unsigned char *) ticketname, (int) strlen(ticketname));
 	line[APR_MD5_DIGESTSIZE*2] = '\0';
 
 	if(c->CASDebug)
@@ -1306,7 +1306,7 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Validation request: %s", validateRequest);
 	/* send our validation request */
-	if(SSL_write(ssl, validateRequest, strlen(validateRequest)) != strlen(validateRequest)) {
+	if(SSL_write(ssl, validateRequest, (int) strlen(validateRequest)) != strlen(validateRequest)) {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: unable to write CAS validate request to %s%s", c->CASValidateURL.hostname, getCASValidateURL(r, c));
 		CASCleanupSocket(s, ssl, ctx);
 		return (NULL);
@@ -1346,7 +1346,7 @@ static apr_byte_t CASSAMLLogout(request_rec *r)
 	apr_size_t len;
 	apr_xml_doc *doc;
 	apr_xml_elem *node;
-	int i;
+	apr_size_t i;
 	char *line;
 	const char *buf;
 	apr_off_t offset = 0;

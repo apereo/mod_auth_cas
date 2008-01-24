@@ -1,0 +1,8 @@
+all:
+	@APXS@ -c src/mod_auth_cas.c
+
+install:
+	@APXS@ -i src/mod_auth_cas.la
+
+clean:
+	rm -rf src/mod_auth_cas.slo src/mod_auth_cas.la src/mod_auth_cas.lo src/.libs

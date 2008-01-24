@@ -39,6 +39,7 @@ NEW FEATURES AND FUNCTIONS IN THIS RELEASE
   delivery.
 * Support for CAS 3.1 server's single sign out via SAML
   logoutRequest
+* Autoconf by Matt
 
 ====================================================================
 BUG FIXES 
@@ -86,6 +87,14 @@ or
 apxs2 -i -c mod_auth_cas.c
 
 depending on your Linux distribution.
+
+This release of mod_auth_cas includes support for autoconf.  Use the
+standard commands below to compile and install:
+
+./configure; make; make install
+
+configure can take an optional --with-apxs=/path/to/apxs argument to
+specify the path to your APXS binary.
 
 CONFIGURING THE SOFTWARE
 --------------------------------------------------------------------

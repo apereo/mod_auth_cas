@@ -1341,7 +1341,7 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 
 static apr_byte_t CASSAMLLogout(request_rec *r)
 {
-	apr_byte_t eos = FALSE;
+	apr_byte_t eos = FALSE, fail = FALSE;
 	apr_bucket *b;
 	apr_size_t len;
 	apr_xml_doc *doc;
@@ -1376,6 +1376,7 @@ static apr_byte_t CASSAMLLogout(request_rec *r)
 
 			if(len + offset >= CAS_MAX_RESPONSE_SIZE) {
 				ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "MOD_AUTH_CAS: Insufficient buffer space to read POST request.  If this request came from the CAS server, this may represent an unprocessed SAML logoutRequest.");
+				fail = TRUE;
 				break;
 			}
 
@@ -1389,6 +1390,9 @@ static apr_byte_t CASSAMLLogout(request_rec *r)
 	} while(!eos);
 
 	apr_brigade_destroy(bb);
+
+	if(fail == TRUE)
+		return FALSE;
 
 	if(body != NULL && strncmp(body, "logoutRequest=", 14) == 0) {
 		body += 14;

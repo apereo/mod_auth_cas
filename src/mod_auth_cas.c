@@ -934,7 +934,7 @@ static void expireCASST(request_rec *r, char *ticketname)
 	path = apr_psprintf(r->pool, "%s.%s", c->CASCookiePath, ticket);
 
 	if(apr_file_open(&f, path, APR_FOPEN_READ, APR_OS_DEFAULT, r->pool) != APR_SUCCESS) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' could not be opened (ticket %s)", path, ticketname);
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' could not be opened (ticket %s - expired already?)", path, ticketname);
 		return;
 	}
 	
@@ -944,7 +944,7 @@ static void expireCASST(request_rec *r, char *ticketname)
 	}
 	
 	if(bytes != APR_MD5_DIGESTSIZE*2) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' incomplete (read %d, expected %d, ticket %s)", path, bytes, APR_MD5_DIGESTSIZE*2, ticketname);
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' incomplete (read %" APR_SIZE_T_FMT ", expected %d, ticket %s)", path, bytes, APR_MD5_DIGESTSIZE*2, ticketname);
 		return;
 	}
 
@@ -1341,20 +1341,23 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 
 static apr_byte_t CASSAMLLogout(request_rec *r)
 {
-	const char *buf = NULL;
-	char *line;
-	apr_byte_t eos;
+	apr_byte_t eos = FALSE;
 	apr_bucket *b;
 	apr_size_t len;
 	apr_xml_doc *doc;
 	apr_xml_elem *node;
-	apr_xml_attr *attr;
+	int i;
+	char *line;
+	const char *buf;
+	apr_off_t offset = 0;
+	char *body = apr_pcalloc(r->pool, CAS_MAX_RESPONSE_SIZE);
 	apr_xml_parser *parser = apr_xml_parser_create(r->pool);
 	apr_bucket_brigade *bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 
 	do {
 		if(ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES, APR_BLOCK_READ, CAS_MAX_RESPONSE_SIZE) != APR_SUCCESS) {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Insufficient buffer space to read POST request.  If this request came from the CAS server, this may represent an unprocessed SAML logoutRequest.");
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Error retrieving bucket brigade.");
 			return FALSE;
 		}
 		
@@ -1368,15 +1371,28 @@ static apr_byte_t CASSAMLLogout(request_rec *r)
 				continue;
 
 			apr_bucket_read(b, &buf, &len, APR_BLOCK_READ);
+			if(c->CASDebug)
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Read %" APR_SIZE_T_FMT " bytes from bucket - offset %" APR_OFF_T_FMT, len, offset);
+
+			if(len + offset >= CAS_MAX_RESPONSE_SIZE) {
+				ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "MOD_AUTH_CAS: Insufficient buffer space to read POST request.  If this request came from the CAS server, this may represent an unprocessed SAML logoutRequest.");
+				break;
+			}
+
+			line = body + offset;
+			for(i = 0; i < len; i++)
+				line[i] = buf[i];
+			offset += len;
+
 		}
 		apr_brigade_cleanup(bb);
 	} while(!eos);
 
 	apr_brigade_destroy(bb);
 
-	if(buf != NULL && strncmp(buf, "logoutRequest=", 14) == 0) {
-		buf += 14;
-		line = (char *) buf;
+	if(body != NULL && strncmp(body, "logoutRequest=", 14) == 0) {
+		body += 14;
+		line = (char *) body;
 
 		/* convert + to ' ' or else the XML won't parse right */
 		do { 
@@ -1385,10 +1401,13 @@ static apr_byte_t CASSAMLLogout(request_rec *r)
 			line++;
 		} while (*line != '\0');
 
-		ap_unescape_url((char *) buf);
+		ap_unescape_url((char *) body);
+
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "SAML Logout Request: %s", body);
 
 		/* parse the XML response */
-		if(apr_xml_parser_feed(parser, buf, strlen(buf)) != APR_SUCCESS) {
+		if(apr_xml_parser_feed(parser, body, strlen(body)) != APR_SUCCESS) {
 			line = apr_pcalloc(r->pool, 512);
 			apr_xml_parser_geterror(parser, line, 512);
 			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: error parsing SAML logoutRequest: %s", line);

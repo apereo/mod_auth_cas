@@ -52,6 +52,7 @@
 #include "util_md5.h"
 #include "ap_config.h"
 #include "ap_release.h"
+#include "apr_buckets.h"
 #include "apr_file_info.h"
 #include "apr_md5.h"
 #include "apr_strings.h"
@@ -916,6 +917,42 @@ static char *createCASCookie(request_rec *r, char *user, char *ticket)
 	return(apr_pstrdup(r->pool, rv));
 }
 
+static void expireCASST(request_rec *r, char *ticketname)
+{
+	char *ticket, *path;
+	char line[APR_MD5_DIGESTSIZE*2+1];
+	apr_file_t *f;
+	apr_size_t bytes = APR_MD5_DIGESTSIZE*2;
+	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
+
+	ticket = (char *) ap_md5_binary(r->pool, (unsigned char *) ticketname, strlen(ticketname));
+	line[APR_MD5_DIGESTSIZE*2] = '\0';
+
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Expiring service ticket '%s' (%s)", ticketname, ticket);
+
+	path = apr_psprintf(r->pool, "%s.%s", c->CASCookiePath, ticket);
+
+	if(apr_file_open(&f, path, APR_FOPEN_READ, APR_OS_DEFAULT, r->pool) != APR_SUCCESS) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' could not be opened (ticket %s)", path, ticketname);
+		return;
+	}
+	
+	if(apr_file_read(f, &line, &bytes) != APR_SUCCESS) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' could not be read (ticket %s)", path, ticketname);
+		return;
+	}
+	
+	if(bytes != APR_MD5_DIGESTSIZE*2) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' incomplete (read %d, expected %d, ticket %s)", path, bytes, APR_MD5_DIGESTSIZE*2, ticketname);
+		return;
+	}
+
+	apr_file_close(f);
+
+	deleteCASCacheFile(r, line);
+}
+
 static void deleteCASCacheFile(request_rec *r, char *cookieName)
 {
 	char *path, *ticket;
@@ -994,7 +1031,7 @@ static apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, cha
 		if(apr_xml_parser_done(parser, &doc) != APR_SUCCESS) {
 			line = apr_pcalloc(r->pool, 512);
 			apr_xml_parser_geterror(parser, line, 512);
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: error parsing CASv2 response: %s", line);
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: error retrieving XML document for CASv2 response: %s", line);
 			return FALSE;
 		}
 		/* XML tree:
@@ -1302,6 +1339,82 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	return (apr_pstrndup(r->pool, validateResponse, strlen(validateResponse)));
 }
 
+static apr_byte_t CASSAMLLogout(request_rec *r)
+{
+	const char *buf = NULL;
+	char *line;
+	apr_byte_t eos;
+	apr_bucket *b;
+	apr_size_t len;
+	apr_xml_doc *doc;
+	apr_xml_elem *node;
+	apr_xml_attr *attr;
+	apr_xml_parser *parser = apr_xml_parser_create(r->pool);
+	apr_bucket_brigade *bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+
+	do {
+		if(ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES, APR_BLOCK_READ, CAS_MAX_RESPONSE_SIZE) != APR_SUCCESS) {
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Insufficient buffer space to read POST request.  If this request came from the CAS server, this may represent an unprocessed SAML logoutRequest.");
+			return FALSE;
+		}
+		
+		for(b = APR_BRIGADE_FIRST(bb); b != APR_BRIGADE_SENTINEL(bb); b = APR_BUCKET_NEXT(b)) {
+			if(APR_BUCKET_IS_EOS(b)) {
+				eos = TRUE;
+				break;
+			}
+
+			if(APR_BUCKET_IS_FLUSH(b))
+				continue;
+
+			apr_bucket_read(b, &buf, &len, APR_BLOCK_READ);
+		}
+		apr_brigade_cleanup(bb);
+	} while(!eos);
+
+	apr_brigade_destroy(bb);
+
+	if(buf != NULL && strncmp(buf, "logoutRequest=", 14) == 0) {
+		buf += 14;
+		line = (char *) buf;
+
+		/* convert + to ' ' or else the XML won't parse right */
+		do { 
+			if(*line == '+')
+				*line = ' ';
+			line++;
+		} while (*line != '\0');
+
+		ap_unescape_url((char *) buf);
+
+		/* parse the XML response */
+		if(apr_xml_parser_feed(parser, buf, strlen(buf)) != APR_SUCCESS) {
+			line = apr_pcalloc(r->pool, 512);
+			apr_xml_parser_geterror(parser, line, 512);
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: error parsing SAML logoutRequest: %s", line);
+			return FALSE;
+		}
+		/* retrieve a DOM object */
+		if(apr_xml_parser_done(parser, &doc) != APR_SUCCESS) {
+			line = apr_pcalloc(r->pool, 512);
+			apr_xml_parser_geterror(parser, line, 512);
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: error retrieving XML document for SAML logoutRequest: %s", line);
+			return FALSE;
+		}
+
+		node = doc->root->first_child;
+		while(node != NULL) {
+			if(apr_strnatcmp(node->name, "SessionIndex") == 0 && node->first_cdata.first != NULL) {
+				expireCASST(r, (char *) node->first_cdata.first->text);
+				return TRUE;
+			}
+			node = node->next;
+		}
+	}
+
+	return FALSE;
+}
+
 /* basic CAS module logic */
 static int cas_authenticate(request_rec *r)
 {
@@ -1318,8 +1431,9 @@ static int cas_authenticate(request_rec *r)
 
 	if(r->method_number == M_POST) {
 		/* read the POST data here to determine if it is a SAML LogoutRequest */
-		/* not yet implemented :) */
-	} 
+		if(CASSAMLLogout(r) == TRUE)
+			return OK;
+	}
 
 	ssl = isSSL(r);
 	c = ap_get_module_config(r->server->module_config, &auth_cas_module);

@@ -903,7 +903,7 @@ static char *createCASCookie(request_rec *r, char *user, char *ticket)
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' created for user '%s'", rv, user);
 	} while (createSuccess == FALSE);
 
-	buf = (char *) ap_md5_binary(r->pool, ticket, (int) strlen(ticket));
+	buf = (char *) ap_md5_binary(r->pool, (const unsigned char *) ticket, (int) strlen(ticket));
 	path = apr_psprintf(r->pool, "%s.%s", c->CASCookiePath, buf);
 
 	if((i = apr_file_open(&f, path, APR_FOPEN_CREATE|APR_FOPEN_WRITE|APR_EXCL, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool)) != APR_SUCCESS) {
@@ -951,6 +951,58 @@ static void expireCASST(request_rec *r, char *ticketname)
 	apr_file_close(f);
 
 	deleteCASCacheFile(r, line);
+}
+
+static void CASSAMLLogout(request_rec *r, char *body)
+{
+	apr_xml_doc *doc;
+	apr_xml_elem *node;
+	char *line;
+	apr_xml_parser *parser = apr_xml_parser_create(r->pool);
+	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
+
+	if(body != NULL && strncmp(body, "logoutRequest=", 14) == 0) {
+		body += 14;
+		line = (char *) body;
+
+		/* convert + to ' ' or else the XML won't parse right */
+		do { 
+			if(*line == '+')
+				*line = ' ';
+			line++;
+		} while (*line != '\0');
+
+		ap_unescape_url((char *) body);
+
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "SAML Logout Request: %s", body);
+
+		/* parse the XML response */
+		if(apr_xml_parser_feed(parser, body, strlen(body)) != APR_SUCCESS) {
+			line = apr_pcalloc(r->pool, 512);
+			apr_xml_parser_geterror(parser, line, 512);
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: error parsing SAML logoutRequest: %s (incomplete SAML body?)", line);
+			return;
+		}
+		/* retrieve a DOM object */
+		if(apr_xml_parser_done(parser, &doc) != APR_SUCCESS) {
+			line = apr_pcalloc(r->pool, 512);
+			apr_xml_parser_geterror(parser, line, 512);
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: error retrieving XML document for SAML logoutRequest: %s", line);
+			return;
+		}
+
+		node = doc->root->first_child;
+		while(node != NULL) {
+			if(apr_strnatcmp(node->name, "SessionIndex") == 0 && node->first_cdata.first != NULL) {
+				expireCASST(r, (char *) node->first_cdata.first->text);
+				return;
+			}
+			node = node->next;
+		}
+	}
+
+	return;
 }
 
 static void deleteCASCacheFile(request_rec *r, char *cookieName)
@@ -1339,105 +1391,6 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	return (apr_pstrndup(r->pool, validateResponse, strlen(validateResponse)));
 }
 
-static apr_byte_t CASSAMLLogout(request_rec *r)
-{
-	apr_byte_t eos = FALSE, fail = FALSE;
-	apr_bucket *b;
-	apr_size_t len;
-	apr_xml_doc *doc;
-	apr_xml_elem *node;
-	apr_size_t i;
-	char *line;
-	const char *buf;
-	apr_off_t offset = 0;
-	char *body = apr_pcalloc(r->pool, CAS_MAX_RESPONSE_SIZE);
-	apr_xml_parser *parser = apr_xml_parser_create(r->pool);
-	apr_bucket_brigade *bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
-	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
-
-	do {
-		if(ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES, APR_BLOCK_READ, CAS_MAX_RESPONSE_SIZE) != APR_SUCCESS) {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Error retrieving bucket brigade.");
-			return FALSE;
-		}
-		
-		for(b = APR_BRIGADE_FIRST(bb); b != APR_BRIGADE_SENTINEL(bb); b = APR_BUCKET_NEXT(b)) {
-			if(APR_BUCKET_IS_EOS(b)) {
-				eos = TRUE;
-				break;
-			}
-
-			if(APR_BUCKET_IS_FLUSH(b))
-				continue;
-
-			apr_bucket_read(b, &buf, &len, APR_BLOCK_READ);
-			if(c->CASDebug)
-				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Read %" APR_SIZE_T_FMT " bytes from bucket - offset %" APR_OFF_T_FMT, len, offset);
-
-			if(len + offset >= CAS_MAX_RESPONSE_SIZE) {
-				ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "MOD_AUTH_CAS: Insufficient buffer space to read POST request.  If this request came from the CAS server, this may represent an unprocessed SAML logoutRequest.");
-				fail = TRUE;
-				break;
-			}
-
-			line = body + offset;
-			for(i = 0; i < len; i++)
-				line[i] = buf[i];
-			offset += len;
-
-		}
-		apr_brigade_cleanup(bb);
-	} while(!eos);
-
-	apr_brigade_destroy(bb);
-
-	if(fail == TRUE)
-		return FALSE;
-
-	if(body != NULL && strncmp(body, "logoutRequest=", 14) == 0) {
-		body += 14;
-		line = (char *) body;
-
-		/* convert + to ' ' or else the XML won't parse right */
-		do { 
-			if(*line == '+')
-				*line = ' ';
-			line++;
-		} while (*line != '\0');
-
-		ap_unescape_url((char *) body);
-
-		if(c->CASDebug)
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "SAML Logout Request: %s", body);
-
-		/* parse the XML response */
-		if(apr_xml_parser_feed(parser, body, strlen(body)) != APR_SUCCESS) {
-			line = apr_pcalloc(r->pool, 512);
-			apr_xml_parser_geterror(parser, line, 512);
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: error parsing SAML logoutRequest: %s", line);
-			return FALSE;
-		}
-		/* retrieve a DOM object */
-		if(apr_xml_parser_done(parser, &doc) != APR_SUCCESS) {
-			line = apr_pcalloc(r->pool, 512);
-			apr_xml_parser_geterror(parser, line, 512);
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: error retrieving XML document for SAML logoutRequest: %s", line);
-			return FALSE;
-		}
-
-		node = doc->root->first_child;
-		while(node != NULL) {
-			if(apr_strnatcmp(node->name, "SessionIndex") == 0 && node->first_cdata.first != NULL) {
-				expireCASST(r, (char *) node->first_cdata.first->text);
-				return TRUE;
-			}
-			node = node->next;
-		}
-	}
-
-	return FALSE;
-}
-
 /* basic CAS module logic */
 static int cas_authenticate(request_rec *r)
 {
@@ -1453,9 +1406,8 @@ static int cas_authenticate(request_rec *r)
 		return DECLINED;
 
 	if(r->method_number == M_POST) {
-		/* read the POST data here to determine if it is a SAML LogoutRequest */
-		if(CASSAMLLogout(r) == TRUE)
-			return OK;
+		/* read the POST data here to determine if it is a SAML LogoutRequest and handle accordingly */
+		ap_add_input_filter("CAS", NULL, r, r->connection);
 	}
 
 	ssl = isSSL(r);
@@ -1477,7 +1429,8 @@ static int cas_authenticate(request_rec *r)
 			setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl);
 			redirectRequest(r, c);
 			return HTTP_MOVED_TEMPORARILY;
-		} else {
+		}
+else {
 			if(c->CASDebug)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "User anonymously authenticated to %s", r->parsed_uri.path);
 			/* do not set a user, but still allow anonymous access */
@@ -1539,10 +1492,52 @@ static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, ser
 	return OK;
 }
 
+static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes) {
+	apr_bucket *b, *d;
+	apr_size_t len;
+	const char *str;
+	char *data;
+
+	/* do not operate on subrequests */
+	if (ap_is_initial_req(f->r) == FALSE) {
+		ap_remove_input_filter(f);
+		return ap_get_brigade(f->next, bb, mode, block, readbytes);
+	}
+
+	ap_get_brigade(f->next, bb, mode, readbytes, CAS_MAX_RESPONSE_SIZE);
+
+	/* get the first bucket from the brigade */
+	b = APR_BRIGADE_FIRST(bb);
+
+	/* if this bucket is NULL, the brigade is empty, and we should return SUCCESS to higher filters */
+	if(b->type == NULL)
+		return APR_SUCCESS;
+
+	/* read from the bucket - if for some reason the logoutRequest comes in more than 1 bucket, we will not be able to process it */
+	apr_bucket_read(b, &str, &len, APR_BLOCK_READ);
+	
+	data = apr_pstrndup(f->r->pool, str, len);
+
+	CASSAMLLogout(f->r, data);
+
+	/* put the data back in the brigade */
+	d = apr_bucket_transient_create(str, len, f->r->connection->bucket_alloc);  // transient buckets contain stack data
+	apr_bucket_setaside(d, f->c->pool); // setaside ensures that the stack data has a long enough lifetime
+	APR_BUCKET_INSERT_AFTER(b, d); // insert bucket C after B in the brigade
+	APR_BUCKET_REMOVE(d); // remove bucket B (we have consumed its contents)
+	apr_bucket_destroy(d); // destroy the bucket we have consumed
+
+	/* we're done here */
+	ap_remove_input_filter(f);
+
+	return ap_get_brigade(f->next, bb, mode, block, readbytes);
+}
+
 static void cas_register_hooks(apr_pool_t *p)
 {
 	ap_hook_post_config(cas_post_config, NULL, NULL, APR_HOOK_MIDDLE);
 	ap_hook_check_user_id(cas_authenticate, NULL, NULL, APR_HOOK_MIDDLE);
+	ap_register_input_filter("CAS", cas_in_filter, NULL, AP_FTYPE_RESOURCE); 
 }
 
 static const command_rec cas_cmds [] = {

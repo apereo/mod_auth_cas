@@ -140,6 +140,8 @@ static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, cha
 static char *getCASCookie(request_rec *r, char *cookieName);
 static apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache, apr_byte_t exists);
 static char *createCASCookie(request_rec *r, char *user, char *ticket);
+static void expireCASST(request_rec *r, char *ticketname);
+static void CASSAMLLogout(request_rec *r, char *body);
 static void deleteCASCacheFile(request_rec *r, char *cookieName);
 static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure);
 static char *escapeString(request_rec *r, char *str);
@@ -152,6 +154,7 @@ static void redirectRequest(request_rec *r, cas_cfg *c);
 static char *getCASTicket(request_rec *r);
 static void removeCASParams(request_rec *r);
 static int cas_authenticate(request_rec *r);
+static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec *s);
 static void cas_register_hooks(apr_pool_t *p);
 
 /* apr forward compatibility */

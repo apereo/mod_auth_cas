@@ -1501,7 +1501,7 @@ static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_inp
 	/* do not operate on subrequests */
 	if (ap_is_initial_req(f->r) == FALSE) {
 		ap_remove_input_filter(f);
-		return ap_get_brigade(f->next, bb, mode, block, readbytes);
+		return (ap_pass_brigade(f->next, bb));
 	}
 
 	ap_get_brigade(f->next, bb, mode, readbytes, CAS_MAX_RESPONSE_SIZE);
@@ -1524,13 +1524,13 @@ static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_inp
 	d = apr_bucket_transient_create(str, len, f->r->connection->bucket_alloc);  // transient buckets contain stack data
 	apr_bucket_setaside(d, f->c->pool); // setaside ensures that the stack data has a long enough lifetime
 	APR_BUCKET_INSERT_AFTER(b, d); // insert bucket C after B in the brigade
-	APR_BUCKET_REMOVE(d); // remove bucket B (we have consumed its contents)
-	apr_bucket_destroy(d); // destroy the bucket we have consumed
+	APR_BUCKET_REMOVE(b); // remove bucket B (we have consumed its contents)
+	apr_bucket_destroy(b); // destroy the bucket we have consumed
 
 	/* we're done here */
 	ap_remove_input_filter(f);
 
-	return ap_get_brigade(f->next, bb, mode, block, readbytes);
+	return(ap_pass_brigade(f->next, bb));
 }
 
 static void cas_register_hooks(apr_pool_t *p)

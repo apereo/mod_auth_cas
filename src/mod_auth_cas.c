@@ -250,6 +250,9 @@ static apr_byte_t cas_setURL(apr_pool_t *pool, apr_uri_t *uri, const char *url)
 	/* set a default port if none was specified - we need this to perform a connect() to these servers for validation later */
 	if(uri->port == 0)
 		uri->port = apr_uri_port_of_scheme(uri->scheme);
+	if(uri->hostname == NULL)
+		return FALSE;
+
 
 	return TRUE;
 }

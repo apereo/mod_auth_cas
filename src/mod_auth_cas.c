@@ -75,10 +75,53 @@ static void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASTimeout = CAS_DEFAULT_COOKIE_TIMEOUT;
 	c->CASIdleTimeout = CAS_DEFAULT_COOKIE_IDLE_TIMEOUT;
 	c->CASCacheCleanInterval = CAS_DEFAULT_CACHE_CLEAN_INTERVAL;
+	c->CASCookieDomain = CAS_DEFAULT_COOKIE_DOMAIN;
+	c->CASCookieHttpOnly = CAS_DEFAULT_COOKIE_HTTPONLY;
 
 	cas_setURL(pool, &(c->CASLoginURL), CAS_DEFAULT_LOGIN_URL);
 	cas_setURL(pool, &(c->CASValidateURL), CAS_DEFAULT_VALIDATE_URL);
 	cas_setURL(pool, &(c->CASProxyValidateURL), CAS_DEFAULT_PROXY_VALIDATE_URL);
+
+	return c;
+}
+
+static void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
+{
+	cas_cfg *c = apr_pcalloc(pool, sizeof(cas_cfg));
+	cas_cfg *base = BASE;
+	cas_cfg *add = ADD;
+	apr_uri_t test;
+	memset(&test, '\0', sizeof(apr_uri_t));
+
+	c->CASVersion = (add->CASVersion != CAS_DEFAULT_VERSION ? add->CASVersion : base->CASVersion);
+	c->CASDebug = (add->CASDebug != CAS_DEFAULT_DEBUG ? add->CASDebug : base->CASDebug);
+	c->CASValidateServer = (add->CASValidateServer != CAS_DEFAULT_VALIDATE_SERVER ? add->CASValidateServer : base->CASValidateServer);
+	c->CASValidateDepth = (add->CASValidateDepth != CAS_DEFAULT_VALIDATE_DEPTH ? add->CASValidateDepth : base->CASValidateDepth);
+	c->CASAllowWildcardCert = (add->CASAllowWildcardCert != CAS_DEFAULT_ALLOW_WILDCARD_CERT ? add->CASAllowWildcardCert : base->CASAllowWildcardCert);
+	c->CASCertificatePath = (add->CASCertificatePath != CAS_DEFAULT_CA_PATH ? add->CASCertificatePath : base->CASCertificatePath);
+	c->CASCookiePath = (add->CASCookiePath != CAS_DEFAULT_COOKIE_PATH ? add->CASCookiePath : base->CASCookiePath);
+	c->CASCookieEntropy = (add->CASCookieEntropy != CAS_DEFAULT_COOKIE_ENTROPY ? add->CASCookieEntropy : base->CASCookieEntropy);
+	c->CASTimeout = (add->CASTimeout != CAS_DEFAULT_COOKIE_TIMEOUT ? add->CASTimeout : base->CASTimeout);
+	c->CASIdleTimeout = (add->CASIdleTimeout != CAS_DEFAULT_COOKIE_IDLE_TIMEOUT ? add->CASIdleTimeout : base->CASIdleTimeout);
+	c->CASCacheCleanInterval = (add->CASCacheCleanInterval != CAS_DEFAULT_CACHE_CLEAN_INTERVAL ? add->CASCacheCleanInterval : base->CASCacheCleanInterval);
+	c->CASCookieDomain = (add->CASCookieDomain != CAS_DEFAULT_COOKIE_DOMAIN ? add->CASCookieDomain : base->CASCookieDomain);
+	c->CASCookieHttpOnly = (add->CASCookieHttpOnly != CAS_DEFAULT_COOKIE_HTTPONLY ? add->CASCookieHttpOnly : base->CASCookieHttpOnly);
+
+	/* if add->CASLoginURL == NULL, we want to copy base -- otherwise, copy the one from add, and so on and so forth */
+	if(memcmp(&add->CASLoginURL, &test, sizeof(apr_uri_t)) == 0)
+		memcpy(&c->CASLoginURL, &base->CASLoginURL, sizeof(apr_uri_t));
+	else
+		memcpy(&c->CASLoginURL, &add->CASLoginURL, sizeof(apr_uri_t));
+
+	if(memcmp(&add->CASValidateURL, &test, sizeof(apr_uri_t)) == 0)
+		memcpy(&c->CASValidateURL, &base->CASValidateURL, sizeof(apr_uri_t));
+	else
+		memcpy(&c->CASValidateURL, &add->CASValidateURL, sizeof(apr_uri_t));
+
+	if(memcmp(&add->CASProxyValidateURL, &test, sizeof(apr_uri_t)) == 0)
+		memcpy(&c->CASProxyValidateURL, &base->CASProxyValidateURL, sizeof(apr_uri_t));
+	else
+		memcpy(&c->CASProxyValidateURL, &add->CASProxyValidateURL, sizeof(apr_uri_t));
 
 	return c;
 }
@@ -128,6 +171,7 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 	cas_cfg *c = (cas_cfg *) ap_get_module_config(cmd->server->module_config, &auth_cas_module);
 	apr_finfo_t f;
 	int i;
+	char d;
 
 	/* cases determined from valid_cmds in mod_auth_cas.h - the config at this point is initialized to default values */
 	switch((size_t) cmd->info) {
@@ -233,6 +277,27 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid CASCacheCleanInterval (%s) specified - must be numeric", value));
 		break;
+		case cmd_cookie_domain:
+			for(i = 0; i < strlen(value); i++) {
+				d = value[i];
+				if( (d < '0' || d > '9') && 
+					(d < 'a' || d > 'z') &&
+					(d < 'A' || d > 'Z') &&
+					d != '.' && d != '-') {
+						return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid character (%c) in CASCookieDomain", d));
+				}
+			}
+			c->CASCookieDomain = apr_pstrdup(cmd->pool, value);
+		break;
+		case cmd_cookie_httponly:
+			if(apr_strnatcasecmp(value, "On") == 0)
+				c->CASCookieHttpOnly = TRUE;
+			else if(apr_strnatcasecmp(value, "Off") == 0)
+				c->CASCookieHttpOnly = FALSE;
+			else
+				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASCookieHttpOnly - must be 'On' or 'Off'"));
+
+		break;
 		default:
 			/* should not happen */
 			return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: invalid command '%s'", cmd->directive->directive));
@@ -244,6 +309,11 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 /* utility functions to set/retrieve values from the configuration */
 static apr_byte_t cas_setURL(apr_pool_t *pool, apr_uri_t *uri, const char *url)
 {
+
+	if(url == NULL) {
+		uri = apr_pcalloc(pool, sizeof(apr_uri_t));
+		return FALSE;
+	}
 
 	if(apr_uri_parse(pool, url, uri) != APR_SUCCESS)
 		return FALSE;
@@ -355,6 +425,12 @@ static char *getCASRenew(request_rec *r)
 
 static char *getCASValidateURL(request_rec *r, cas_cfg *c)
 {
+	apr_uri_t test;
+	memset(&test, '\0', sizeof(apr_uri_t));
+	if(memcmp(&c->CASValidateURL, &test, sizeof(apr_uri_t)) == 0) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: CASValidateURL null (not set?)");
+		return NULL;
+	}
 	/* this is used in the 'GET /[validateURL]...' context */
 	return(apr_uri_unparse(r->pool, &(c->CASValidateURL), APR_URI_UNP_OMITSITEPART|APR_URI_UNP_OMITUSERINFO|APR_URI_UNP_OMITQUERY));
 
@@ -362,6 +438,12 @@ static char *getCASValidateURL(request_rec *r, cas_cfg *c)
 
 static char *getCASLoginURL(request_rec *r, cas_cfg *c)
 {
+	apr_uri_t test;
+	memset(&test, '\0', sizeof(apr_uri_t));
+	if(memcmp(&c->CASLoginURL, &test, sizeof(apr_uri_t)) == 0) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: CASLoginURL null (not set?)");
+		return NULL;
+	}
 	/* this is used in the 'Location: [LoginURL]...' header context */
 	return(apr_uri_unparse(r->pool, &(c->CASLoginURL), APR_URI_UNP_OMITUSERINFO|APR_URI_UNP_OMITQUERY));
 }
@@ -410,6 +492,12 @@ static void redirectRequest(request_rec *r, cas_cfg *c)
 	char *loginURL = getCASLoginURL(r, c);
 	char *renew = getCASRenew(r);
 	char *gateway = getCASGateway(r);
+
+	if(loginURL == NULL) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Cannot redirect request (no CASLoginURL)");
+		return;
+	}
+
 	destination = apr_pstrcat(r->pool, loginURL, "?service=", service, renew, gateway, NULL);
 
 	apr_table_add(r->headers_out, "Location", destination);
@@ -531,7 +619,7 @@ static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, ap
 	char *headerString, *currentCookies;
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 
-	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s", cookieName, cookieValue, (secure ? ";Secure" : ""), getCASScope(r));
+	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s%s%s%s", cookieName, cookieValue, (secure ? ";Secure" : ""), getCASScope(r), (c->CASCookieDomain != NULL ? ";Domain=" : ""), (c->CASCookieDomain != NULL ? c->CASCookieDomain : ""), (c->CASCookieHttpOnly != FALSE ? "; HttpOnly" : ""));
 
 	/* use r->err_headers_out so we always print our headers (even on 302 redirect) - headers_out only prints on 2xx responses */
 	apr_table_add(r->err_headers_out, "Set-Cookie", headerString);
@@ -955,7 +1043,7 @@ static void expireCASST(request_rec *r, char *ticketname)
 
 	deleteCASCacheFile(r, line);
 }
-
+#ifdef BROKEN
 static void CASSAMLLogout(request_rec *r, char *body)
 {
 	apr_xml_doc *doc;
@@ -1007,7 +1095,7 @@ static void CASSAMLLogout(request_rec *r, char *body)
 
 	return;
 }
-
+#endif
 static void deleteCASCacheFile(request_rec *r, char *cookieName)
 {
 	char *path, *ticket;
@@ -1407,12 +1495,12 @@ static int cas_authenticate(request_rec *r)
 	/* Do nothing if we are not the authenticator */
 	if(apr_strnatcasecmp((const char *) ap_auth_type(r), "cas"))
 		return DECLINED;
-
+#ifdef BROKEN
 	if(r->method_number == M_POST) {
 		/* read the POST data here to determine if it is a SAML LogoutRequest and handle accordingly */
 		ap_add_input_filter("CAS", NULL, r, r->connection);
 	}
-
+#endif
 	ssl = isSSL(r);
 	c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 	d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
@@ -1494,7 +1582,7 @@ static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, ser
 
 	return OK;
 }
-
+#ifdef BROKEN
 static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes) {
 	apr_bucket *b, *d;
 	apr_size_t len;
@@ -1535,12 +1623,15 @@ static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_inp
 
 	return(ap_pass_brigade(f->next, bb));
 }
+#endif
 
 static void cas_register_hooks(apr_pool_t *p)
 {
 	ap_hook_post_config(cas_post_config, NULL, NULL, APR_HOOK_MIDDLE);
 	ap_hook_check_user_id(cas_authenticate, NULL, NULL, APR_HOOK_MIDDLE);
+#ifdef BROKEN
 	ap_register_input_filter("CAS", cas_in_filter, NULL, AP_FTYPE_RESOURCE); 
+#endif
 }
 
 static const command_rec cas_cmds [] = {
@@ -1566,6 +1657,8 @@ static const command_rec cas_cmds [] = {
 	/* cache options */
 	AP_INIT_TAKE1("CASCookiePath", cfg_readCASParameter, (void *) cmd_cookie_path, RSRC_CONF, "Path to store the CAS session cookies in (must end in trailing /)"),
 	AP_INIT_TAKE1("CASCookieEntropy", cfg_readCASParameter, (void *) cmd_cookie_entropy, RSRC_CONF, "Number of random bytes to use when generating a session cookie (larger values may result in slow cookie generation)"),
+	AP_INIT_TAKE1("CASCookieDomain", cfg_readCASParameter, (void *) cmd_cookie_domain, RSRC_CONF, "Specify domain header for mod_auth_cas cookie"),
+	AP_INIT_TAKE1("CASCookieHttpOnly", cfg_readCASParameter, (void *) cmd_cookie_httponly, RSRC_CONF, "Enable 'HttpOnly' flag for mod_auth_cas cookie (may break RFC compliance)"),
 	AP_INIT_TAKE1("CASCookie", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASCookie), ACCESS_CONF|OR_AUTHCFG, "Define the cookie name for HTTP sessions"),
 	AP_INIT_TAKE1("CASSecureCookie", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASSecureCookie), ACCESS_CONF|OR_AUTHCFG, "Define the cookie name for HTTPS sessions"),
 	AP_INIT_TAKE1("CASGatewayCookie", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASGatewayCookie), ACCESS_CONF|OR_AUTHCFG, "Define the cookie name for a gateway location"),
@@ -1582,7 +1675,7 @@ module AP_MODULE_DECLARE_DATA auth_cas_module = {
     cas_create_dir_config,                  /* create per-dir    config structures */
     cas_merge_dir_config,                  /* merge  per-dir    config structures */
     cas_create_server_config,                  /* create per-server config structures */
-    NULL,                  /* merge  per-server config structures */
+    cas_merge_server_config,                  /* merge  per-server config structures */
     cas_cmds,                  /* table of config file commands       */
     cas_register_hooks  /* register hooks                      */
 };

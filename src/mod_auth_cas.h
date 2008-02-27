@@ -56,6 +56,10 @@ typedef int socket_t;
 #define INVALID_SOCKET -1
 #endif
 
+#ifdef BROKEN
+#undef BROKEN
+#endif
+
 #define CAS_DEFAULT_VERSION 2
 #define CAS_DEFAULT_DEBUG FALSE
 #define CAS_DEFAULT_SCOPE NULL
@@ -66,12 +70,14 @@ typedef int socket_t;
 #define CAS_DEFAULT_ALLOW_WILDCARD_CERT 0
 #define CAS_DEFAULT_CA_PATH "/etc/ssl/certs/"
 #define CAS_DEFAULT_COOKIE_PATH "/dev/null"
-#define CAS_DEFAULT_LOGIN_URL "https://login.example.com/cas/login"
-#define CAS_DEFAULT_VALIDATE_V1_URL "https://login.example.com/cas/validate"
-#define CAS_DEFAULT_VALIDATE_V2_URL "https://login.example.com/cas/serviceValidate"
+#define CAS_DEFAULT_LOGIN_URL NULL
+#define CAS_DEFAULT_VALIDATE_V1_URL NULL
+#define CAS_DEFAULT_VALIDATE_V2_URL NULL
 #define CAS_DEFAULT_VALIDATE_URL CAS_DEFAULT_VALIDATE_V2_URL
-#define CAS_DEFAULT_PROXY_VALIDATE_URL "https://login.example.com/cas/proxyValidate"
+#define CAS_DEFAULT_PROXY_VALIDATE_URL NULL
 #define CAS_DEFAULT_COOKIE_ENTROPY 32
+#define CAS_DEFAULT_COOKIE_DOMAIN NULL
+#define CAS_DEFAULT_COOKIE_HTTPONLY 0
 #define CAS_DEFAULT_COOKIE_TIMEOUT 7200 /* 2 hours */
 #define CAS_DEFAULT_COOKIE_IDLE_TIMEOUT 3600 /* 1 hour */
 #define CAS_DEFAULT_CACHE_CLEAN_INTERVAL  1800 /* 30 minutes */
@@ -94,8 +100,10 @@ typedef struct cas_cfg {
 	unsigned int CASCookieEntropy;
 	unsigned int CASTimeout;
 	unsigned int CASIdleTimeout;
+	unsigned int CASCookieHttpOnly;
 	char *CASCertificatePath;
 	char *CASCookiePath;
+	char *CASCookieDomain;
 	apr_uri_t CASLoginURL;
 	apr_uri_t CASValidateURL;
 	apr_uri_t CASProxyValidateURL;
@@ -121,7 +129,7 @@ typedef struct cas_cache_entry {
 	char *ticket;
 } cas_cache_entry;
 
-typedef enum { cmd_version, cmd_debug, cmd_validate_server, cmd_validate_depth, cmd_wildcard_cert, cmd_ca_path, cmd_cookie_path, cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy, cmd_session_timeout, cmd_idle_timeout, cmd_cache_interval } valid_cmds;
+typedef enum { cmd_version, cmd_debug, cmd_validate_server, cmd_validate_depth, cmd_wildcard_cert, cmd_ca_path, cmd_cookie_path, cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy, cmd_session_timeout, cmd_idle_timeout, cmd_cache_interval, cmd_cookie_domain, cmd_cookie_httponly } valid_cmds;
 
 module AP_MODULE_DECLARE_DATA auth_cas_module;
 static apr_byte_t cas_setURL(apr_pool_t *pool, apr_uri_t *uri, const char *url);
@@ -141,7 +149,10 @@ static char *getCASCookie(request_rec *r, char *cookieName);
 static apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache, apr_byte_t exists);
 static char *createCASCookie(request_rec *r, char *user, char *ticket);
 static void expireCASST(request_rec *r, char *ticketname);
+#ifdef BROKEN
 static void CASSAMLLogout(request_rec *r, char *body);
+static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes);
+#endif
 static void deleteCASCacheFile(request_rec *r, char *cookieName);
 static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure);
 static char *escapeString(request_rec *r, char *str);

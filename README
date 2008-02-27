@@ -37,13 +37,19 @@ NEW FEATURES AND FUNCTIONS IN THIS RELEASE
 * Cookies are now stored in an XML format, making the data
   stored more easily extensible for possible future attribute
   delivery.
-* Support for CAS 3.1 server's single sign out via SAML
+* (broken) support for CAS 3.1 server's single sign out via SAML
   logoutRequest
+* CASCookieDomain directive
+* CASHttpOnly directive
 * Autoconf by Matt
 
 ====================================================================
 BUG FIXES 
 ====================================================================
+* When setting a VHOST-wide variable in both the global Apache
+  config and then setting a variable inside a VirtualHost,
+  configuration settings were reset to default inside the VHost.
+  This is now fixed.
 
 ====================================================================
 KNOWN LIMITATIONS
@@ -55,6 +61,12 @@ These limitations are known to exists in this release of the software:
 * CAS Ticket Validation can only be performed over an SSL connection.
   The CAS protocol does not explicitly require this, but to not do so
   leaves this system open to a man-in-the-middle attack.
+
+* CAS single sign out is currently not functional and disabled.  It
+  is only safe to use in the case where all requests are GET and not
+  POST (the module inadvertently 'eats' some content of the POST
+  request while determining if it should process it as a SAML logout
+  request).
 
 ====================================================================
 GETTING STARTED
@@ -153,19 +165,20 @@ Description:	The path to the X509 certificate of the Certificate Authority for
 		by their hashed names.
 
 Directive: 	CASLoginURL
-Default:	https://login.example.com/cas/login
+Default:	NULL
 Description:	The URL to redirect users to when they attempt to access a CAS
 		protected resource and do not have an existing session.  The
 		'service', 'renew', and 'gateway' parameters will be appended to
-		this by mod_auth_cas if necessary.
+		this by mod_auth_cas if necessary.  Include 'http[s]://...'
 
 Directive: 	CASValidateURL
-Default:	https://login.example.com/cas/serviceValidate
+Default:	NULL
 Description:	The URL to use when validating a ticket presented by a client in
-		the HTTP query string (ticket=...).
+		the HTTP query string (ticket=...).  Must include 'https://' and
+		must be an HTTPS URL.
 
 Directive: 	CASProxyValidateURL
-Default:	https://login.example.com/cas/proxyValidate
+Default:	NULL
 Description:	The URL to use when performing a proxy validation.  This is currently
 		an unimplemented feature, so setting this will have no effect.
 
@@ -214,6 +227,17 @@ Description:	This is the minimum amount of time that must pass inbetween cache
 		last cleaning, then all files in CASCookiePath are examined and if
 		they have expired, they are removed.  This is merely to prevent the
 		file system from becoming excessively cluttered.
+
+Directive:	CASCookieDomain
+Default:	NULL
+Description:	Specify the value for the 'Domain=' parameter in the Set-Cookie header.
+
+Directive:	CASCookieHttpOnly
+Default:	Off
+Description:	Set the optional 'HttpOnly' flag for cookies issues by mod_auth_cas.
+		This parameter may break RFC compliance since HttpOnly is not defined
+		in RFC 2109.  See http://msdn2.microsoft.com/en-us/library/ms533046.aspx
+		for more information
 
 Valid Directory/.htaccess Directives
 ------------------------------------

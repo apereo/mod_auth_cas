@@ -17,9 +17,9 @@
  * Version 1.0.7
  *
  * Author:
- * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>
+ * Phil Ames       <modauthcas [at] gmail [dot] com>
  * Designers:
- * Phil Ames       <phillip [dot] ames [at] uconn [dot] edu>
+ * Phil Ames       <modauthcas [at] gmail [dot] com>
  * Matt Smith      <matt [dot] smith [at] uconn [dot] edu>
  */
 

@@ -296,10 +296,10 @@ Description:	If enabled, this will store the user returned by CAS in an HTTP hea
 CONTRIBUTORS 
 ====================================================================  
 Author:
-Phil Ames 	<phillip [dot] ames [at] uconn [dot] edu>
+Phil Ames 	<modauthcas [at] gmail [dot] com>
 
 Designers:
-Phil Ames 	<phillip [dot] ames [at] uconn [dot] edu>
+Phil Ames 	<modauthcas [at] gmail [dot] com>
 Matt Smith 	<matt [dot] smith [at] uconn [dot] edu>
 
 Portions of this module are based on code from a CAS module by Yale.

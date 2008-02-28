@@ -1,8 +1,10 @@
+DESTDIR?=`@APXS@ -q LIBEXECDIR`
 all:
 	@APXS@ -c src/mod_auth_cas.c
 
 install:
-	@APXS@ -i src/mod_auth_cas.la
+	if test ! -d ${DESTDIR}; then mkdir -p ${DESTDIR}; fi
+	@APXS@ -i -S LIBEXECDIR=${DESTDIR} src/mod_auth_cas.la
 
 clean:
 	rm -rf src/mod_auth_cas.slo src/mod_auth_cas.la src/mod_auth_cas.lo src/.libs

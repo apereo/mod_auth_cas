@@ -12,9 +12,22 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * 
+ * In addition, as a special exception, the copyright holders give
+ * permission to link the code of portions of this program with the
+ * OpenSSL library under certain conditions as described in each
+ * individual source file, and distribute linked combinations
+ * including the two.
+ * You must obey the GNU General Public License in all respects
+ * for all of the code used other than OpenSSL.  If you modify
+ * file(s) with this exception, you may extend this exception to your
+ * version of the file(s), but you are not obligated to do so.  If you
+ * do not wish to do so, delete this exception statement from your
+ * version.  If you delete this exception statement from all source
+ * files in the program, then also delete it here.
+ *
  * mod_auth_cas.c
  * Apache CAS Authentication Module
- * Version 1.0.7
+ * Version 1.0.8
  *
  * Author:
  * Phil Ames       <modauthcas [at] gmail [dot] com>
@@ -507,7 +520,7 @@ static void redirectRequest(request_rec *r, cas_cfg *c)
 
 }
 
-static void removeCASParams(request_rec *r)
+static apr_byte_t removeCASParams(request_rec *r)
 {
 	char *newArgs, *oldArgs, *p;
 	apr_byte_t copy = TRUE;
@@ -515,7 +528,7 @@ static void removeCASParams(request_rec *r)
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 
 	if(r->args == NULL)
-		return;
+		return changed;
 
 	oldArgs = r->args;
 	p = newArgs = apr_pcalloc(r->pool, strlen(oldArgs) + 1); /* add 1 for terminating NULL */
@@ -555,7 +568,7 @@ static void removeCASParams(request_rec *r)
 	else if(strlen(newArgs) == 0)
 		r->args = NULL;
 
-	return;
+	return changed;
 }
 
 static char *getCASTicket(request_rec *r)
@@ -1491,6 +1504,9 @@ static int cas_authenticate(request_rec *r)
 	cas_cfg *c;
 	cas_dir_cfg *d;
 	apr_byte_t ssl;
+	apr_byte_t parametersRemoved = FALSE;
+	apr_byte_t printPort = FALSE;
+	char *newLocation = NULL;
 
 	/* Do nothing if we are not the authenticator */
 	if(apr_strnatcasecmp((const char *) ap_auth_type(r), "cas"))
@@ -1509,7 +1525,7 @@ static int cas_authenticate(request_rec *r)
 	ticket = getCASTicket(r);
 	cookieString = getCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie));
 
-	removeCASParams(r);
+	parametersRemoved = removeCASParams(r);
 
 	/* first, handle the gateway case */
 	if(d->CASGateway != NULL && strncmp(d->CASGateway, r->parsed_uri.path, strlen(d->CASGateway)) == 0 && ticket == NULL && cookieString == NULL) {
@@ -1520,8 +1536,7 @@ static int cas_authenticate(request_rec *r)
 			setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl);
 			redirectRequest(r, c);
 			return HTTP_MOVED_TEMPORARILY;
-		}
-else {
+		} else {
 			if(c->CASDebug)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "User anonymously authenticated to %s", r->parsed_uri.path);
 			/* do not set a user, but still allow anonymous access */
@@ -1537,7 +1552,33 @@ else {
 			r->user = remoteUser;
 			if(d->CASAuthNHeader != NULL)
 				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);
-			return OK;
+				
+			if(parametersRemoved == TRUE) {
+				if(ssl == TRUE) {
+					if(port != 443)
+						printPort = TRUE;
+				} else if(port != 80) {
+					printPort = TRUE;
+			}
+
+
+#ifdef APACHE2_0
+			if(printPort == TRUE)
+				newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_method(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? escapeString(r->args) : ""));
+			else
+				newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_method(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));				
+#else
+			if(printPort == TRUE)
+				newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? escapeString(r->args) : ""));
+			else
+				newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
+#endif
+
+			apr_table_add(r->headers_out, "Location", newLocation);
+			return HTTP_MOVED_TEMPORARILY;
+			} else {
+				return OK;
+			}
 		} else {
 			/* sometimes, pages that automatically refresh will re-send the ticket parameter, so let's check any cookies presented or return an error if none */
 			if(cookieString == NULL)

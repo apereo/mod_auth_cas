@@ -1,5 +1,5 @@
 ====================================================================
-MOD_AUTH_CAS 1.0.7 README
+MOD_AUTH_CAS 1.0.8 README
 ====================================================================
 Apache CAS Authentication Module
 
@@ -20,6 +20,23 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ====================================================================
+LICENSE EXCEPTION
+====================================================================
+In addition, as a special exception, the copyright holders give
+permission to link the code of portions of this program with the
+OpenSSL library under certain conditions as described in each
+individual source file, and distribute linked combinations
+including the two.
+
+You must obey the GNU General Public License in all respects
+for all of the code used other than OpenSSL.  If you modify
+file(s) with this exception, you may extend this exception to your
+version of the file(s), but you are not obligated to do so.  If you
+do not wish to do so, delete this exception statement from your
+version.  If you delete this exception statement from all source
+files in the program, then also delete it here.
+
+====================================================================
 INTRODUCTION 
 ====================================================================
 The purpose of this module is to allow an Apache web server to interact
@@ -32,24 +49,16 @@ http://www.ja-sig.org/products/cas/overview/protocol/index.html
 ====================================================================
 NEW FEATURES AND FUNCTIONS IN THIS RELEASE 
 ====================================================================
-* Improved Apache version detection based on the contents of
-  ap_release.h
-* Cookies are now stored in an XML format, making the data
-  stored more easily extensible for possible future attribute
-  delivery.
-* (broken) support for CAS 3.1 server's single sign out via SAML
-  logoutRequest
-* CASCookieDomain directive
-* CASHttpOnly directive
-* Autoconf by Matt
+* Users are sent through one extra redirect after arriving at the
+  web server with their CAS ticket.  This is to send them back to
+  the URL they requested without a 'ticket' parameter that may
+  unexpectedly alter relative links that are constructed by
+  browsers.
 
 ====================================================================
 BUG FIXES 
 ====================================================================
-* When setting a VHOST-wide variable in both the global Apache
-  config and then setting a variable inside a VirtualHost,
-  configuration settings were reset to default inside the VHost.
-  This is now fixed.
+* None
 
 ====================================================================
 KNOWN LIMITATIONS

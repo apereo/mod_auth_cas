@@ -12,9 +12,22 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * 
+ * In addition, as a special exception, the copyright holders give
+ * permission to link the code of portions of this program with the
+ * OpenSSL library under certain conditions as described in each
+ * individual source file, and distribute linked combinations
+ * including the two.
+ * You must obey the GNU General Public License in all respects
+ * for all of the code used other than OpenSSL.  If you modify
+ * file(s) with this exception, you may extend this exception to your
+ * version of the file(s), but you are not obligated to do so.  If you
+ * do not wish to do so, delete this exception statement from your
+ * version.  If you delete this exception statement from all source
+ * files in the program, then also delete it here.
+ *
  * mod_auth_cas.h
  * Apache CAS Authentication Module
- * Version 1.0.7
+ * Version 1.0.8
  *
  * Author:
  * Phil Ames       <modauthcas [at] gmail [dot] com>
@@ -163,7 +176,7 @@ static char *getCASLoginURL(request_rec *r, cas_cfg *c);
 static char *getCASService(request_rec *r, cas_cfg *c);
 static void redirectRequest(request_rec *r, cas_cfg *c);
 static char *getCASTicket(request_rec *r);
-static void removeCASParams(request_rec *r);
+static apr_byte_t removeCASParams(request_rec *r);
 static int cas_authenticate(request_rec *r);
 static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec *s);
 static void cas_register_hooks(apr_pool_t *p);

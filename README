@@ -58,7 +58,8 @@ NEW FEATURES AND FUNCTIONS IN THIS RELEASE
 ====================================================================
 BUG FIXES 
 ====================================================================
-* None
+* Ignore case when comparing SSL certificates CN against the domain
+  name.
 
 ====================================================================
 KNOWN LIMITATIONS

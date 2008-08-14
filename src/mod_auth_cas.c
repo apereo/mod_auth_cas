@@ -1308,11 +1308,11 @@ static apr_byte_t check_cert_cn(request_rec *r, cas_cfg *c, SSL_CTX *ctx, X509 *
 	if(buf[0] == '*' && c->CASAllowWildcardCert != FALSE) {
 		do {
 			domain = strchr(domain + (domain[0] == '.' ? 1 : 0), '.');
-			if(domain != NULL && apr_strnatcmp(buf+1, domain) == 0)
+			if(domain != NULL && apr_strnatcasecmp(buf+1, domain) == 0)
 				return TRUE;
 		} while (domain != NULL);
 	} else {
-		if(apr_strnatcmp(buf, cn) == 0)
+		if(apr_strnatcasecmp(buf, cn) == 0)
 			return TRUE;
 	}
 	
@@ -1559,23 +1559,23 @@ static int cas_authenticate(request_rec *r)
 						printPort = TRUE;
 				} else if(port != 80) {
 					printPort = TRUE;
-			}
+				}
 
 
 #ifdef APACHE2_0
-			if(printPort == TRUE)
-				newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_method(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? escapeString(r->args) : ""));
-			else
-				newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_method(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));				
+				if(printPort == TRUE)
+					newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_method(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? escapeString(r->args) : ""));
+				else
+					newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_method(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));				
 #else
-			if(printPort == TRUE)
-				newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? escapeString(r->args) : ""));
-			else
-				newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
+				if(printPort == TRUE)
+					newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? escapeString(r->args) : ""));
+				else
+					newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
 #endif
 
-			apr_table_add(r->headers_out, "Location", newLocation);
-			return HTTP_MOVED_TEMPORARILY;
+				apr_table_add(r->headers_out, "Location", newLocation);
+				return HTTP_MOVED_TEMPORARILY;
 			} else {
 				return OK;
 			}

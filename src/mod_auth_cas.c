@@ -1458,7 +1458,11 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	}
 
 	/* without Connection: close the HTTP/1.1 protocol defaults to trying to keep the connection alive.  this introduces ~15 second lag when receiving a response */
-	validateRequest = apr_psprintf(r->pool, "GET %s?service=%s&ticket=%s%s HTTP/1.1\nHost: %s\nConnection: close\n\n", getCASValidateURL(r, c), getCASService(r, c), ticket, getCASRenew(r), c->CASValidateURL.hostname);
+	/* MAS-14 reverts this to HTTP/1.0 because the code that retrieves the ticket validation response can not handle transfer chunked encoding.  this will be solved
+	 * at a later date when migrating to libcurl/some other HTTP library to perform ticket validation.  It also removes the Connection: close header as the default
+	 * behavior for HTTP/1.0 is Connection: close
+	 */
+	validateRequest = apr_psprintf(r->pool, "GET %s?service=%s&ticket=%s%s HTTP/1.0\nHost: %s\n\n", getCASValidateURL(r, c), getCASService(r, c), ticket, getCASRenew(r), c->CASValidateURL.hostname);
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Validation request: %s", validateRequest);
 	/* send our validation request */

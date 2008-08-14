@@ -60,6 +60,9 @@ BUG FIXES
 ====================================================================
 * Ignore case when comparing SSL certificates CN against the domain
   name.
+* Ticket validation request converted to HTTP/1.0 in order to
+  resolve MAS-14, which caused mod_auth_cas to fail when receiving
+  a response that had chunked transfer encoding.
 
 ====================================================================
 KNOWN LIMITATIONS

@@ -1509,7 +1509,9 @@ static int cas_authenticate(request_rec *r)
 	cas_dir_cfg *d;
 	apr_byte_t ssl;
 	apr_byte_t parametersRemoved = FALSE;
+	apr_port_t port = r->connection->local_addr->port;
 	apr_byte_t printPort = FALSE;
+	
 	char *newLocation = NULL;
 
 	/* Do nothing if we are not the authenticator */
@@ -1568,14 +1570,14 @@ static int cas_authenticate(request_rec *r)
 
 #ifdef APACHE2_0
 				if(printPort == TRUE)
-					newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_method(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? escapeString(r->args) : ""));
+					newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_method(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? escapeString(r, r->args) : ""));
 				else
-					newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_method(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));				
+					newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_method(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? escapeString(r, r->args) : ""));
 #else
 				if(printPort == TRUE)
-					newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? escapeString(r->args) : ""));
+					newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? escapeString(r, r->args) : ""));
 				else
-					newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
+					newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? escapeString(r, r->args) : ""));
 #endif
 
 				apr_table_add(r->headers_out, "Location", newLocation);

@@ -419,6 +419,10 @@ static char *getCASGateway(request_rec *r)
 {
 	char *rv = "";
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
+
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getCASGateway()");
+
 	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
 	if(d->CASGateway != NULL && strncmp(d->CASGateway, r->parsed_uri.path, strlen(d->CASGateway)) == 0 && c->CASVersion > 1) { /* gateway not supported in CAS v1 */
 		rv = "&gateway=true";
@@ -439,6 +443,10 @@ static char *getCASRenew(request_rec *r)
 static char *getCASValidateURL(request_rec *r, cas_cfg *c)
 {
 	apr_uri_t test;
+
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getCASValidateURL()");
+
 	memset(&test, '\0', sizeof(apr_uri_t));
 	if(memcmp(&c->CASValidateURL, &test, sizeof(apr_uri_t)) == 0) {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: CASValidateURL null (not set?)");
@@ -452,6 +460,10 @@ static char *getCASValidateURL(request_rec *r, cas_cfg *c)
 static char *getCASLoginURL(request_rec *r, cas_cfg *c)
 {
 	apr_uri_t test;
+
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getCASLoginURL()");
+
 	memset(&test, '\0', sizeof(apr_uri_t));
 	if(memcmp(&c->CASLoginURL, &test, sizeof(apr_uri_t)) == 0) {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: CASLoginURL null (not set?)");
@@ -472,6 +484,10 @@ static char *getCASService(request_rec *r, cas_cfg *c)
 	char *scheme, *service;
 	apr_port_t port = r->connection->local_addr->port;
 	apr_byte_t printPort = FALSE;
+
+
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getCASService()");
 
 	if(isSSL(r)) {
 		if(port != 443)
@@ -505,6 +521,9 @@ static void redirectRequest(request_rec *r, cas_cfg *c)
 	char *loginURL = getCASLoginURL(r, c);
 	char *renew = getCASRenew(r);
 	char *gateway = getCASGateway(r);
+
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering redirectRequest()");
 
 	if(loginURL == NULL) {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Cannot redirect request (no CASLoginURL)");
@@ -632,6 +651,9 @@ static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, ap
 	char *headerString, *currentCookies;
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering setCASCookie()");
+
 	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s%s%s%s", cookieName, cookieValue, (secure ? ";Secure" : ""), getCASScope(r), (c->CASCookieDomain != NULL ? ";Domain=" : ""), (c->CASCookieDomain != NULL ? c->CASCookieDomain : ""), (c->CASCookieHttpOnly != FALSE ? "; HttpOnly" : ""));
 
 	/* use r->err_headers_out so we always print our headers (even on 302 redirect) - headers_out only prints on 2xx responses */
@@ -721,6 +743,9 @@ static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_c
 	char errbuf[CAS_MAX_ERROR_SIZE];
 	char *path, *val;
 	int i;
+
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering readCASCacheFile()");
 
 	/* first, validate that cookie looks like an MD5 string */
 	if(strlen(name) != APR_MD5_DIGESTSIZE*2) {
@@ -834,6 +859,9 @@ static void CASCleanCache(request_rec *r, cas_cfg *c)
 	apr_dir_t *cacheDir;
 	apr_finfo_t fi;
 
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering CASCleanCache()");
+
 	path = apr_psprintf(r->pool, "%s.metadata", c->CASCookiePath);
 
 
@@ -924,6 +952,9 @@ static apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry
 	apr_byte_t lock = FALSE;
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering writeCASCacheEntry()");
+
 	path = apr_psprintf(r->pool, "%s%s", c->CASCookiePath, name);
 
 	if(exists == FALSE) {
@@ -980,6 +1011,9 @@ static char *createCASCookie(request_rec *r, char *user, char *ticket)
 	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
 	buf = apr_pcalloc(r->pool, c->CASCookieEntropy);
 
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering createCASCookie()");
+
 	CASCleanCache(r, c);
 
 	e.user = user;
@@ -1028,6 +1062,9 @@ static void expireCASST(request_rec *r, char *ticketname)
 	apr_file_t *f;
 	apr_size_t bytes = APR_MD5_DIGESTSIZE*2;
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
+
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering expireCASST()");
 
 	ticket = (char *) ap_md5_binary(r->pool, (unsigned char *) ticketname, (int) strlen(ticketname));
 	line[APR_MD5_DIGESTSIZE*2] = '\0';
@@ -1115,6 +1152,9 @@ static void deleteCASCacheFile(request_rec *r, char *cookieName)
 	cas_cache_entry e;
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering deleteCASCacheFile()");
+
 	/* we need this to get the ticket */
 	readCASCacheFile(r, c, cookieName, &e);
 
@@ -1140,6 +1180,9 @@ static apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, cha
 	apr_xml_parser *parser = apr_xml_parser_create(r->pool);
 	const char *response = getResponseFromServer(r, c, ticket);
 	
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering isValidCASTicket()");
+
 	if(response == NULL)
 		return FALSE;
 
@@ -1226,6 +1269,9 @@ static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, cha
 	cas_cache_entry cache;
 	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
 
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering isValidCASCookie()");
+
 	/* corrupt or invalid file */
 	if(readCASCacheFile(r, c, cookie, &cache) != TRUE) {
 		if(c->CASDebug)
@@ -1292,6 +1338,8 @@ static apr_byte_t check_cert_cn(request_rec *r, cas_cfg *c, SSL_CTX *ctx, X509 *
 	X509_STORE *store = SSL_CTX_get_cert_store(ctx);
 	X509_STORE_CTX *xctx = X509_STORE_CTX_new();
 
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering check_cert_cn()");
 	/* specify that 'certificate' (what was presented by the other side) is what we want to verify against 'store' */
 	X509_STORE_CTX_init(xctx, store, certificate, sk_X509_new_null());
 
@@ -1354,6 +1402,8 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	struct sockaddr_in sa;
 	struct hostent *server = gethostbyname(c->CASValidateURL.hostname);
 
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getResponseFromServer()");
 #ifdef WIN32
 	WSADATA wsaData;
 	if (WSAStartup(MAKEWORD(2,0), &wsaData) != 0){
@@ -1523,9 +1573,13 @@ static int cas_authenticate(request_rec *r)
 		ap_add_input_filter("CAS", NULL, r, r->connection);
 	}
 #endif
-	ssl = isSSL(r);
+
 	c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 	d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
+
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Entering cas_authenticate()");
+	ssl = isSSL(r);
 
 	/* the presence of a ticket overrides all */
 	ticket = getCASTicket(r);
@@ -1538,13 +1592,13 @@ static int cas_authenticate(request_rec *r)
 		cookieString = getCASCookie(r, d->CASGatewayCookie);
 		if(cookieString == NULL) { /* they have not made a gateway trip yet */
 			if(c->CASDebug)
-				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "User accessing a gateway %s", r->parsed_uri.path);
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Gateway initial access (%s)", r->parsed_uri.path);
 			setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl);
 			redirectRequest(r, c);
 			return HTTP_MOVED_TEMPORARILY;
 		} else {
 			if(c->CASDebug)
-				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "User anonymously authenticated to %s", r->parsed_uri.path);
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Gateway anonymous authentication (%s)", r->parsed_uri.path);
 			/* do not set a user, but still allow anonymous access */
 			return OK;
 		}
@@ -1579,7 +1633,6 @@ static int cas_authenticate(request_rec *r)
 				else
 					newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? escapeString(r, r->args) : ""));
 #endif
-
 				apr_table_add(r->headers_out, "Location", newLocation);
 				return HTTP_MOVED_TEMPORARILY;
 			} else {

@@ -81,6 +81,18 @@ These limitations are known to exists in this release of the software:
   request while determining if it should process it as a SAML logout
   request).
 
+* Reports of slow performance on some systems (particularly
+  virtual machines) have been reported.  This is related to the
+  entropy that is gathered when creating a session cookie for
+  the end user.  To combat this, there are 3 solutions.  The
+  first is to upgrade the version of the Apache Portable Runtime
+  on your system to >= 1.3.0.  In that version, entropy is gathered
+  from a nonblocking source.  The second method would be to install
+  a package such as rng-tools and feed random data from /dev/urandom
+  to /dev/random("-r /dev/urandom").  The  last way is to reduce
+  the size of the CASCookieEntropy setting, reducing the demand on
+  the pool.
+
 ====================================================================
 GETTING STARTED
 ====================================================================

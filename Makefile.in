@@ -1,4 +1,4 @@
-APXS_LIBEXECDIR:=$(shell /usr/bin/apxs2 -q LIBEXECDIR)
+APXS_LIBEXECDIR:=$(shell @APXS@ -q LIBEXECDIR)
 
 all:
 	@APXS@ -c src/mod_auth_cas.c

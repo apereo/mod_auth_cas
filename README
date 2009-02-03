@@ -106,6 +106,9 @@ Apache Portable Runtime - 1.2.8
 Apache Portable Runtime Utilities - 1.2.7
 Apache Web Server - 2.2.3
 
+Additionally, GNU Make and the auto* tools are necessary for building
+mod_auth_cas.
+
 Compatibility with other versions will depend on those other libraries.
 
 INSTALLATION INSTRUCTIONS
@@ -125,8 +128,10 @@ apxs2 -i -c mod_auth_cas.c
 
 depending on your Linux distribution.
 
-This release of mod_auth_cas includes support for autoconf.  Use the
-standard commands below to compile and install:
+This release of mod_auth_cas includes support for autoconf.  Note that
+you must use GNU Make - other Make implementations may work, but are
+untested and not recommended.  Use the standard commands below to
+compile and install:
 
 ./configure; make; make install
 

@@ -32,10 +32,11 @@ http://www.ja-sig.org/products/cas/overview/protocol/index.html
 NEW FEATURES AND FUNCTIONS IN THIS RELEASE 
 ====================================================================
 * mod_auth_cas 1.0.9 is now licensed under the Apache 2 License.
-  All future versions will be released under this license.
+  All future versions will be released under this license until
+  further notice.
 
-* mod_auth_cas 1.0.8 should be considered as available under the
-  Apache 2 License or the GPLv3 license.
+* mod_auth_cas 1.0.8 and prior should be considered as available
+  under the Apache 2 License or the GPLv3 license.
 
 ====================================================================
 BUG FIXES 

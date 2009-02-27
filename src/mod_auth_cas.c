@@ -740,6 +740,7 @@ static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_c
 	apr_xml_parser *parser;
 	apr_xml_doc *doc;
 	apr_xml_elem *e;
+	apr_status_t rv;
 	char errbuf[CAS_MAX_ERROR_SIZE];
 	char *path, *val;
 	int i;
@@ -788,8 +789,20 @@ static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_c
 	/* read the various values we store */
 	apr_file_seek(f, APR_SET, &begin);
 
-	if(apr_xml_parse_file(r->pool, &parser, &doc, f, CAS_MAX_XML_SIZE) != APR_SUCCESS) {
-		apr_xml_parser_geterror(parser, errbuf, sizeof(errbuf));
+	rv = apr_xml_parse_file(r->pool, &parser, &doc, f, CAS_MAX_XML_SIZE);
+	if(rv != APR_SUCCESS) {
+		if(parser == NULL) {
+			/*
+			 * apr_xml_parse_file can fail early enough that the parser value is left uninitialized.
+			 * In this case, we'll use apr_strerror and avoid calling apr_xml_parser_geterror, which
+			 * segfaults with a null parser.
+			 * patch to resolve this provided by Chris Adams of Yale
+			 */
+			apr_strerror(rv, errbuf, sizeof(errbuf));
+		} else {
+			apr_xml_parser_geterror(parser, errbuf, sizeof(errbuf));
+		}
+
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Error parsing XML content for '%s' (%s)", name, errbuf);
 		return FALSE;
 	}

@@ -303,6 +303,12 @@ Default:	None
 Description:	If enabled, this will store the user returned by CAS in an HTTP header
 		accessible to your web applications.
 
+Directive:	CASSSOEnabled
+Default:	Off
+Description:	If enabled, this activates support for Single Sign Out within the CAS
+		protocol.  Please note that this feature is currently experimental and
+		may mangle POST data.
+
 ====================================================================
 CONTRIBUTORS 
 ====================================================================  

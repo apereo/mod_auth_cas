@@ -79,6 +79,7 @@ static void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASCacheCleanInterval = CAS_DEFAULT_CACHE_CLEAN_INTERVAL;
 	c->CASCookieDomain = CAS_DEFAULT_COOKIE_DOMAIN;
 	c->CASCookieHttpOnly = CAS_DEFAULT_COOKIE_HTTPONLY;
+	c->CASSSOEnabled = CAS_DEFAULT_SSO_ENABLED;
 
 	cas_setURL(pool, &(c->CASLoginURL), CAS_DEFAULT_LOGIN_URL);
 	cas_setURL(pool, &(c->CASValidateURL), CAS_DEFAULT_VALIDATE_URL);
@@ -108,6 +109,7 @@ static void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASCacheCleanInterval = (add->CASCacheCleanInterval != CAS_DEFAULT_CACHE_CLEAN_INTERVAL ? add->CASCacheCleanInterval : base->CASCacheCleanInterval);
 	c->CASCookieDomain = (add->CASCookieDomain != CAS_DEFAULT_COOKIE_DOMAIN ? add->CASCookieDomain : base->CASCookieDomain);
 	c->CASCookieHttpOnly = (add->CASCookieHttpOnly != CAS_DEFAULT_COOKIE_HTTPONLY ? add->CASCookieHttpOnly : base->CASCookieHttpOnly);
+	c->CASCookieHttpOnly = (add->CASSSOEnabled != CAS_DEFAULT_SSO_ENABLED ? add->CASSSOEnabled : base->CASSSOEnabled);
 
 	/* if add->CASLoginURL == NULL, we want to copy base -- otherwise, copy the one from add, and so on and so forth */
 	if(memcmp(&add->CASLoginURL, &test, sizeof(apr_uri_t)) == 0)
@@ -299,6 +301,14 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASCookieHttpOnly - must be 'On' or 'Off'"));
 
+		break;
+		case cmd_sso:
+			if(apr_strnatcasecmp(value, "On") == 0)
+				c->CASSSOEnabled = TRUE;
+			else if(apr_strnatcasecmp(value, "Off") == 0)
+				c->CASSSOEnabled = FALSE;
+			else
+				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASSSOEnabled - must be 'On' or 'Off'"));
 		break;
 		default:
 			/* should not happen */
@@ -1077,7 +1087,7 @@ static void expireCASST(request_rec *r, char *ticketname)
 	path = apr_psprintf(r->pool, "%s.%s", c->CASCookiePath, ticket);
 
 	if(apr_file_open(&f, path, APR_FOPEN_READ, APR_OS_DEFAULT, r->pool) != APR_SUCCESS) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' could not be opened (ticket %s - expired already?)", path, ticketname);
+		ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' could not be opened (ticket %s - expired already?)", path, ticketname);
 		return;
 	}
 	
@@ -1095,7 +1105,7 @@ static void expireCASST(request_rec *r, char *ticketname)
 
 	deleteCASCacheFile(r, line);
 }
-#ifdef BROKEN
+
 static void CASSAMLLogout(request_rec *r, char *body)
 {
 	apr_xml_doc *doc;
@@ -1147,7 +1157,7 @@ static void CASSAMLLogout(request_rec *r, char *body)
 
 	return;
 }
-#endif
+
 static void deleteCASCacheFile(request_rec *r, char *cookieName)
 {
 	char *path, *ticket;
@@ -1569,15 +1579,14 @@ static int cas_authenticate(request_rec *r)
 	/* Do nothing if we are not the authenticator */
 	if(apr_strnatcasecmp((const char *) ap_auth_type(r), "cas"))
 		return DECLINED;
-#ifdef BROKEN
-	if(r->method_number == M_POST) {
-		/* read the POST data here to determine if it is a SAML LogoutRequest and handle accordingly */
-		ap_add_input_filter("CAS", NULL, r, r->connection);
-	}
-#endif
 
 	c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 	d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
+
+	if(r->method_number == M_POST && c->CASSSOEnabled != FALSE) {
+		/* read the POST data here to determine if it is a SAML LogoutRequest and handle accordingly */
+		ap_add_input_filter("CAS", NULL, r, r->connection);
+	}
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Entering cas_authenticate()");
@@ -1684,9 +1693,9 @@ static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, ser
 
 	return OK;
 }
-#ifdef BROKEN
+
 static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes) {
-	apr_bucket *b, *d;
+	apr_bucket *b;
 	apr_size_t len;
 	const char *str;
 	char *data;
@@ -1713,27 +1722,17 @@ static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_inp
 
 	CASSAMLLogout(f->r, data);
 
-	/* put the data back in the brigade */
-	d = apr_bucket_transient_create(str, len, f->r->connection->bucket_alloc);  // transient buckets contain stack data
-	apr_bucket_setaside(d, f->c->pool); // setaside ensures that the stack data has a long enough lifetime
-	APR_BUCKET_INSERT_AFTER(b, d); // insert bucket C after B in the brigade
-	APR_BUCKET_REMOVE(b); // remove bucket B (we have consumed its contents)
-	apr_bucket_destroy(b); // destroy the bucket we have consumed
-
 	/* we're done here */
 	ap_remove_input_filter(f);
 
 	return(ap_pass_brigade(f->next, bb));
 }
-#endif
 
 static void cas_register_hooks(apr_pool_t *p)
 {
 	ap_hook_post_config(cas_post_config, NULL, NULL, APR_HOOK_MIDDLE);
 	ap_hook_check_user_id(cas_authenticate, NULL, NULL, APR_HOOK_MIDDLE);
-#ifdef BROKEN
 	ap_register_input_filter("CAS", cas_in_filter, NULL, AP_FTYPE_RESOURCE); 
-#endif
 }
 
 static const command_rec cas_cmds [] = {
@@ -1744,6 +1743,7 @@ static const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASRenew", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASRenew), ACCESS_CONF|OR_AUTHCFG, "Force credential renew (/app/secure/ will require renew on /app/secure/*)"),
 	AP_INIT_TAKE1("CASGateway", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASGateway), ACCESS_CONF|OR_AUTHCFG, "Allow anonymous access if no CAS session is established on this path (e.g. /app/insecure/ will allow gateway access to /app/insecure/*), CAS v2 only"),
 	AP_INIT_TAKE1("CASAuthNHeader", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASAuthNHeader), ACCESS_CONF|OR_AUTHCFG, "Specify the HTTP header variable to set with the name of the CAS authenticated user.  By default no headers are added."),
+	AP_INIT_TAKE1("CASSSOEnabled", cfg_readCASParameter, (void *) cmd_sso, RSRC_CONF, "Enable or disable Single Sign Out functionality (On or Off)"),
 
 	/* ssl related options */
 	AP_INIT_TAKE1("CASValidateServer", cfg_readCASParameter, (void *) cmd_validate_server, RSRC_CONF, "Require validation of CAS server SSL certificate for successful authentication (On or Off)"),

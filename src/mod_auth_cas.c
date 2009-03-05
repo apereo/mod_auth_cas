@@ -211,7 +211,7 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 			else if(apr_strnatcasecmp(value, "Off") == 0)
 				c->CASAllowWildcardCert = FALSE;
 			else
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASValidateServer - must be 'On' or 'Off'"));
+				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASAllowWildcardCert - must be 'On' or 'Off'"));
 		break;
 
 		case cmd_ca_path:

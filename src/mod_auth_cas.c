@@ -1679,7 +1679,10 @@ static int cas_authenticate(request_rec *r)
 static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec *s)
 {
 	cas_cfg *c = ap_get_module_config(s->module_config, &auth_cas_module);
+	apr_uri_t nullURL;
 	apr_finfo_t f;
+
+	memset(&nullURL, '\0', sizeof(apr_uri_t));
 
 	if(apr_stat(&f, c->CASCookiePath, APR_FINFO_TYPE, pool) == APR_INCOMPLETE) {
 		ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "MOD_AUTH_CAS: Could not find CASCookiePath '%s'", c->CASCookiePath);
@@ -1689,6 +1692,18 @@ static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, ser
 	if(f.filetype != APR_DIR || c->CASCookiePath[strlen(c->CASCookiePath)-1] != '/') {
 		ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "MOD_AUTH_CAS: CASCookiePath '%s' is not a directory or does not end in a trailing '/'!", c->CASCookiePath);
 		return HTTP_INTERNAL_SERVER_ERROR;
+	}
+	
+	if(memcmp(&c->CASLoginURL, &nullURL, sizeof(apr_uri_t)) == 0 || memcmp(&c->CASValidateURL, &nullURL, sizeof(apr_uri_t)) == 0) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "MOD_AUTH_CAS: CASLoginURL or CASValidateURL not defined.");
+		return HTTP_INTERNAL_SERVER_ERROR;
+	}
+
+	if(memcmp(&c->CASValidateURL, &nullURL, sizeof(apr_uri_t)) != 0) {
+		if(strncmp(c->CASValidateURL.scheme, "https", 5) != 0) {
+			ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "MOD_AUTH_CAS: CASValidateURL must be HTTPS.");
+			return HTTP_INTERNAL_SERVER_ERROR;
+		}
 	}
 
 	return OK;

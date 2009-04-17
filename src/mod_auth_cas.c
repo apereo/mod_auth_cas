@@ -418,11 +418,11 @@ static char *getCASGateway(request_rec *r)
 {
 	char *rv = "";
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
+	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getCASGateway()");
 
-	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
 	if(d->CASGateway != NULL && strncmp(d->CASGateway, r->parsed_uri.path, strlen(d->CASGateway)) == 0 && c->CASVersion > 1) { /* gateway not supported in CAS v1 */
 		rv = "&gateway=true";
 	}

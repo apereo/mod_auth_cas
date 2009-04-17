@@ -1343,21 +1343,19 @@ static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, cha
 
 /* SSL specific functions - these should be replaced by the APR-1.3 SSL functions when they are available */
 /* Credit to Shawn Bayern for the basis of most of this SSL related code */
-static apr_byte_t check_cert_cn(request_rec *r, cas_cfg *c, SSL_CTX *ctx, X509 *certificate, char *cn)
+static apr_byte_t check_cert_cn(request_rec *r, cas_cfg *c, X509 *certificate, char *cn)
 {
 	char buf[512];
 	char *domain = cn;
-	X509_STORE *store = SSL_CTX_get_cert_store(ctx);
-	X509_STORE_CTX *xctx = X509_STORE_CTX_new();
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering check_cert_cn()");
-	/* specify that 'certificate' (what was presented by the other side) is what we want to verify against 'store' */
-	X509_STORE_CTX_init(xctx, store, certificate, sk_X509_new_null());
 
-	/* this may be redundant, since we require peer verification to perform the handshake */
-	if(X509_verify_cert(xctx) == 0)
-		return FALSE;
+	/* 
+	 * call to X509_verify_cert(xctx) removed - SSL_VERIFY_PEER verifies the certificate
+	 * and the X509_STORE here lacks any intermediate certificates.  Failure to validate
+	 * intermediate certificates reported by Chris Adams of Yale.
+	*/
 
 	X509_NAME_get_text_by_NID(X509_get_subject_name(certificate), NID_commonName, buf, sizeof(buf) - 1);
 	/* don't match because of truncation - this will require a hostname > 512 characters, though */
@@ -1512,7 +1510,7 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Certificate not presented or not signed by CA (from %s)", c->CASValidateURL.hostname);
 			CASCleanupSocket(s, ssl, ctx);
 			return (NULL);
-		} else if(check_cert_cn(r, c, ctx, SSL_get_peer_certificate(ssl), c->CASValidateURL.hostname) == FALSE) {
+		} else if(check_cert_cn(r, c, SSL_get_peer_certificate(ssl), c->CASValidateURL.hostname) == FALSE) {
 			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Certificate CN does not match %s", c->CASValidateURL.hostname);
 			CASCleanupSocket(s, ssl, ctx);
 			return (NULL);

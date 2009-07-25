@@ -243,7 +243,7 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 			/* test access to this directory */
 			buf = apr_psprintf(cmd->pool, "%s.mod_auth_cas", value);	
 			
-			if((i = apr_file_open(&fp, path, APR_FOPEN_CREATE|APR_FOPEN_WRITE|APR_EXCL, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool)) != APR_SUCCESS) {
+			if((i = apr_file_open(&fp, buf, APR_FOPEN_CREATE|APR_FOPEN_WRITE|APR_EXCL, APR_FPROT_UREAD|APR_FPROT_UWRITE, cmd->pool)) != APR_SUCCESS) {
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Could not write to CASCookiePath '%s': %s", buf, apr_strerror(i, err, sizeof(err)))); 
 			}
 			apr_file_close(fp);

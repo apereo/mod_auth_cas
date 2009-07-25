@@ -1405,6 +1405,9 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	apr_finfo_t f;
 	int i, bytesIn;
 	socket_t s = INVALID_SOCKET;
+#ifdef WIN32
+	WSADATA wsaData;
+#endif
 
 	SSL_METHOD *m;
 	SSL_CTX *ctx = NULL;
@@ -1415,7 +1418,6 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getResponseFromServer()");
 #ifdef WIN32
-	WSADATA wsaData;
 	if (WSAStartup(MAKEWORD(2,0), &wsaData) != 0){
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: cannot initialize winsock2: (%d)", WSAGetLastError());
 		return NULL;

@@ -60,7 +60,7 @@ OpenSSL for Windows:
 17) Configuration Properties -> Linker -> General
 	Additional Library Directories: "C:\Program Files\Apache Group\Apache2\lib";C:\OpenSSL\lib\VC
 18) Configuration Properties -> Linker -> Input
-	Additional Dependencies: libhttpd.lib libapr.lib libaprutil.lib libeay32MD.lib ssleay32MD.lib ws2_32.lib
+	Additional Dependencies: libhttpd.lib libapr-1.lib libaprutil-1.lib libeay32MD.lib ssleay32MD.lib ws2_32.lib
 19) Click 'OK', return to main project view
 20) Build -> Rebuild Solution
 21) Copy DLL from working_copy\Release\mod_auth_cas.dll to Apache modules directory, C:\Program Files\Apache Group\Apache2\modules

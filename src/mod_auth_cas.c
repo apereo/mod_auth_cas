@@ -174,10 +174,8 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 {
 	cas_cfg *c = (cas_cfg *) ap_get_module_config(cmd->server->module_config, &auth_cas_module);
 	apr_finfo_t f;
-	apr_file_t *fp;
 	int i;
-	char d, err[256];
-	char *buf;
+	char d;
 
 	/* cases determined from valid_cmds in mod_auth_cas.h - the config at this point is initialized to default values */
 	switch((size_t) cmd->info) {
@@ -239,15 +237,6 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 			
 			if(f.filetype != APR_DIR || value[strlen(value)-1] != '/')
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: CASCookiePath '%s' is not a directory or does not end in a trailing '/'!", value));
-
-			/* test access to this directory */
-			buf = apr_psprintf(cmd->pool, "%s.mod_auth_cas", value);	
-			
-			if((i = apr_file_open(&fp, buf, APR_FOPEN_CREATE|APR_FOPEN_WRITE|APR_EXCL, APR_FPROT_UREAD|APR_FPROT_UWRITE, cmd->pool)) != APR_SUCCESS) {
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Could not write to CASCookiePath '%s': %s", buf, apr_strerror(i, err, sizeof(err)))); 
-			}
-			apr_file_close(fp);
-			apr_file_remove(buf, cmd->pool);
 
 			c->CASCookiePath = apr_pstrdup(cmd->pool, value);
 		break;

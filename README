@@ -44,6 +44,12 @@ BUG FIXES
 * Included a patch by Chris Adams of Yale University to prevent
   segfaults when parsing a corrupted XML cache file.
 
+* Included a patch by Chris Adams to improve Win32 compiler
+  compatibility
+
+* Included a patch by Jason Long to properly handle usernames
+  containing "unsafe" XML characters
+
 ====================================================================
 KNOWN LIMITATIONS
 ====================================================================

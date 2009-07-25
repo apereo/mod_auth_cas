@@ -741,7 +741,8 @@ static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_c
 	apr_xml_elem *e;
 	apr_status_t rv;
 	char errbuf[CAS_MAX_ERROR_SIZE];
-	char *path, *val;
+	char *path;
+	const char *val;
 	int i;
 
 	if(c->CASDebug)
@@ -827,11 +828,8 @@ static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_c
 		if(e == NULL)
 			continue;
 
-		/* first_cdata.first is NULL on empty attributes (<attr />) */
-		if(e->first_cdata.first != NULL)
-			val = (char *)  e->first_cdata.first->text;
-		else
-			val = NULL; 
+		/* determine textual content of this element */
+		apr_xml_to_text(r->pool, e, APR_XML_X2T_INNER, NULL, NULL, &val, NULL);
 
 		if (apr_strnatcasecmp(e->name, "user") == 0)
 			cache->user = apr_pstrndup(r->pool, val, strlen(val));
@@ -1191,6 +1189,7 @@ static apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, cha
 	apr_xml_attr *attr;
 	apr_xml_parser *parser = apr_xml_parser_create(r->pool);
 	const char *response = getResponseFromServer(r, c, ticket);
+	const char *value = NULL;
 	
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering isValidCASTicket()");
@@ -1258,8 +1257,9 @@ static apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, cha
 			while(node != NULL && apr_strnatcmp(node->name, "user") != 0)
 				node = node->next;
 			if(node != NULL) {
-				line = (char *) (node->first_cdata.first->text);
-				*user = apr_pstrndup(r->pool, line, strlen(line));
+				apr_xml_to_text(r->pool, node, APR_XML_X2T_INNER, NULL, NULL, &text, NULL);
+				*user = apr_pstrndup(r->pool, text, strlen(text));
+
 				return TRUE;
 			}
 		} else if (apr_strnatcmp(node->name, "authenticationFailure") == 0) {

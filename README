@@ -50,6 +50,12 @@ BUG FIXES
 * Included a patch by Jason Long to properly handle usernames
   containing "unsafe" XML characters
 
+* Assorted stability/REST compatibility fixes for issues
+  identified by David Ohsie
+
+* Included a patch by Ben Noordhuis to gracefully handle broken
+  file system permissions in CASCookiePath
+
 ====================================================================
 KNOWN LIMITATIONS
 ====================================================================

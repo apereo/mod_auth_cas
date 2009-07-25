@@ -174,8 +174,10 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 {
 	cas_cfg *c = (cas_cfg *) ap_get_module_config(cmd->server->module_config, &auth_cas_module);
 	apr_finfo_t f;
+	apr_file_t *fp;
 	int i;
-	char d;
+	char d, err[256];
+	char *buf;
 
 	/* cases determined from valid_cmds in mod_auth_cas.h - the config at this point is initialized to default values */
 	switch((size_t) cmd->info) {
@@ -237,6 +239,16 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 			
 			if(f.filetype != APR_DIR || value[strlen(value)-1] != '/')
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: CASCookiePath '%s' is not a directory or does not end in a trailing '/'!", value));
+
+			/* test access to this directory */
+			buf = apr_psprintf(cmd->pool, "%s.mod_auth_cas", value);	
+			
+			if((i = apr_file_open(&fp, path, APR_FOPEN_CREATE|APR_FOPEN_WRITE|APR_EXL, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool)) != APR_SUCCESS) {
+				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Could not write to CASCookiePath '%s': %s", buf, apr_strerror(i, err, sizeof(err)))); 
+			}
+			apr_file_close(fp);
+			apr_file_remove(buf, cmd->pool);
+
 			c->CASCookiePath = apr_pstrdup(cmd->pool, value);
 		break;
 
@@ -973,7 +985,7 @@ static apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry
 	char *path;
 	apr_file_t *f;
 	apr_off_t begin = 0;
-	int i;
+	int i, cnt = 0;
 	apr_byte_t lock = FALSE;
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 
@@ -988,9 +1000,16 @@ static apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry
 			return FALSE;
 		}
 	} else {
-		if((i = apr_file_open(&f, path, APR_FOPEN_READ|APR_FOPEN_WRITE, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool)) != APR_SUCCESS) {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Cookie file '%s' could not be opened: %s", path, apr_strerror(i, name, strlen(name)));
-			return FALSE;
+		for(cnt = 0; ; cnt++) {
+			/* gracefully handle broken file system permissions by trying 3 times to create the file, otherwise failing */
+			if(cnt >= 3) {
+				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Cookie file '%s' could not be opened: %s", path, apr_strerror(i, name, strlen(name)));
+				return FALSE;
+			}
+			if(apr_file_open(&f, path, APR_FOPEN_READ|APR_FOPEN_WRITE, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool) == APR_SUCCESS)
+				break;
+			else
+				apr_sleep(1000);
 		}
 
 		/* update the file with a new idle time if a write lock can be obtained */
@@ -1029,7 +1048,6 @@ static char *createCASCookie(request_rec *r, char *user, char *ticket)
 {
 	char *path, *buf, *rv;
 	apr_file_t *f;
-	apr_byte_t createSuccess;
 	cas_cache_entry e;
 	int i;
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
@@ -1049,22 +1067,20 @@ static char *createCASCookie(request_rec *r, char *user, char *ticket)
 	e.secure = (isSSL(r) == TRUE ? 1 : 0);
 	e.ticket = ticket;
 
-	do {
-		createSuccess = FALSE;
-		/* this may block since this reads from /dev/random - however, it hasn't been a problem in testing */
-		apr_generate_random_bytes((unsigned char *) buf, c->CASCookieEntropy);
-		rv = (char *) ap_md5_binary(r->pool, (unsigned char *) buf, c->CASCookieEntropy);
+	/* this may block since this reads from /dev/random - however, it hasn't been a problem in testing */
+	apr_generate_random_bytes((unsigned char *) buf, c->CASCookieEntropy);
+	rv = (char *) ap_md5_binary(r->pool, (unsigned char *) buf, c->CASCookieEntropy);
 
-		/* 
-		 * Associate this text with user for lookups later.  By using files instead of 
-		 * shared memory the advantage of NFS shares in a clustered environment or a 
-		 * memory based file systems can be used at the expense of potentially some performance
-		 */
-		createSuccess = writeCASCacheEntry(r, rv, &e, FALSE);
+	/* 
+	 * Associate this text with user for lookups later.  By using files instead of 
+	 * shared memory the advantage of NFS shares in a clustered environment or a 
+	 * memory based file systems can be used at the expense of potentially some performance
+	 */
+	if(writeCASCacheEntry(r, rv, &e, FALSE) == FALSE)
+		return NULL;
 
-		if(c->CASDebug)
-			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' created for user '%s'", rv, user);
-	} while (createSuccess == FALSE);
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' created for user '%s'", rv, user);
 
 	buf = (char *) ap_md5_binary(r->pool, (const unsigned char *) ticket, (int) strlen(ticket));
 	path = apr_psprintf(r->pool, "%s.%s", c->CASCookiePath, buf);
@@ -1634,6 +1650,11 @@ static int cas_authenticate(request_rec *r)
 	if(ticket != NULL) {
 		if(isValidCASTicket(r, c, ticket, &remoteUser)) {
 			cookieString = createCASCookie(r, remoteUser, ticket);
+
+			/* if there was an error writing the cookie info to the file system */
+			if(cookieString == NULL)
+				return HTTP_INTERNAL_SERVER_ERROR;
+
 			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), cookieString, ssl);
 			r->user = remoteUser;
 			if(d->CASAuthNHeader != NULL)

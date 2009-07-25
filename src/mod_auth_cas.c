@@ -480,7 +480,8 @@ static char *getCASLoginURL(request_rec *r, cas_cfg *c)
  */
 static char *getCASService(request_rec *r, cas_cfg *c)
 {
-	char *scheme, *service;
+	char *scheme, *service, *unparsedPath = NULL, *queryString = strchr(r->unparsed_uri, '?');
+	int len;
 	apr_port_t port = r->connection->local_addr->port;
 	apr_byte_t printPort = FALSE;
 
@@ -499,11 +500,20 @@ static char *getCASService(request_rec *r, cas_cfg *c)
 #else
 	scheme = (char *) ap_http_scheme(r);
 #endif
-	
+
+	if(queryString != NULL) { 
+		len = strlen(r->unparsed_uri) - strlen(queryString);
+		unparsedPath = apr_pcalloc(r->pool, len+1);
+		strncpy(unparsedPath, r->unparsed_uri, len);
+		unparsedPath[len] = '\0';
+	} else {
+		unparsedPath = r->unparsed_uri;
+	}
+
 	if(printPort == TRUE)
-		service = apr_psprintf(r->pool, "%s%%3a%%2f%%2f%s%%3a%u%s%s%s", scheme, r->server->server_hostname, port, escapeString(r, r->uri), (r->args != NULL ? "%3f" : ""), escapeString(r, r->args));
+		service = apr_psprintf(r->pool, "%s%%3a%%2f%%2f%s%%3a%u%s%s%s", scheme, r->server->server_hostname, port, escapeString(r, unparsedPath), (r->args != NULL ? "%3f" : ""), escapeString(r, r->args));
 	else
-		service = apr_psprintf(r->pool, "%s%%3a%%2f%%2f%s%s%s%s", scheme, r->server->server_hostname, escapeString(r, r->uri), (r->args != NULL ? "%3f" : ""), escapeString(r, r->args));
+		service = apr_psprintf(r->pool, "%s%%3a%%2f%%2f%s%s%s%s", scheme, r->server->server_hostname, escapeString(r, unparsedPath), (r->args != NULL ? "%3f" : ""), escapeString(r, r->args));
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "CAS Service '%s'", service);
@@ -684,10 +694,11 @@ static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, ap
  * The CAS protocol spec 2.1.1 says the URL value MUST be URL-encoded as described in 2.2 of RFC 1738.
  * The rfc1738 array below represents the 'unsafe' characters from that section.  No encoding is performed
  * on 'control characters' (0x00-0x1F) or characters not used in US-ASCII (0x80-0xFF) - is this a problem?
+ * 7/25/2009 - add '+' to list of characters to escape
  */
 static char *escapeString(request_rec *r, char *str)
 {
-	char *rfc1738 = " <>\"%{}|\\^~[]`;/?:@=&#", *rv, *p, *q;
+	char *rfc1738 = "+ <>\"%{}|\\^~[]`;/?:@=&#", *rv, *p, *q;
 	size_t i, j, size;
 	char escaped = FALSE;
 
@@ -891,6 +902,7 @@ static void CASCleanCache(request_rec *r, cas_cfg *c)
 	if((apr_file_flags_get(metaFile) & APR_FOPEN_READ) != 0) {
 		apr_file_gets(line, sizeof(line), metaFile);
 		if(sscanf(line, "%" APR_TIME_T_FMT, &lastClean) != 1) { /* corrupt file */
+			apr_file_unlock(metaFile);
 			apr_file_close(metaFile);
 			apr_file_remove(path, r->pool);
 			if(c->CASDebug)
@@ -898,6 +910,9 @@ static void CASCleanCache(request_rec *r, cas_cfg *c)
 			return;
 		}
 		if(lastClean > (apr_time_now()-(c->CASCacheCleanInterval*((apr_time_t) APR_USEC_PER_SEC)))) { /* not enough time has elapsed */
+			/* release the locks and file descriptors that we no longer need */
+			apr_file_unlock(metaFile);
+			apr_file_close(metaFile);
 			if(c->CASDebug)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Insufficient time elapsed since last cache clean");
 			return;

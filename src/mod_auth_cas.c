@@ -145,7 +145,7 @@ static void *cas_create_dir_config(apr_pool_t *pool, char *path)
 
 static void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 {
-	cas_dir_cfg *c = apr_pcalloc(pool, sizeof(cas_cfg));
+	cas_dir_cfg *c = apr_pcalloc(pool, sizeof(cas_dir_cfg));
 	cas_dir_cfg *base = BASE;
 	cas_dir_cfg *add = ADD;
 

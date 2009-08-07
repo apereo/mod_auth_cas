@@ -56,6 +56,9 @@ BUG FIXES
 * Included a patch by Ben Noordhuis to gracefully handle broken
   file system permissions in CASCookiePath
 
+* Fixed issue where cas_merge_dir_config was allocating
+  more memory than necessary (reported by Ray Davison)
+
 ====================================================================
 KNOWN LIMITATIONS
 ====================================================================

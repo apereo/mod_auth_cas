@@ -64,6 +64,9 @@ typedef int socket_t;
 #define CAS_DEFAULT_RENEW NULL
 #define CAS_DEFAULT_GATEWAY NULL
 #define CAS_DEFAULT_VALIDATE_SERVER 1
+#define CAS_DEFAULT_VALIDATE_SAML 0
+#define CAS_DEFAULT_ATTRIBUTE_DELIMITER ","
+#define CAS_DEFAULT_ATTRIBUTE_PREFIX "CAS_"
 #define CAS_DEFAULT_VALIDATE_DEPTH 9
 #define CAS_DEFAULT_ALLOW_WILDCARD_CERT 0
 #define CAS_DEFAULT_CA_PATH "/etc/ssl/certs/"
@@ -101,9 +104,12 @@ typedef struct cas_cfg {
 	unsigned int CASIdleTimeout;
 	unsigned int CASCookieHttpOnly;
 	unsigned int CASSSOEnabled;
+	unsigned int CASValidateSAML;
 	char *CASCertificatePath;
 	char *CASCookiePath;
 	char *CASCookieDomain;
+	char *CASAttributeDelimiter;
+	char *CASAttributePrefix;
 	apr_uri_t CASLoginURL;
 	apr_uri_t CASValidateURL;
 	apr_uri_t CASProxyValidateURL;
@@ -119,6 +125,17 @@ typedef struct cas_dir_cfg {
 	char *CASAuthNHeader;
 } cas_dir_cfg;
 
+typedef struct cas_saml_attr_val {
+	char *value;
+	struct cas_saml_attr_val *next;
+} cas_saml_attr_val;
+
+typedef struct cas_saml_attr {
+	char *attr;
+	cas_saml_attr_val *values;
+	struct cas_saml_attr *next;
+} cas_saml_attr;
+
 typedef struct cas_cache_entry {
 	char *user;
 	apr_time_t issued;
@@ -127,9 +144,15 @@ typedef struct cas_cache_entry {
 	apr_byte_t renewed;
 	apr_byte_t secure;
 	char *ticket;
+	cas_saml_attr *attrs;
 } cas_cache_entry;
 
-typedef enum { cmd_version, cmd_debug, cmd_validate_server, cmd_validate_depth, cmd_wildcard_cert, cmd_ca_path, cmd_cookie_path, cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy, cmd_session_timeout, cmd_idle_timeout, cmd_cache_interval, cmd_cookie_domain, cmd_cookie_httponly, cmd_sso } valid_cmds;
+typedef enum {
+	cmd_version, cmd_debug, cmd_validate_server, cmd_validate_depth, cmd_wildcard_cert,
+	cmd_ca_path, cmd_cookie_path, cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy,
+	cmd_session_timeout, cmd_idle_timeout, cmd_cache_interval, cmd_cookie_domain, cmd_cookie_httponly,
+	cmd_sso, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix
+} valid_cmds;
 
 module AP_MODULE_DECLARE_DATA auth_cas_module;
 static apr_byte_t cas_setURL(apr_pool_t *pool, apr_uri_t *uri, const char *url);
@@ -140,14 +163,14 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 static apr_byte_t check_cert_cn(request_rec *r, cas_cfg *c, X509 *certificate, char *cn);
 static void CASCleanupSocket(socket_t s, SSL *ssl, SSL_CTX *ctx);
 static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket);
-static apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **user);
+static apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **user, cas_saml_attr **attrs);
 static apr_byte_t isSSL(request_rec *r);
 static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_entry *cache);
 static void CASCleanCache(request_rec *r, cas_cfg *c);
-static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **user);
+static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **user, cas_saml_attr **attrs);
 static char *getCASCookie(request_rec *r, char *cookieName);
 static apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache, apr_byte_t exists);
-static char *createCASCookie(request_rec *r, char *user, char *ticket);
+static char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ticket);
 static void expireCASST(request_rec *r, char *ticketname);
 static void CASSAMLLogout(request_rec *r, char *body);
 static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes);

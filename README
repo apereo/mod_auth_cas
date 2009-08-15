@@ -38,6 +38,9 @@ NEW FEATURES AND FUNCTIONS IN THIS RELEASE
 * mod_auth_cas 1.0.8 and prior should be considered as available
   under the Apache 2 License or the GPLv3 license.
 
+* Support for SAML validation has been provided by David Hawes
+  of Virginia Tech.
+
 ====================================================================
 BUG FIXES 
 ====================================================================
@@ -326,6 +329,23 @@ Default:	Off
 Description:	If enabled, this activates support for Single Sign Out within the CAS
 		protocol.  Please note that this feature is currently experimental and
 		may mangle POST data.
+
+Directive:	CASValidateSAML
+Default:	Off
+Description:	If enabled, the response from the CAS Server will be parsed for SAML
+		attributes which will be associated with the user.
+
+Directive:	CASAttributePrefix
+Default:	CAS_
+Description:	mod_auth_cas will add a header named  <CASAttributePrefix><attr_name>
+		with the value of this header being the attribute values when SAML
+		validation is enabled.
+
+Directive:	CASAttributeDelimiter
+Default:	,
+Description:	mod_auth_cas will set the value of the attribute header (as described
+		in CASAttributePrefix) to <attrvalue><CASAttributeDelimiter><attrvalue>
+		in the case of multiple attribute values.
 
 ====================================================================
 CONTRIBUTORS 

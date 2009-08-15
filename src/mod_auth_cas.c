@@ -1686,7 +1686,16 @@ static int cas_authenticate(request_rec *r)
 		redirectRequest(r, c);
 		return HTTP_MOVED_TEMPORARILY;
 	} else {
-		if(isValidCASCookie(r, c, cookieString, &remoteUser)) {
+		if(!ap_is_initial_req(r)) {
+			/* MAS-27 copy the user from the initial request to prevent a hit on the backing store */
+			remoteUser = r->main->user;
+			if (c->CASDebug)
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "recycling user '%s' from initial request for sub request", remoteUser);
+		} else if(!isValidCASCookie(r, c, cookieString, &remoteUser)) {
+			remoteUser = NULL;
+		}
+
+		if(remoteUser) {
 			r->user = remoteUser;
 			if(d->CASAuthNHeader != NULL)
 				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);

@@ -56,6 +56,9 @@ BUG FIXES
 * Included a patch by Ben Noordhuis to gracefully handle broken
   file system permissions in CASCookiePath
 
+* Included a patch by Ben Noordhuis to improve performance
+  by re-using a cached username on subrequests
+
 * Fixed issue where cas_merge_dir_config was allocating
   more memory than necessary (reported by Ray Davison)
 

@@ -584,17 +584,13 @@ static apr_byte_t removeCASParams(request_rec *r)
 	while(*oldArgs != '\0') {
 		/* stop copying when a CAS parameter is encountered */
 		if(strncmp(oldArgs, "ticket=", 7) == 0) {
-			copy = FALSE;
-			changed = TRUE;
+			// only prevent copying if an ST or PT is encountered, leaving PGT and PGTIOU to app layer
+			if(strncmp((oldArgs + 7), "ST-", 3) == 0 || strncmp((oldArgs + 7), "PT-", 3) == 0) {
+				copy = FALSE;
+				changed = TRUE;
+			}
 		}
-		if(strncmp(oldArgs, "renew=", 6) == 0) {
-			copy = FALSE;
-			changed = TRUE;
-		}
-		if(strncmp(oldArgs, "gateway=", 8) == 0) {
-			copy = FALSE;
-			changed = TRUE;
-		}
+
 		if(copy)
 			*p++ = *oldArgs++;
 		/* restart copying on a new parameter */
@@ -633,11 +629,14 @@ static char *getCASTicket(request_rec *r)
 	ticket = apr_strtok(args, "&", &tokenizerCtx);
 	do {
 		if(strncmp(ticket, "ticket=", 7) == 0) {
-			ticketFound = TRUE;
-			/* skip to the meat of the parameter (the value after the '=') */
-			ticket += 7; 
-			rv = apr_pstrdup(r->pool, ticket);
-			break;
+			// tickets must begin with ST- or PT- except for PGT and PGT-IOU's which we are not handling anyway
+			if(strncmp((ticket + 7), "ST-", 3) == 0 || strncmp((ticket + 7), "PT-", 3) == 0) {
+				ticketFound = TRUE;
+				/* skip to the meat of the parameter (the value after the '=') */
+				ticket += 7; 
+				rv = apr_pstrdup(r->pool, ticket);
+				break;
+			}
 		}
 		ticket = apr_strtok(NULL, "&", &tokenizerCtx);
 		/* no more parameters */

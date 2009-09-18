@@ -1808,8 +1808,10 @@ static int cas_authenticate(request_rec *r)
 	/* the presence of a ticket overrides all */
 	ticket = getCASTicket(r);
 	cookieString = getCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie));
-
-	parametersRemoved = removeCASParams(r);
+	
+	// only remove parameters if a ticket was found (makes no sense to do this otherwise)
+	if(ticket != NULL)
+		parametersRemoved = removeCASParams(r);
 
 	/* first, handle the gateway case */
 	if(d->CASGateway != NULL && strncmp(d->CASGateway, r->parsed_uri.path, strlen(d->CASGateway)) == 0 && ticket == NULL && cookieString == NULL) {

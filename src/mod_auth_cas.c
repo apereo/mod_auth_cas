@@ -1791,7 +1791,7 @@ static int cas_authenticate(request_rec *r)
 	char *newLocation = NULL;
 
 	/* Do nothing if we are not the authenticator */
-	if(apr_strnatcasecmp((const char *) ap_auth_type(r), "cas"))
+	if(ap_auth_type(r) == NULL || apr_strnatcasecmp((const char *) ap_auth_type(r), "cas") != 0)
 		return DECLINED;
 
 	c = ap_get_module_config(r->server->module_config, &auth_cas_module);

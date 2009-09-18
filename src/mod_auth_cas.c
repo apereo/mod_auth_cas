@@ -282,7 +282,7 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 		break;
 		case cmd_session_timeout:
 			i = atoi(value);
-			if(i > 0)
+			if(i >= 0)
 				c->CASTimeout = i;
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid CASTimeout (%s) specified - must be numeric", value));
@@ -1000,7 +1000,7 @@ static void CASCleanCache(request_rec *r, cas_cfg *c)
 				continue;
 			}
 			if(readCASCacheFile(r, c, (char *) fi.name, &cache) == TRUE) {
-				if(cache.issued < (apr_time_now()-(c->CASTimeout*((apr_time_t) APR_USEC_PER_SEC))) || cache.lastactive < (apr_time_now()-(c->CASIdleTimeout*((apr_time_t) APR_USEC_PER_SEC)))) {
+				if((c->CASTimeout > 0 && (cache.issued < (apr_time_now()-(c->CASTimeout*((apr_time_t) APR_USEC_PER_SEC))))) || cache.lastactive < (apr_time_now()-(c->CASIdleTimeout*((apr_time_t) APR_USEC_PER_SEC)))) {
 					/* delete this file since it is no longer valid */
 					apr_file_close(cacheFile);
 					deleteCASCacheFile(r, (char *) fi.name);
@@ -2036,7 +2036,7 @@ static const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASSecureCookie", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASSecureCookie), ACCESS_CONF|OR_AUTHCFG, "Define the cookie name for HTTPS sessions"),
 	AP_INIT_TAKE1("CASGatewayCookie", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASGatewayCookie), ACCESS_CONF|OR_AUTHCFG, "Define the cookie name for a gateway location"),
 	/* cache timeout options */
-	AP_INIT_TAKE1("CASTimeout", cfg_readCASParameter, (void *) cmd_session_timeout, RSRC_CONF, "Maximum time (in seconds) a session cookie is valid for, regardless of idle time"),
+	AP_INIT_TAKE1("CASTimeout", cfg_readCASParameter, (void *) cmd_session_timeout, RSRC_CONF, "Maximum time (in seconds) a session cookie is valid for, regardless of idle time.  Set to 0 to allow non-idle sessions to never expire"),
 	AP_INIT_TAKE1("CASIdleTimeout", cfg_readCASParameter, (void *) cmd_idle_timeout, RSRC_CONF, "Maximum time (in seconds) a session can be idle for"),
 	AP_INIT_TAKE1("CASCacheCleanInterval", cfg_readCASParameter, (void *) cmd_cache_interval, RSRC_CONF, "Amount of time (in seconds) between cache cleanups.  This value is checked when a new local ticket is issued or when a ticket expires."),
 	{NULL}

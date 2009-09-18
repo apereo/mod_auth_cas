@@ -240,7 +240,8 @@ Description:	This is the hard limit, in seconds, for a mod_auth_cas session (whe
 		it is idle or not).  When a session has reached this age and a new
 		request is made, the user is redirected to the CASLoginURL to
 		obtain a new service ticket.  When this new ticket is validated,
-		they will be assigned a new mod_auth_cas session.
+		they will be assigned a new mod_auth_cas session.  Set this value to '0'
+		in order to allow a non-idle session to not expire.
 
 Directive: 	CASIdleTimeout
 Default:	3600 (1 hour)

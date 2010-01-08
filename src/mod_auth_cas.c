@@ -893,10 +893,10 @@ static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_c
 				csa->next = NULL;
 				while(v != NULL) {
 					const char *s = NULL;
-					apr_xml_to_text(r->pool, v, APR_XML_X2T_INNER,
-					    NULL, NULL, &s, NULL);
 					cas_saml_attr_val *csav =
 						apr_pcalloc(r->pool, sizeof(cas_saml_attr_val));
+					apr_xml_to_text(r->pool, v, APR_XML_X2T_INNER,
+					    NULL, NULL, &s, NULL);
 					csav->value =
 						apr_pstrndup(r->pool, s, strlen(s));
 					csav->next = NULL;
@@ -1385,8 +1385,8 @@ static apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, cha
 										}
 									}
 									if(as != NULL) {
-										as = as->first_child;
 										cas_saml_attr **attrtail = attrs;
+										as = as->first_child;
 										while(as != NULL) {
 											if(apr_strnatcmp(as->name, "Attribute") == 0) {
 												apr_xml_attr *attr = as->attr;

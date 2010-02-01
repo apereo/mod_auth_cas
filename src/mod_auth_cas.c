@@ -683,7 +683,7 @@ static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, ap
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering setCASCookie()");
 
-	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s%s%s%s", cookieName, cookieValue, (secure ? ";Secure" : ""), getCASScope(r), (c->CASCookieDomain != NULL ? ";Domain=" : ""), (c->CASCookieDomain != NULL ? c->CASCookieDomain : ""), (c->CASCookieHttpOnly != FALSE ? "; HttpOnly" : ""));
+	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s%s%s%s", cookieName, cookieValue, (secure ? ";Secure" : ""), urlEncode(r, getCASScope(r), " "), (c->CASCookieDomain != NULL ? ";Domain=" : ""), (c->CASCookieDomain != NULL ? c->CASCookieDomain : ""), (c->CASCookieHttpOnly != FALSE ? "; HttpOnly" : ""));
 
 	/* use r->err_headers_out so we always print our headers (even on 302 redirect) - headers_out only prints on 2xx responses */
 	apr_table_add(r->err_headers_out, "Set-Cookie", headerString);
@@ -716,9 +716,18 @@ static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, ap
  * on 'control characters' (0x00-0x1F) or characters not used in US-ASCII (0x80-0xFF) - is this a problem?
  * 7/25/2009 - add '+' to list of characters to escape
  */
+
 static char *escapeString(request_rec *r, char *str)
 {
-	char *rfc1738 = "+ <>\"%{}|\\^~[]`;/?:@=&#", *rv, *p, *q;
+	char *rfc1738 = "+ <>\"%{}|\\^~[]`;/?:@=&#";
+
+	return(urlEncode(r, str, rfc1738));
+
+}
+
+static char *urlEncode(request_rec *r, char *str, char *charsToEncode)
+{
+	char *rv, *p, *q;
 	size_t i, j, size;
 	char escaped = FALSE;
 
@@ -728,8 +737,8 @@ static char *escapeString(request_rec *r, char *str)
 	size = strlen(str) + 1; /* add 1 for terminating NULL */
 
 	for(i = 0; i < size; i++) {
-		for(j = 0; j < strlen(rfc1738); j++) {
-			if(str[i] == rfc1738[j]) {
+		for(j = 0; j < strlen(charsToEncode); j++) {
+			if(str[i] == charsToEncode[j]) {
 				/* allocate 2 extra bytes for the escape sequence (' ' -> '%20') */
 				size += 2;
 				break;
@@ -742,9 +751,9 @@ static char *escapeString(request_rec *r, char *str)
 
 	do {
 		escaped = FALSE;
-		for(i = 0; i < strlen(rfc1738); i++) {
-			if(*q == rfc1738[i]) {
-				sprintf(p, "%%%x", rfc1738[i]);
+		for(i = 0; i < strlen(charsToEncode); i++) {
+			if(*q == charsToEncode[i]) {
+				sprintf(p, "%%%x", charsToEncode[i]);
 				p+= 3;
 				escaped = TRUE;
 				break;

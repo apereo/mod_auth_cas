@@ -177,6 +177,7 @@ static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_inp
 static void deleteCASCacheFile(request_rec *r, char *cookieName);
 static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure);
 static char *escapeString(request_rec *r, char *str);
+static char *urlEncode(request_rec *r, char *str, char *charsToEncode);
 static char *getCASGateway(request_rec *r);
 static char *getCASRenew(request_rec *r);
 static char *getCASValidateURL(request_rec *r, cas_cfg *c);

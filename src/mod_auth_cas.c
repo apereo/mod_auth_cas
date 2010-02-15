@@ -399,26 +399,22 @@ static char *getCASScope(request_rec *r)
 		/* the gateway path should be a subset of the request path */
 		if(strncmp(d->CASGateway, requestPath, strlen(d->CASGateway)) == 0)
 			rv = d->CASGateway;
-		else {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: CASGateway (%s) not a substring of request path, using request path (%s) for cookie", d->CASGateway, requestPath);
-			rv = requestPath;
-		}
+		else
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: CASGateway (%s) not a substring of request path, ignoring", d->CASGateway);
 	}
 
 	if(d->CASRenew != NULL) {
-		if(rv != NULL) {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: CASRenew (%s) and CASGateway (%s) set, CASRenew superceding.", d->CASRenew, d->CASGateway);
-		}
+		if(rv != NULL)
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: CASRenew (%s) and CASGateway (%s) set, CASRenew superseding.", d->CASRenew, d->CASGateway);
+
 		if(strncmp(d->CASRenew, requestPath, strlen(d->CASRenew)) == 0)
 			rv = d->CASRenew;
-		else {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: CASRenew (%s) not a substring of request path, using request path (%s) for cookie", d->CASRenew, requestPath);
-			rv = requestPath;
-		}
+		else
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: CASRenew (%s) not a substring of request path, ignoring", d->CASRenew);
 
 	}
 
-	/* neither gateway nor renew was set */
+	/* neither gateway nor renew was set, or both were set incorrectly */
 	if(rv == NULL) {
 		if(d->CASScope != NULL) {
 			if(strncmp(d->CASScope, requestPath, strlen(d->CASScope)) == 0)

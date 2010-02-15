@@ -1773,6 +1773,7 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 
 	if(bytesIn != 0 || i >= sizeof(validateResponse) - 1) {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: oversized response received from %s%s", c->CASValidateURL.hostname, getCASValidateURL(r, c));
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "response: %s", validateResponse);
 		CASCleanupSocket(s, ssl, ctx);
 		return (NULL);
 	}

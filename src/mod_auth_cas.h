@@ -76,6 +76,7 @@ typedef int socket_t;
 #define CAS_DEFAULT_VALIDATE_V2_URL NULL
 #define CAS_DEFAULT_VALIDATE_URL CAS_DEFAULT_VALIDATE_V2_URL
 #define CAS_DEFAULT_PROXY_VALIDATE_URL NULL
+#define CAS_DEFAULT_ROOT_PROXIED_AS_URL NULL
 #define CAS_DEFAULT_COOKIE_ENTROPY 32
 #define CAS_DEFAULT_COOKIE_DOMAIN NULL
 #define CAS_DEFAULT_COOKIE_HTTPONLY 0
@@ -113,6 +114,7 @@ typedef struct cas_cfg {
 	apr_uri_t CASLoginURL;
 	apr_uri_t CASValidateURL;
 	apr_uri_t CASProxyValidateURL;
+	apr_uri_t CASRootProxiedAs;
 } cas_cfg;
 
 typedef struct cas_dir_cfg {
@@ -151,7 +153,7 @@ typedef enum {
 	cmd_version, cmd_debug, cmd_validate_server, cmd_validate_depth, cmd_wildcard_cert,
 	cmd_ca_path, cmd_cookie_path, cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy,
 	cmd_session_timeout, cmd_idle_timeout, cmd_cache_interval, cmd_cookie_domain, cmd_cookie_httponly,
-	cmd_sso, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix
+	cmd_sso, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix, cmd_root_proxied_as
 } valid_cmds;
 
 module AP_MODULE_DECLARE_DATA auth_cas_module;

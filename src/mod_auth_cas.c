@@ -87,6 +87,7 @@ static void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	cas_setURL(pool, &(c->CASLoginURL), CAS_DEFAULT_LOGIN_URL);
 	cas_setURL(pool, &(c->CASValidateURL), CAS_DEFAULT_VALIDATE_URL);
 	cas_setURL(pool, &(c->CASProxyValidateURL), CAS_DEFAULT_PROXY_VALIDATE_URL);
+	cas_setURL(pool, &(c->CASRootProxiedAs), CAS_DEFAULT_ROOT_PROXIED_AS_URL);
 
 	return c;
 }
@@ -132,6 +133,12 @@ static void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 		memcpy(&c->CASProxyValidateURL, &base->CASProxyValidateURL, sizeof(apr_uri_t));
 	else
 		memcpy(&c->CASProxyValidateURL, &add->CASProxyValidateURL, sizeof(apr_uri_t));
+
+	if(memcmp(&add->CASRootProxiedAs, &test, sizeof(apr_uri_t)) == 0)
+		memcpy(&c->CASRootProxiedAs, &base->CASRootProxiedAs, sizeof(apr_uri_t));
+	else
+		memcpy(&c->CASRootProxiedAs, &add->CASRootProxiedAs, sizeof(apr_uri_t));
+
 
 	return c;
 }
@@ -272,6 +279,10 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 		case cmd_proxyurl:
 			if(cas_setURL(cmd->pool, &(c->CASProxyValidateURL), value) != TRUE)
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Proxy Validation URL '%s' could not be parsed!", value));
+		break;
+		case cmd_root_proxied_as:
+			if(cas_setURL(cmd->pool, &(c->CASRootProxiedAs), value) != TRUE)
+				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Root Proxy URL '%s' could not be parsed!", value));
 		break;
 		case cmd_cookie_entropy:
 			i = atoi(value);
@@ -506,35 +517,35 @@ static char *getCASService(request_rec *r, cas_cfg *c)
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getCASService()");
 
-	if(isSSL(r)) {
-		if(port != 443)
-			printPort = TRUE;
-	} else if(port != 80) {
-			printPort = TRUE;
-	}
-#ifdef APACHE2_0
-	scheme = (char *) ap_http_method(r);
-#else
-	scheme = (char *) ap_http_scheme(r);
-#endif
-
-	if(queryString != NULL) { 
-		len = strlen(r->unparsed_uri) - strlen(queryString);
-		unparsedPath = apr_pcalloc(r->pool, len+1);
-		strncpy(unparsedPath, r->unparsed_uri, len);
-		unparsedPath[len] = '\0';
+	if(c->CASRootProxiedAs.is_initialized) {
+		service = apr_psprintf(r->pool, "%s%s%s%s", escapeString(r, apr_uri_unparse(r->pool, &c->CASRootProxiedAs, 0)), escapeString(r, unparsedPath), (r->args != NULL ? "%3f" : ""), escapeString(r, r->args));
 	} else {
-		unparsedPath = r->unparsed_uri;
+		if(isSSL(r) && port != 443)
+			printPort = TRUE;
+		else if(port != 80)
+			printPort = TRUE;
+#ifdef APACHE2_0
+		scheme = (char *) ap_http_method(r);
+#else
+		scheme = (char *) ap_http_scheme(r);
+#endif
+		if(queryString != NULL) { 
+			len = strlen(r->unparsed_uri) - strlen(queryString);
+			unparsedPath = apr_pcalloc(r->pool, len+1);
+			strncpy(unparsedPath, r->unparsed_uri, len);
+			unparsedPath[len] = '\0';
+		} else {
+			unparsedPath = r->unparsed_uri;
+		}
+
+		if(printPort == TRUE)
+			service = apr_psprintf(r->pool, "%s%%3a%%2f%%2f%s%%3a%u%s%s%s", scheme, r->server->server_hostname, port, escapeString(r, unparsedPath), (r->args != NULL ? "%3f" : ""), escapeString(r, r->args));
+		else
+			service = apr_psprintf(r->pool, "%s%%3a%%2f%%2f%s%s%s%s", scheme, r->server->server_hostname, escapeString(r, unparsedPath), (r->args != NULL ? "%3f" : ""), escapeString(r, r->args));
+
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "CAS Service '%s'", service);
 	}
-
-	if(printPort == TRUE)
-		service = apr_psprintf(r->pool, "%s%%3a%%2f%%2f%s%%3a%u%s%s%s", scheme, r->server->server_hostname, port, escapeString(r, unparsedPath), (r->args != NULL ? "%3f" : ""), escapeString(r, r->args));
-	else
-		service = apr_psprintf(r->pool, "%s%%3a%%2f%%2f%s%s%s%s", scheme, r->server->server_hostname, escapeString(r, unparsedPath), (r->args != NULL ? "%3f" : ""), escapeString(r, r->args));
-
-	if(c->CASDebug)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "CAS Service '%s'", service);
-
 	return(service);
 }
 
@@ -673,13 +684,16 @@ static char *getCASCookie(request_rec *r, char *cookieName)
 
 static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure)
 {
-	char *headerString, *currentCookies;
+	char *headerString, *currentCookies, *pathPrefix = "";
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering setCASCookie()");
 
-	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s%s%s%s", cookieName, cookieValue, (secure ? ";Secure" : ""), urlEncode(r, getCASScope(r), " "), (c->CASCookieDomain != NULL ? ";Domain=" : ""), (c->CASCookieDomain != NULL ? c->CASCookieDomain : ""), (c->CASCookieHttpOnly != FALSE ? "; HttpOnly" : ""));
+	if(c->CASRootProxiedAs.is_initialized)
+		pathPrefix = urlEncode(r, c->CASRootProxiedAs.path, " ");
+
+	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s%s%s%s%s", cookieName, cookieValue, (secure ? ";Secure" : ""), pathPrefix, urlEncode(r, getCASScope(r), " "), (c->CASCookieDomain != NULL ? ";Domain=" : ""), (c->CASCookieDomain != NULL ? c->CASCookieDomain : ""), (c->CASCookieHttpOnly != FALSE ? "; HttpOnly" : ""));
 
 	/* use r->err_headers_out so we always print our headers (even on 302 redirect) - headers_out only prints on 2xx responses */
 	apr_table_add(r->err_headers_out, "Set-Cookie", headerString);
@@ -1851,25 +1865,26 @@ static int cas_authenticate(request_rec *r)
 				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);
 				
 			if(parametersRemoved == TRUE) {
-				if(ssl == TRUE) {
-					if(port != 443)
-						printPort = TRUE;
-				} else if(port != 80) {
+				if(ssl == TRUE && port != 443) 
 					printPort = TRUE;
-				}
+				else if(port != 80)
+					printPort = TRUE;
 
-
+				if(c->CASRootProxiedAs.is_initialized) {
+						newLocation = apr_psprintf(r->pool, "%s%s%s%s", apr_uri_unparse(r->pool, &c->CASRootProxiedAs, 0), r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? escapeString(r, r->args) : ""));
+				} else {
 #ifdef APACHE2_0
-				if(printPort == TRUE)
-					newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_method(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-				else
-					newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_method(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
+					if(printPort == TRUE)
+						newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_method(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
+					else
+						newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_method(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
 #else
-				if(printPort == TRUE)
-					newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-				else
-					newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
+					if(printPort == TRUE)
+						newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
+					else
+						newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
 #endif
+				}
 				apr_table_add(r->headers_out, "Location", newLocation);
 				return HTTP_MOVED_TEMPORARILY;
 			} else {
@@ -2046,6 +2061,7 @@ static const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASTimeout", cfg_readCASParameter, (void *) cmd_session_timeout, RSRC_CONF, "Maximum time (in seconds) a session cookie is valid for, regardless of idle time.  Set to 0 to allow non-idle sessions to never expire"),
 	AP_INIT_TAKE1("CASIdleTimeout", cfg_readCASParameter, (void *) cmd_idle_timeout, RSRC_CONF, "Maximum time (in seconds) a session can be idle for"),
 	AP_INIT_TAKE1("CASCacheCleanInterval", cfg_readCASParameter, (void *) cmd_cache_interval, RSRC_CONF, "Amount of time (in seconds) between cache cleanups.  This value is checked when a new local ticket is issued or when a ticket expires."),
+	AP_INIT_TAKE1("CASRootProxiedAs", cfg_readCASParameter, (void *) cmd_root_proxied_as, RSRC_CONF, "URL used to access the root of the virtual server (only needed when the server is proxied)"),
 	{NULL}
 };
 

@@ -213,6 +213,16 @@ Default:	NULL
 Description:	The URL to use when performing a proxy validation.  This is currently
 		an unimplemented feature, so setting this will have no effect.
 
+Directive: 	CASRootProxiedAs
+Default:	NULL
+Description:	This URL represents the URL that end users may see in the event that
+		access to this Apache server is proxied.  This will override the
+		automatic generation of service URLs and construct them using this
+		prefix.  As an example: If the site being protected is http://example.com/
+		and the Apache instance of this server is http://internal.example.com:8080,
+		setting CASRootProxiedAs to http://example.com would result in proper
+		service parameter generation. 
+
 Directive: 	CASCookiePath
 Default:	/dev/null
 Description:	When users first authenticate to mod_auth_cas with a valid service ticket,

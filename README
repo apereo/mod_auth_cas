@@ -65,6 +65,10 @@ BUG FIXES
 * Fixed issue where cas_merge_dir_config was allocating
   more memory than necessary (reported by Ray Davison)
 
+* Fixed possible NULL pointer dereference in rare circumstances
+  where ap_is_initial_req() returns FALSE, but the value of
+  request_rec->main is NULL (reported by David Gelbart)
+
 ====================================================================
 KNOWN LIMITATIONS
 ====================================================================

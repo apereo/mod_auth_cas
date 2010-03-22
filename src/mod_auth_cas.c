@@ -1911,7 +1911,12 @@ static int cas_authenticate(request_rec *r)
 			 * this subrequest.  in the meantime, we will just accept the performance hit if
 			 * validate SAML is on and re-read the cache file.
 			 */
-			remoteUser = r->main->user;
+			if(r->main != NULL) {
+				remoteUser = r->main->user;
+			} else {
+				redirectRequest(r, c);
+				return HTTP_MOVED_TEMPORARILY;
+			}
 			if (c->CASDebug)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "recycling user '%s' from initial request for sub request", remoteUser);
 		} else if(!isValidCASCookie(r, c, cookieString, &remoteUser, &attrs)) {

@@ -1231,7 +1231,7 @@ static void CASSAMLLogout(request_rec *r, char *body)
 		ap_unescape_url((char *) body);
 
 		if(c->CASDebug)
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "SAML Logout Request: %s", body);
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "SAML Logout Request: %s", body);
 
 		/* parse the XML response */
 		if(apr_xml_parser_feed(parser, body, strlen(body)) != APR_SUCCESS) {

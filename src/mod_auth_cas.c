@@ -1994,36 +1994,39 @@ static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, ser
 
 static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes) {
 	apr_bucket *b;
-	apr_size_t len;
-	const char *str;
-	char *data;
+	apr_status_t rv;
+	apr_size_t len = 0, offset = 0;
+	char data[1024];
+	const char *bucketData;
 
-	/* do not operate on subrequests */
-	if (ap_is_initial_req(f->r) == FALSE) {
-		ap_remove_input_filter(f);
-		return (ap_pass_brigade(f->next, bb));
+	memset(data, '\0', sizeof(data));
+
+	rv = ap_get_brigade(f->next, bb, mode, block, readbytes);
+
+	if(rv != APR_SUCCESS) {
+		apr_strerror(rv, data, sizeof(data));
+		ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->c->base_server, "unable to retrieve bucket brigade: %s", data);
+		return rv;
 	}
 
-	ap_get_brigade(f->next, bb, mode, readbytes, CAS_MAX_RESPONSE_SIZE);
+	for(b = APR_BRIGADE_FIRST(bb); b != APR_BRIGADE_SENTINEL(bb); b = APR_BUCKET_NEXT(b)) {
+		if(APR_BUCKET_IS_METADATA(b))
+			continue;
+		if(apr_bucket_read(b, &bucketData, &len, APR_BLOCK_READ) == APR_SUCCESS) {
+			if(offset + len >= sizeof(data)) {
+				ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->c->base_server, "bucket brigade contains more than %d bytes, truncation required (SSOut may fail)", sizeof(data));
+				memcpy(data + offset, bucketData, sizeof(data) - offset - 1); // copy what we can into the space remaining
+				break;
+			} else {
+				memcpy(data + offset, bucketData, len);
+			}
+		}
+	}
 
-	/* get the first bucket from the brigade */
-	b = APR_BRIGADE_FIRST(bb);
-
-	/* if this bucket is NULL, the brigade is empty, and we should return SUCCESS to higher filters */
-	if(b->type == NULL)
-		return APR_SUCCESS;
-
-	/* read from the bucket - if for some reason the logoutRequest comes in more than 1 bucket, we will not be able to process it */
-	apr_bucket_read(b, &str, &len, APR_BLOCK_READ);
-	
-	data = apr_pstrndup(f->r->pool, str, len);
-
+	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->c->base_server, "read %d bytes (%s) from incoming buckets\n", strlen(data), data);
 	CASSAMLLogout(f->r, data);
 
-	/* we're done here */
-	ap_remove_input_filter(f);
-
-	return(ap_pass_brigade(f->next, bb));
+	return APR_SUCCESS;
 }
 
 static void cas_register_hooks(apr_pool_t *p)

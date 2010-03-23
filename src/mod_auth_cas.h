@@ -59,13 +59,6 @@
 	#endif
 #endif
 
-#ifdef WIN32
-typedef SOCKET socket_t;
-#else
-typedef int socket_t;
-#define INVALID_SOCKET -1
-#endif
-
 #define CAS_DEFAULT_VERSION 2
 #define CAS_DEFAULT_DEBUG FALSE
 #define CAS_DEFAULT_SCOPE NULL
@@ -157,6 +150,11 @@ typedef struct cas_cache_entry {
 	cas_saml_attr *attrs;
 } cas_cache_entry;
 
+typedef struct cas_curl_buffer {
+	char buf[CAS_MAX_RESPONSE_SIZE];
+	size_t written;
+} cas_curl_buffer;
+
 typedef enum {
 	cmd_version, cmd_debug, cmd_validate_server, cmd_validate_depth, cmd_wildcard_cert,
 	cmd_ca_path, cmd_cookie_path, cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy,
@@ -171,7 +169,6 @@ static void *cas_create_dir_config(apr_pool_t *pool, char *path);
 static void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD);
 static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value);
 static apr_byte_t check_cert_cn(request_rec *r, cas_cfg *c, X509 *certificate, char *cn);
-static void CASCleanupSocket(socket_t s, SSL *ssl, SSL_CTX *ctx);
 static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket);
 static apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **user, cas_saml_attr **attrs);
 static apr_byte_t isSSL(request_rec *r);

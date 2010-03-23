@@ -5,7 +5,7 @@ all:
 
 install:
 	if test ! -d ${DESTDIR}${APXS_LIBEXECDIR}; then mkdir -p ${DESTDIR}${APXS_LIBEXECDIR}; fi
-	@APXS@ -i -S LIBEXECDIR=${DESTDIR}${APXS_LIBEXECDIR} src/mod_auth_cas.la
+	@APXS@ -i -S LIBEXECDIR=${DESTDIR}${APXS_LIBEXECDIR} -lcurl -lssl src/mod_auth_cas.la
 
 clean:
 	rm -rf src/mod_auth_cas.slo src/mod_auth_cas.la src/mod_auth_cas.lo src/.libs

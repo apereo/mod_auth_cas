@@ -41,6 +41,8 @@ NEW FEATURES AND FUNCTIONS IN THIS RELEASE
 * Support for SAML validation has been provided by David Hawes
   of Virginia Tech.
 
+* Added dependency of libcurl for ticket validation
+
 ====================================================================
 BUG FIXES 
 ====================================================================
@@ -110,6 +112,7 @@ OpenSSL - 0.9.8c
 Apache Portable Runtime - 1.2.8
 Apache Portable Runtime Utilities - 1.2.7
 Apache Web Server - 2.2.3
+libcurl - 7.18.2
 
 Additionally, GNU Make and the auto* tools are necessary for building
 mod_auth_cas.
@@ -127,9 +130,9 @@ COMPILE INSTRUCTIONS
 Use the APache eXtenSion tool (APXS) to compile and install this 
 object as a dynamically shared object (DSO), by either:
 
-apxs -i -c mod_auth_cas.c
+apxs -i -lssl -lcurl -c mod_auth_cas.c
 or
-apxs2 -i -c mod_auth_cas.c
+apxs2 -i -lssl -lcurl -c mod_auth_cas.c
 
 depending on your Linux distribution.
 

@@ -29,14 +29,6 @@
 #include "config.h"
 #endif
 
-#ifdef WIN32
-#include <winsock2.h>
-#else
-#include <sys/socket.h>
-#include <unistd.h>
-#include <netdb.h>
-#endif
-
 #include <sys/types.h>
 
 #include <openssl/crypto.h>
@@ -1304,14 +1296,6 @@ static apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, cha
 	if(response == NULL)
 		return FALSE;
 
-	response = strstr((char *) response, "\r\n\r\n");
-
-	if(response == NULL)
-		return FALSE;
-
-	/* skip the \r\n\r\n after the HTTP headers */
-	response += 4;
-
 	if(c->CASDebug) {
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: response = %s", response);
 	}
@@ -1605,194 +1589,119 @@ static apr_byte_t check_cert_cn(request_rec *r, cas_cfg *c, X509 *certificate, c
 	return FALSE;
 }
 
-static void CASCleanupSocket(socket_t s, SSL *ssl, SSL_CTX *ctx)
+/*
+ * from curl_easy_setopt documentation:
+ * This function gets called by libcurl as soon as there 
+ * is data received that needs to be saved. The size of the
+ * data pointed to by ptr is size multiplied with nmemb, it
+ * will not be zero terminated. Return the number of bytes
+ * actually taken care of. If that amount differs from the 
+ * amount passed to your function, it'll signal an error to the 
+ * library. This will abort the transfer and return 
+ * CURLE_WRITE_ERROR.
+ */
+
+static size_t cas_curl_write(void *ptr, size_t size, size_t nmemb, void *stream)
 {
-	if(s != INVALID_SOCKET)
-#ifdef WIN32
-		closesocket(s);
-#else
-		close(s);
-#endif
+	cas_curl_buffer *curlBuffer = (cas_curl_buffer *) stream;
 
-	if(ssl != NULL)
-		SSL_free(ssl);
+	if((nmemb*size) + curlBuffer->written >= CAS_MAX_RESPONSE_SIZE)
+		return 0;
 
-	if(ctx != NULL)
-		SSL_CTX_free(ctx);
+	memcpy((curlBuffer->buf + curlBuffer->written), ptr, (nmemb*size));
+	curlBuffer->written += (nmemb*size);
 
-#ifdef WIN32
-	WSACleanup();
-#endif
-	return;
+	return (nmemb*size);
+}
+
+CURLcode cas_curl_ssl_ctx(CURL *curl, void *sslctx, void *parm)
+{
+	SSL_CTX *ctx = (SSL_CTX *) sslctx;
+	cas_cfg *c = (cas_cfg *)parm;
+
+	if(c->CASValidateServer != FALSE)
+		SSL_CTX_set_verify_depth(ctx, c->CASValidateDepth);
+
+	return CURLE_OK;
 }
 
 /* also inspired by some code from Shawn Bayern */
 static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 {
-	char *validateRequest, validateResponse[CAS_MAX_RESPONSE_SIZE];
+	char curlError[CURL_ERROR_SIZE];
 	apr_finfo_t f;
-	int i, bytesIn;
-	socket_t s = INVALID_SOCKET;
-#ifdef WIN32
-	WSADATA wsaData;
-#endif
-
-	SSL_METHOD *m;
-	SSL_CTX *ctx = NULL;
-	SSL *ssl = NULL;
-	struct sockaddr_in sa;
-	struct hostent *server = gethostbyname(c->CASValidateURL.hostname);
+	apr_uri_t validateURL;
+	cas_curl_buffer curlBuffer;
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getResponseFromServer()");
-#ifdef WIN32
-	if (WSAStartup(MAKEWORD(2,0), &wsaData) != 0){
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: cannot initialize winsock2: (%d)", WSAGetLastError());
-		return NULL;
-	}
-#endif
 
-	if(server == NULL) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: gethostbyname() failed for %s", c->CASValidateURL.hostname);
-		return NULL;
-	}
+	CURL *curl = curl_easy_init();
 
-	/* establish a TCP connection with the remote server */
-	s = socket(AF_INET, SOCK_STREAM, 0);
-	if(s == INVALID_SOCKET) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: socket() failed for %s", c->CASValidateURL.hostname);
-		// no need to close(s) here since it was never successfully created
-		CASCleanupSocket(s, ssl, ctx);
+	curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L); 
+	curl_easy_setopt(curl, CURLOPT_HEADER, 0L); 
+	curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+	curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+	curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlError);
+
+	curlBuffer.written = 0;
+	memset(curlBuffer.buf, '\0', sizeof(curlBuffer.buf));
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &curlBuffer);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cas_curl_write);
+	curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, cas_curl_ssl_ctx);
+	curl_easy_setopt(curl, CURLOPT_SSL_CTX_DATA, c);
+
+	curl_easy_setopt(curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP|CURLPROTO_HTTPS);
+
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, (c->CASValidateServer != FALSE ? 1L : 0L));
+
+	if(apr_stat(&f, c->CASCertificatePath, APR_FINFO_TYPE, r->pool) == APR_INCOMPLETE) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not load CA certificate: %s", c->CASCertificatePath);
 		return (NULL);
 	}
-	
-	memset(&sa, 0, sizeof(struct sockaddr_in));
-	sa.sin_family = AF_INET;
-	sa.sin_port = htons(c->CASValidateURL.port);
-	memcpy(&(sa.sin_addr.s_addr), (server->h_addr_list[0]), sizeof(sa.sin_addr.s_addr));
-
-	if(connect(s, (struct sockaddr *) &sa, sizeof(sa)) < 0) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: connect() failed to %s:%d", c->CASValidateURL.hostname, ntohs(sa.sin_port));
-		CASCleanupSocket(s, ssl, ctx);
-		return (NULL);
-	}
-	
-	/* assign the created connection to an SSL object */
-	SSL_library_init();
-	SSL_load_error_strings();
-	m = SSLv23_method();
-	ctx = SSL_CTX_new(m);
-
-	if(c->CASValidateServer != FALSE) {
-		SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
-
-		if(apr_stat(&f, c->CASCertificatePath, APR_FINFO_TYPE, r->pool) == APR_INCOMPLETE) {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not load CA certificate: %s", c->CASCertificatePath);
-			CASCleanupSocket(s, ssl, ctx);
-			return (NULL);
-		}
-
-		if(f.filetype == APR_DIR) {
-			if(!(SSL_CTX_load_verify_locations(ctx, 0, c->CASCertificatePath))) {
-				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not load CA certificate path: %s", c->CASCertificatePath);
-				CASCleanupSocket(s, ssl, ctx);
-				return (NULL);
-			}
-		} else if (f.filetype == APR_REG) {
-			if(!(SSL_CTX_load_verify_locations(ctx, c->CASCertificatePath, 0))) {
-				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not load CA certificate file: %s", c->CASCertificatePath);
-				CASCleanupSocket(s, ssl, ctx);
-				return (NULL);
-			}
-		} else {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not process Certificate Authority: %s", c->CASCertificatePath);
-			CASCleanupSocket(s, ssl, ctx);
-			return (NULL);
-		}
-
-		SSL_CTX_set_verify_depth(ctx, c->CASValidateDepth);
-	}
-
-	ssl = SSL_new(ctx);
-
-	if(ssl == NULL) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not create an SSL connection to %s", c->CASValidateURL.hostname);
-		CASCleanupSocket(s, ssl, ctx);
+	if(f.filetype == APR_DIR)
+		curl_easy_setopt(curl, CURLOPT_CAPATH, c->CASCertificatePath);
+	else if (f.filetype == APR_REG)
+		curl_easy_setopt(curl, CURLOPT_CAINFO, c->CASCertificatePath);
+	else {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not process Certificate Authority: %s", c->CASCertificatePath);
 		return (NULL);
 	}
 
-	if(SSL_set_fd(ssl, s) == 0) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not bind SSL connection to socket for %s", c->CASValidateURL.hostname);
-		CASCleanupSocket(s, ssl, ctx);
-		return (NULL);
-	}
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, (c->CASValidateServer != FALSE ? 2L : 0L));
 
-	if(SSL_connect(ssl) <= 0) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not perform SSL handshake with %s (check CASCertificatePath)", c->CASValidateURL.hostname);
-		CASCleanupSocket(s, ssl, ctx);
-		return (NULL);
-	}
+	curl_easy_setopt(curl, CURLOPT_USERAGENT, "mod_auth_cas 1.0.9");
+	curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
 
-	/* validate the server certificate if we require it, first by verifying the CA signature, then by verifying the CN of the certificate to the hostname */
-	if(c->CASValidateServer != FALSE) {
-		/* SSL_get_verify_result() will return X509_V_OK if the server did not present a certificate, so we must make sure they do present one */
-		if(SSL_get_verify_result(ssl) != X509_V_OK || SSL_get_peer_certificate(ssl) == NULL) {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Certificate not presented or not signed by CA (from %s)", c->CASValidateURL.hostname);
-			CASCleanupSocket(s, ssl, ctx);
-			return (NULL);
-		} else if(check_cert_cn(r, c, SSL_get_peer_certificate(ssl), c->CASValidateURL.hostname) == FALSE) {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Certificate CN does not match %s", c->CASValidateURL.hostname);
-			CASCleanupSocket(s, ssl, ctx);
-			return (NULL);
-		}
-	}
-
-	/* without Connection: close the HTTP/1.1 protocol defaults to trying to keep the connection alive.  this introduces ~15 second lag when receiving a response */
-	/* MAS-14 reverts this to HTTP/1.0 because the code that retrieves the ticket validation response can not handle transfer chunked encoding.  this will be solved
-	 * at a later date when migrating to libcurl/some other HTTP library to perform ticket validation.  It also removes the Connection: close header as the default
-	 * behavior for HTTP/1.0 is Connection: close
-	 */
+// XXX fix this
+#if 0
 	if(c->CASValidateSAML == TRUE) {
 		char *samlPayload = apr_psprintf(r->pool, "<?xml version=\"1.0\" encoding=\"utf-8\"?><SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\"><SOAP-ENV:Header/><SOAP-ENV:Body><samlp:Request xmlns:samlp=\"urn:oasis:names:tc:SAML:1.0:protocol\"  MajorVersion=\"1\" MinorVersion=\"1\"><samlp:AssertionArtifact>%s%s</samlp:AssertionArtifact></samlp:Request></SOAP-ENV:Body></SOAP-ENV:Envelope>",ticket, getCASRenew(r));
 		validateRequest = apr_psprintf(r->pool, "POST %s?TARGET=%s HTTP/1.0\r\nHost: %s\r\nsoapaction: http://www.oasis-open.org/committees/security\r\ncache-control: no-cache\r\npragma: no-cache\r\naccept: text/xml\r\nconnection: keep-alive\r\ncontent-type: text/xml\r\nContent-Length: %d\r\n\r\n%s", getCASValidateURL(r, c), getCASService(r, c), c->CASValidateURL.hostname, (int) strlen(samlPayload), samlPayload);
 	} else {
 		validateRequest = apr_psprintf(r->pool, "GET %s?service=%s&ticket=%s%s HTTP/1.0\nHost: %s\n\n", getCASValidateURL(r, c), getCASService(r, c), ticket, getCASRenew(r), c->CASValidateURL.hostname);
 	}
-	if(c->CASDebug)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Validation request: %s", validateRequest);
-	/* send our validation request */
-	if(SSL_write(ssl, validateRequest, (int) strlen(validateRequest)) != strlen(validateRequest)) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: unable to write CAS validate request to %s%s", c->CASValidateURL.hostname, getCASValidateURL(r, c));
-		CASCleanupSocket(s, ssl, ctx);
+#endif
+
+
+	/* use HTTP/1.0 to avoid keepalives causing excessive timeouts */
+	curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
+
+	memcpy(&validateURL, &c->CASValidateURL, sizeof(apr_uri_t));
+	validateURL.query = apr_psprintf(r->pool, "service=%s&ticket=%s%s", getCASService(r, c), ticket, getCASRenew(r));
+
+	curl_easy_setopt(curl, CURLOPT_URL, apr_uri_unparse(r->pool, &validateURL, 0));
+
+	if(curl_easy_perform(curl) != CURLE_OK) {
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: curl_easy_perform() failed (%s)", curlError);
 		return (NULL);
 	}
-	if(c->CASDebug)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Request successfully transmitted");
-
-	/* read the response until there is no more */
-	i = 0;
-	do {
-		bytesIn = SSL_read(ssl, validateResponse + i, (sizeof(validateResponse)-i-1));
-		i += bytesIn;
-		if(c->CASDebug)
-			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Received %d bytes of response", bytesIn);
-	} while (bytesIn > 0 && i < sizeof(validateResponse));
-
-	validateResponse[i] = '\0';
 
 	if(c->CASDebug)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Validation response: %s", validateResponse);
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Validation response: %s", curlBuffer.buf);
 
-	if(bytesIn != 0 || i >= sizeof(validateResponse) - 1) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: oversized response received from %s%s", c->CASValidateURL.hostname, getCASValidateURL(r, c));
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "response: %s", validateResponse);
-		CASCleanupSocket(s, ssl, ctx);
-		return (NULL);
-	}
-	
-	CASCleanupSocket(s, ssl, ctx);
-
-	return (apr_pstrndup(r->pool, validateResponse, strlen(validateResponse)));
+	curl_easy_cleanup(curl);
+	return (apr_pstrndup(r->pool, curlBuffer.buf, strlen(curlBuffer.buf)));
 }
 
 /* basic CAS module logic */
@@ -2011,8 +1920,7 @@ static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, ser
 
 	if(memcmp(&c->CASValidateURL, &nullURL, sizeof(apr_uri_t)) != 0) {
 		if(strncmp(c->CASValidateURL.scheme, "https", 5) != 0) {
-			ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "MOD_AUTH_CAS: CASValidateURL must be HTTPS.");
-			return HTTP_INTERNAL_SERVER_ERROR;
+			ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, "MOD_AUTH_CAS: CASValidateURL should be HTTPS.");
 		}
 	}
 
@@ -2029,7 +1937,7 @@ static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, ser
 #if defined(OPENSSL_THREADS)
 		if(c->CASDebug)
 			ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "entering cas_post_config() SSL thread support");
-		// if no SSL locking callbacks were defined, we should register our own and also clean them up
+		// XXX if no SSL locking callbacks were defined, we should register our own and also clean them up
 		if(CRYPTO_get_locking_callback() == NULL &&
 #ifdef OPENSSL_NO_THREADID
 	CRYPTO_get_id_callback()
@@ -2072,7 +1980,7 @@ static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_inp
 		if(apr_bucket_read(b, &bucketData, &len, APR_BLOCK_READ) == APR_SUCCESS) {
 			if(offset + len >= sizeof(data)) {
 				ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->c->base_server, "bucket brigade contains more than %d bytes, truncation required (SSOut may fail)", sizeof(data));
-				memcpy(data + offset, bucketData, sizeof(data) - offset - 1); // copy what we can into the space remaining
+				memcpy(data + offset, bucketData, (sizeof(data) - offset) - 1); // copy what we can into the space remaining
 				break;
 			} else {
 				memcpy(data + offset, bucketData, len);

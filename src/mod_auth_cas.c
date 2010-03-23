@@ -45,6 +45,8 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
+#include <curl/curl.h>
+
 #include "httpd.h"
 #include "http_config.h"
 #include "http_core.h"
@@ -1959,11 +1961,36 @@ static int cas_authenticate(request_rec *r)
 	return HTTP_UNAUTHORIZED;
 }
 
+static apr_status_t cas_cleanup(void *data)
+{
+	server_rec *s = (server_rec *) data;
+	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "entering cas_cleanup()");
+
+	// XXX check to see if the callbacks belong to us
+#if defined (OPENSSL_THREADS)
+	CRYPTO_set_locking_callback(NULL);
+	// XXX free all the locks we hold?
+#ifdef OPENSSL_NO_THREADID
+	CRYPTO_set_id_callback(NULL);
+#else
+	CRYPTO_THREADID_set_callback(NULL);
+#endif
+#endif
+	curl_global_cleanup();
+	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "exiting cas_cleanup()");
+	return APR_SUCCESS;
+}
+
 static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec *s)
 {
 	cas_cfg *c = ap_get_module_config(s->module_config, &auth_cas_module);
 	apr_uri_t nullURL;
 	apr_finfo_t f;
+	void *data;
+	const char *userdata_key = "auth_cas_init";
+
+	if(c->CASDebug)
+		ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "entering cas_post_config()");
 
 	memset(&nullURL, '\0', sizeof(apr_uri_t));
 
@@ -1989,6 +2016,36 @@ static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, ser
 		}
 	}
 
+
+	/* Since the post_config hook is invoked twice (once
+	 * for 'sanity checking' of the config and once for
+	 * the actual server launch, we have to use a hack
+	 * to not run twice
+	 */
+	apr_pool_userdata_get(&data, userdata_key, s->process->pool);
+
+	if(data) {
+		curl_global_init(CURL_GLOBAL_ALL);
+#if defined(OPENSSL_THREADS)
+		if(c->CASDebug)
+			ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "entering cas_post_config() SSL thread support");
+		// if no SSL locking callbacks were defined, we should register our own and also clean them up
+		if(CRYPTO_get_locking_callback() == NULL &&
+#ifdef OPENSSL_NO_THREADID
+	CRYPTO_get_id_callback()
+#else
+	CRYPTO_THREADID_get_callback()
+#endif
+		== NULL) {
+		}
+#endif
+		apr_pool_cleanup_register(pool, s, cas_cleanup, apr_pool_cleanup_null);
+	}
+
+	apr_pool_userdata_set((const void *)1, userdata_key, apr_pool_cleanup_null, s->process->pool);
+
+	if(c->CASDebug)
+		ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "exiting cas_post_config()");
 	return OK;
 }
 
@@ -2031,7 +2088,7 @@ static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_inp
 
 static void cas_register_hooks(apr_pool_t *p)
 {
-	ap_hook_post_config(cas_post_config, NULL, NULL, APR_HOOK_MIDDLE);
+	ap_hook_post_config(cas_post_config, NULL, NULL, APR_HOOK_LAST);
 	ap_hook_check_user_id(cas_authenticate, NULL, NULL, APR_HOOK_MIDDLE);
 	ap_register_input_filter("CAS", cas_in_filter, NULL, AP_FTYPE_RESOURCE); 
 }

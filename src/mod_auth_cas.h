@@ -35,6 +35,14 @@
 #include <stddef.h>
 #include "ap_release.h"
 
+#define OPENSSL_THREAD_DEFINES
+#include <openssl/opensslconf.h>
+
+#include <openssl/opensslv.h>
+#if (OPENSSL_VERSION_NUMBER < 0x01000000)
+#define OPENSSL_NO_THREADID
+#endif
+
 #ifndef AP_SERVER_MAJORVERSION_NUMBER
 	#ifndef AP_SERVER_MINORVERSION_NUMBER
 		#define APACHE2_0

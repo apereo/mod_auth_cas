@@ -1825,7 +1825,7 @@ static int cas_authenticate(request_rec *r)
 			if(r->main != NULL)
 				remoteUser = r->main->user;
 			else if (r->prev != NULL)
-				remoteUser = r->main->user;
+				remoteUser = r->prev->user;
 			else {
 				redirectRequest(r, c);
 				return HTTP_MOVED_TEMPORARILY;

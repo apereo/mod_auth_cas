@@ -226,6 +226,7 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 			c->CASAttributePrefix = apr_pstrdup(cmd->pool, value);
 		break;
 		case cmd_wildcard_cert:
+			// XXX this feature is broken now
 			/* if atoi() is used on value here with AP_INIT_FLAG, it works but results in a compile warning, so we use TAKE1 to avoid it */
 			if(apr_strnatcasecmp(value, "On") == 0)
 				c->CASAllowWildcardCert = TRUE;
@@ -459,23 +460,6 @@ static char *getCASRenew(request_rec *r)
 		rv = "&renew=true";
 	}
 	return rv;
-}
-
-static char *getCASValidateURL(request_rec *r, cas_cfg *c)
-{
-	apr_uri_t test;
-
-	if(c->CASDebug)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getCASValidateURL()");
-
-	memset(&test, '\0', sizeof(apr_uri_t));
-	if(memcmp(&c->CASValidateURL, &test, sizeof(apr_uri_t)) == 0) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: CASValidateURL null (not set?)");
-		return NULL;
-	}
-	/* this is used in the 'GET /[validateURL]...' context */
-	return(apr_uri_unparse(r->pool, &(c->CASValidateURL), APR_URI_UNP_OMITSITEPART|APR_URI_UNP_OMITUSERINFO|APR_URI_UNP_OMITQUERY));
-
 }
 
 static char *getCASLoginURL(request_rec *r, cas_cfg *c)
@@ -1553,42 +1537,6 @@ static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, cha
 }
 
 
-/* SSL specific functions - these should be replaced by the APR-1.3 SSL functions when they are available */
-/* Credit to Shawn Bayern for the basis of most of this SSL related code */
-static apr_byte_t check_cert_cn(request_rec *r, cas_cfg *c, X509 *certificate, char *cn)
-{
-	char buf[512];
-	char *domain = cn;
-
-	if(c->CASDebug)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering check_cert_cn()");
-
-	/* 
-	 * call to X509_verify_cert(xctx) removed - SSL_VERIFY_PEER verifies the certificate
-	 * and the X509_STORE here lacks any intermediate certificates.  Failure to validate
-	 * intermediate certificates reported by Chris Adams of Yale.
-	*/
-
-	X509_NAME_get_text_by_NID(X509_get_subject_name(certificate), NID_commonName, buf, sizeof(buf) - 1);
-	/* don't match because of truncation - this will require a hostname > 512 characters, though */
-	if(strlen(cn) >= sizeof(buf) - 1)
-		return FALSE;
-
-	/* patch submitted by Earl Fogel for MAS-5 */
-	if(buf[0] == '*' && c->CASAllowWildcardCert != FALSE) {
-		do {
-			domain = strchr(domain + (domain[0] == '.' ? 1 : 0), '.');
-			if(domain != NULL && apr_strnatcasecmp(buf+1, domain) == 0)
-				return TRUE;
-		} while (domain != NULL);
-	} else {
-		if(apr_strnatcasecmp(buf, cn) == 0)
-			return TRUE;
-	}
-	
-	return FALSE;
-}
-
 /*
  * from curl_easy_setopt documentation:
  * This function gets called by libcurl as soon as there 
@@ -1625,13 +1573,13 @@ CURLcode cas_curl_ssl_ctx(CURL *curl, void *sslctx, void *parm)
 	return CURLE_OK;
 }
 
-/* also inspired by some code from Shawn Bayern */
 static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 {
 	char curlError[CURL_ERROR_SIZE];
 	apr_finfo_t f;
 	apr_uri_t validateURL;
 	cas_curl_buffer curlBuffer;
+	struct curl_slist *headers = NULL;
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getResponseFromServer()");
@@ -1671,24 +1619,24 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, (c->CASValidateServer != FALSE ? 2L : 0L));
 
 	curl_easy_setopt(curl, CURLOPT_USERAGENT, "mod_auth_cas 1.0.9");
-	curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
 
-// XXX fix this
-#if 0
 	if(c->CASValidateSAML == TRUE) {
+		curl_easy_setopt(curl, CURLOPT_POST, 1L);
 		char *samlPayload = apr_psprintf(r->pool, "<?xml version=\"1.0\" encoding=\"utf-8\"?><SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\"><SOAP-ENV:Header/><SOAP-ENV:Body><samlp:Request xmlns:samlp=\"urn:oasis:names:tc:SAML:1.0:protocol\"  MajorVersion=\"1\" MinorVersion=\"1\"><samlp:AssertionArtifact>%s%s</samlp:AssertionArtifact></samlp:Request></SOAP-ENV:Body></SOAP-ENV:Envelope>",ticket, getCASRenew(r));
-		validateRequest = apr_psprintf(r->pool, "POST %s?TARGET=%s HTTP/1.0\r\nHost: %s\r\nsoapaction: http://www.oasis-open.org/committees/security\r\ncache-control: no-cache\r\npragma: no-cache\r\naccept: text/xml\r\nconnection: keep-alive\r\ncontent-type: text/xml\r\nContent-Length: %d\r\n\r\n%s", getCASValidateURL(r, c), getCASService(r, c), c->CASValidateURL.hostname, (int) strlen(samlPayload), samlPayload);
-	} else {
-		validateRequest = apr_psprintf(r->pool, "GET %s?service=%s&ticket=%s%s HTTP/1.0\nHost: %s\n\n", getCASValidateURL(r, c), getCASService(r, c), ticket, getCASRenew(r), c->CASValidateURL.hostname);
-	}
-#endif
-
-
-	/* use HTTP/1.0 to avoid keepalives causing excessive timeouts */
-	curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
+		headers = curl_slist_append(headers, "soapaction: http://www.oasis-open.org/committees/security");
+		headers = curl_slist_append(headers, "cache-control: no-cache"); 
+		headers = curl_slist_append(headers, "pragma: no-cache");
+		headers = curl_slist_append(headers, "accept: text/xml"); 
+		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, samlPayload);
+	} else
+		curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
 
 	memcpy(&validateURL, &c->CASValidateURL, sizeof(apr_uri_t));
-	validateURL.query = apr_psprintf(r->pool, "service=%s&ticket=%s%s", getCASService(r, c), ticket, getCASRenew(r));
+	if(c->CASValidateSAML == FALSE)
+		validateURL.query = apr_psprintf(r->pool, "service=%s&ticket=%s%s", getCASService(r, c), ticket, getCASRenew(r));
+	else
+		validateURL.query = apr_psprintf(r->pool, "TARGET=%s%s", getCASService(r, c), getCASRenew(r));
 
 	curl_easy_setopt(curl, CURLOPT_URL, apr_uri_unparse(r->pool, &validateURL, 0));
 
@@ -1696,6 +1644,9 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: curl_easy_perform() failed (%s)", curlError);
 		return (NULL);
 	}
+
+	if(headers != NULL)
+		curl_slist_free_all(headers);
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Validation response: %s", curlBuffer.buf);

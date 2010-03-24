@@ -60,7 +60,7 @@
 #if defined(OPENSSL_THREADS) && APR_HAS_THREADS
 static apr_thread_mutex_t **ssl_locks;
 static int ssl_num_locks;	
-#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS
+#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
 
 /* mod_auth_cas configuration specific functions */
 static void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
@@ -1647,7 +1647,8 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	curl_easy_setopt(curl, CURLOPT_URL, apr_uri_unparse(r->pool, &validateURL, 0));
 
 	if(curl_easy_perform(curl) != CURLE_OK) {
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: curl_easy_perform() failed (%s)", curlError);
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: curl_easy_perform() failed (%s)", curlError);
 		return (NULL);
 	}
 

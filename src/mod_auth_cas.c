@@ -51,10 +51,16 @@
 #include "apr_buckets.h"
 #include "apr_file_info.h"
 #include "apr_md5.h"
+#include "apr_thread_mutex.h"
 #include "apr_strings.h"
 #include "apr_xml.h"
 
 #include "mod_auth_cas.h"
+
+#if defined(OPENSSL_THREADS) && APR_HAS_THREADS
+static apr_thread_mutex_t **ssl_locks;
+static int ssl_num_locks;	
+#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS
 
 /* mod_auth_cas configuration specific functions */
 static void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
@@ -1821,21 +1827,49 @@ static int cas_authenticate(request_rec *r)
 	return HTTP_UNAUTHORIZED;
 }
 
+#if (defined(OPENSSL_THREADS) && APR_HAS_THREADS)
+
+/* shamelessly based on code from mod_ssl */
+static void cas_ssl_locking_callback(int mode, int type, const char *file, int line) {
+	if(type < ssl_num_locks) {
+		if (mode & CRYPTO_LOCK)
+			apr_thread_mutex_lock(ssl_locks[type]);
+		else
+			apr_thread_mutex_unlock(ssl_locks[type]);
+	}
+}
+
+#ifdef OPENSSL_NO_THREADID
+static unsigned long cas_ssl_id_callback(void) {
+	return (unsigned long) apr_os_thread_current();
+}
+#else
+static void cas_ssl_id_callback(CRYPTO_THREADID *id)
+{
+	CRYPTO_THREADID_set_numeric(id, (unsigned long) apr_os_thread_current());
+}
+#endif /* OPENSSL_NO_THREADID */
+
+
+#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
+
 static apr_status_t cas_cleanup(void *data)
 {
 	server_rec *s = (server_rec *) data;
 	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "entering cas_cleanup()");
 
-	// XXX check to see if the callbacks belong to us
-#if defined (OPENSSL_THREADS)
-	CRYPTO_set_locking_callback(NULL);
-	// XXX free all the locks we hold?
+#if (defined (OPENSSL_THREADS) && APR_HAS_THREADS)
+	if(CRYPTO_get_locking_callback() == cas_ssl_locking_callback)
+		CRYPTO_set_locking_callback(NULL);
 #ifdef OPENSSL_NO_THREADID
-	CRYPTO_set_id_callback(NULL);
+	if(CRYPTO_get_id_callback() == cas_ssl_id_callback)
+		CRYPTO_set_id_callback(NULL);
 #else
-	CRYPTO_THREADID_set_callback(NULL);
-#endif
-#endif
+	if(CRYPTO_THREADID_get_callback() == cas_ssl_id_callback)
+		CRYPTO_THREADID_set_callback(NULL);
+#endif /* OPENSSL_NO_THREADID */
+
+#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
 	curl_global_cleanup();
 	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "exiting cas_cleanup()");
 	return APR_SUCCESS;
@@ -1847,6 +1881,7 @@ static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, ser
 	apr_uri_t nullURL;
 	apr_finfo_t f;
 	void *data;
+	int i;
 	const char *userdata_key = "auth_cas_init";
 
 	if(c->CASDebug)
@@ -1885,19 +1920,26 @@ static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, ser
 
 	if(data) {
 		curl_global_init(CURL_GLOBAL_ALL);
-#if defined(OPENSSL_THREADS)
-		if(c->CASDebug)
-			ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "entering cas_post_config() SSL thread support");
-		// XXX if no SSL locking callbacks were defined, we should register our own and also clean them up
-		if(CRYPTO_get_locking_callback() == NULL &&
+
+#if (defined(OPENSSL_THREADS) && APR_HAS_THREADS)
+		ssl_num_locks = CRYPTO_num_locks();
+		ssl_locks = apr_pcalloc(s->process->pool, ssl_num_locks * sizeof(*ssl_locks));
+
+		for(i = 0; i < ssl_num_locks; i++)
+			apr_thread_mutex_create(&(ssl_locks[i]), APR_THREAD_MUTEX_DEFAULT, s->process->pool);
+
 #ifdef OPENSSL_NO_THREADID
-	CRYPTO_get_id_callback()
-#else
-	CRYPTO_THREADID_get_callback()
-#endif
-		== NULL) {
+		if(CRYPTO_get_locking_callback() == NULL && CRYPTO_get_id_callback() == NULL) {
+			CRYPTO_set_locking_callback(cas_ssl_locking_callback);
+			CRYPTO_set_id_callback(cas_ssl_id_callback);
 		}
-#endif
+#else
+		if(CRYPTO_get_locking_callback() == NULL && CRYPTO_THREADID_get_id_callback() == NULL) {
+			CRYPTO_set_locking_callback(cas_ssl_locking_callback);
+			CRYPTO_THREADID_set_id_callback(cas_ssl_id_callback);
+		}
+#endif /* OPENSSL_NO_THREADID */
+#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
 		apr_pool_cleanup_register(pool, s, cas_cleanup, apr_pool_cleanup_null);
 	}
 

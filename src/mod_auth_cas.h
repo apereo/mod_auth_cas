@@ -43,6 +43,13 @@
 #define OPENSSL_NO_THREADID
 #endif
 
+#include <curlver.h>
+#if (LIBCURL_VERSION_NUM < 0x00071904)
+#define LIBCURL_NO_CURLPROTO
+#endif
+
+
+
 #ifndef AP_SERVER_MAJORVERSION_NUMBER
 	#ifndef AP_SERVER_MINORVERSION_NUMBER
 		#define APACHE2_0

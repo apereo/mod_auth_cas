@@ -497,6 +497,14 @@ static char *getCASService(request_rec *r, cas_cfg *c)
 	apr_port_t port = r->connection->local_addr->port;
 	apr_byte_t printPort = FALSE;
 
+	if(queryString != NULL) { 
+		len = strlen(r->unparsed_uri) - strlen(queryString);
+		unparsedPath = apr_pcalloc(r->pool, len+1);
+		strncpy(unparsedPath, r->unparsed_uri, len);
+		unparsedPath[len] = '\0';
+	} else {
+		unparsedPath = r->unparsed_uri;
+	}
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getCASService()");
@@ -513,15 +521,6 @@ static char *getCASService(request_rec *r, cas_cfg *c)
 #else
 		scheme = (char *) ap_http_scheme(r);
 #endif
-		if(queryString != NULL) { 
-			len = strlen(r->unparsed_uri) - strlen(queryString);
-			unparsedPath = apr_pcalloc(r->pool, len+1);
-			strncpy(unparsedPath, r->unparsed_uri, len);
-			unparsedPath[len] = '\0';
-		} else {
-			unparsedPath = r->unparsed_uri;
-		}
-
 		if(printPort == TRUE)
 			service = apr_psprintf(r->pool, "%s%%3a%%2f%%2f%s%%3a%u%s%s%s", scheme, r->server->server_hostname, port, escapeString(r, unparsedPath), (r->args != NULL ? "%3f" : ""), escapeString(r, r->args));
 		else

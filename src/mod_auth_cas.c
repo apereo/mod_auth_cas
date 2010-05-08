@@ -1634,6 +1634,7 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 		headers = curl_slist_append(headers, "cache-control: no-cache"); 
 		headers = curl_slist_append(headers, "pragma: no-cache");
 		headers = curl_slist_append(headers, "accept: text/xml"); 
+		headers = curl_slist_append(headers, "content-type: text/xml"); 
 		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, samlPayload);
 	} else

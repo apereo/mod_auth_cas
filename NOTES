@@ -1,0 +1,17 @@
+MAINTAINER NOTES
+
+* "make dist" creates a tarball suitable for distribution (MUST keep ${BASEFILES} and ${DISTFILES} up-to-date)
+* "make distclean" cleans the environment sufficient for checkin
+* "make baseclean" purges auto* artifacts, leaving only the minimal base
+
+* From a baseclean, "autoreconf" (part of auto* suite) will generate auto* artifacts.  So, from a baseclean
+  $> autoreconf
+  $> ./configure #--with-apxs, --with-openssl
+  $> make
+  $> make install # DESTDIR=/absolute/path/to/alternate/destination/directory
+  $> make clean #for rebuild
+  $> make dist #create tarball for distribution -- note, can only be done after successful ./configure
+  $> make distclean #for svn ci
+  $> make baseclean #fully cleansed for auto* maintainers
+
+* Version number maintained in configure.ac:AC_INIT

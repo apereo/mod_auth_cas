@@ -1,14 +1,33 @@
-APXS_LIBEXECDIR:=$(shell @APXS@ -q LIBEXECDIR)
+#Set a few distribution variables
+DISTNAME=@PACKAGE_NAME@-@PACKAGE_VERSION@
+DISTDIR=${DISTNAME}
+DISTBALL=${DISTNAME}.tgz
 
-all:
-	@APXS@ -c src/mod_auth_cas.c
+#BASEFILES represents all *source* files, in the truest sense (no auto* artifacts)
+BASEFILES=src/mod_auth_cas.c src/mod_auth_cas.h src/Makefile.in configure.ac config.h.in Makefile.in README README.win32 NOTES
 
-install:
-	if test ! -d ${DESTDIR}${APXS_LIBEXECDIR}; then mkdir -p ${DESTDIR}${APXS_LIBEXECDIR}; fi
-	@APXS@ -i -S LIBEXECDIR=${DESTDIR}${APXS_LIBEXECDIR} src/mod_auth_cas.la
+#DISTFILES represents all distributable files, including auto* artifacts and BASEFILES
+DISTFILES=configure ${BASEFILES}
+
+all install:
+	cd src && $(MAKE) $@
 
 clean:
-	rm -rf src/mod_auth_cas.slo src/mod_auth_cas.la src/mod_auth_cas.lo src/.libs
+	cd src && $(MAKE) $@
+	rm -rf ${DISTDIR} ${DISTBALL}
 
 distclean: clean
-	rm -rf config.log config.status config.h Makefile
+	cd src && $(MAKE) $@
+	rm -rf config.h config.h.in~ config.log config.status autom4te.cache Makefile 
+
+baseclean: distclean
+	rm -rf configure
+	
+dist: ${DISTBALL}
+
+${DISTBALL}:
+	rm -f ${DISTBALL}
+	mkdir ${DISTDIR}
+	cp --parents ${DISTFILES} ${DISTDIR}
+	tar -czvf ${DISTBALL} ${DISTDIR}
+	rm -rf ${DISTDIR}

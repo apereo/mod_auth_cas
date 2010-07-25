@@ -1,5 +1,149 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Define to 1 if you have the `gethostbyname' function. */
+#undef HAVE_GETHOSTBYNAME
+
+/* Define to 1 if you have the <inttypes.h> header file. */
+#undef HAVE_INTTYPES_H
+
+/* Define to 1 if you have the `crypto' library (-lcrypto). */
+#undef HAVE_LIBCRYPTO
+
+/* Define to 1 if you have a functional curl library. */
+#undef HAVE_LIBCURL
+
+/* Define to 1 if you have the `ssl' library (-lssl). */
+#undef HAVE_LIBSSL
+
+/* Define to 1 if you have the <memory.h> header file. */
+#undef HAVE_MEMORY_H
+
+/* Define to 1 if you have the `memset' function. */
+#undef HAVE_MEMSET
+
+/* Define to 1 if you have the <netdb.h> header file. */
+#undef HAVE_NETDB_H
+
+/* Define to 1 if you have the <openssl/crypto.h> header file. */
+#undef HAVE_OPENSSL_CRYPTO_H
+
+/* Define to 1 if you have the <openssl/err.h> header file. */
+#undef HAVE_OPENSSL_ERR_H
+
+/* Define to 1 if you have the <openssl/pem.h> header file. */
+#undef HAVE_OPENSSL_PEM_H
+
+/* Define to 1 if you have the <openssl/ssl.h> header file. */
+#undef HAVE_OPENSSL_SSL_H
+
+/* Define to 1 if you have the <openssl/x509.h> header file. */
+#undef HAVE_OPENSSL_X509_H
+
+/* Define to 1 if you have the `socket' function. */
+#undef HAVE_SOCKET
+
+/* Define to 1 if you have the <stddef.h> header file. */
+#undef HAVE_STDDEF_H
+
+/* Define to 1 if you have the <stdint.h> header file. */
+#undef HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdlib.h> header file. */
+#undef HAVE_STDLIB_H
+
+/* Define to 1 if you have the `strcasecmp' function. */
+#undef HAVE_STRCASECMP
+
+/* Define to 1 if you have the `strchr' function. */
+#undef HAVE_STRCHR
+
+/* Define to 1 if you have the <strings.h> header file. */
+#undef HAVE_STRINGS_H
+
+/* Define to 1 if you have the <string.h> header file. */
+#undef HAVE_STRING_H
+
+/* Define to 1 if you have the `strncasecmp' function. */
+#undef HAVE_STRNCASECMP
+
+/* Define to 1 if you have the `strstr' function. */
+#undef HAVE_STRSTR
+
+/* Define to 1 if you have the <sys/socket.h> header file. */
+#undef HAVE_SYS_SOCKET_H
+
+/* Define to 1 if you have the <sys/stat.h> header file. */
+#undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/types.h> header file. */
+#undef HAVE_SYS_TYPES_H
+
+/* Define to 1 if you have the <unistd.h> header file. */
+#undef HAVE_UNISTD_H
+
+/* Defined if libcurl supports AsynchDNS */
+#undef LIBCURL_FEATURE_ASYNCHDNS
+
+/* Defined if libcurl supports IDN */
+#undef LIBCURL_FEATURE_IDN
+
+/* Defined if libcurl supports IPv6 */
+#undef LIBCURL_FEATURE_IPV6
+
+/* Defined if libcurl supports KRB4 */
+#undef LIBCURL_FEATURE_KRB4
+
+/* Defined if libcurl supports libz */
+#undef LIBCURL_FEATURE_LIBZ
+
+/* Defined if libcurl supports NTLM */
+#undef LIBCURL_FEATURE_NTLM
+
+/* Defined if libcurl supports SSL */
+#undef LIBCURL_FEATURE_SSL
+
+/* Defined if libcurl supports SSPI */
+#undef LIBCURL_FEATURE_SSPI
+
+/* Defined if libcurl supports DICT */
+#undef LIBCURL_PROTOCOL_DICT
+
+/* Defined if libcurl supports FILE */
+#undef LIBCURL_PROTOCOL_FILE
+
+/* Defined if libcurl supports FTP */
+#undef LIBCURL_PROTOCOL_FTP
+
+/* Defined if libcurl supports FTPS */
+#undef LIBCURL_PROTOCOL_FTPS
+
+/* Defined if libcurl supports HTTP */
+#undef LIBCURL_PROTOCOL_HTTP
+
+/* Defined if libcurl supports HTTPS */
+#undef LIBCURL_PROTOCOL_HTTPS
+
+/* Defined if libcurl supports IMAP */
+#undef LIBCURL_PROTOCOL_IMAP
+
+/* Defined if libcurl supports LDAP */
+#undef LIBCURL_PROTOCOL_LDAP
+
+/* Defined if libcurl supports POP3 */
+#undef LIBCURL_PROTOCOL_POP3
+
+/* Defined if libcurl supports RTSP */
+#undef LIBCURL_PROTOCOL_RTSP
+
+/* Defined if libcurl supports SMTP */
+#undef LIBCURL_PROTOCOL_SMTP
+
+/* Defined if libcurl supports TELNET */
+#undef LIBCURL_PROTOCOL_TELNET
+
+/* Defined if libcurl supports TFTP */
+#undef LIBCURL_PROTOCOL_TFTP
+
 /* Define to the address where bug reports for this package should be sent. */
 #undef PACKAGE_BUGREPORT
 
@@ -12,5 +156,17 @@
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
 
+/* Define to the home page for this package. */
+#undef PACKAGE_URL
+
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
+
+/* Define to 1 if you have the ANSI C header files. */
+#undef STDC_HEADERS
+
+/* Define curl_free() as free() if our version of curl lacks curl_free. */
+#undef curl_free
+
+/* Define to `unsigned int' if <sys/types.h> does not define. */
+#undef size_t

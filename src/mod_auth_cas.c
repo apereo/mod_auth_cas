@@ -1978,7 +1978,8 @@ static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_inp
 			continue;
 		if(apr_bucket_read(b, &bucketData, &len, APR_BLOCK_READ) == APR_SUCCESS) {
 			if(offset + len >= sizeof(data)) {
-				ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->c->base_server, "bucket brigade contains more than %d bytes, truncation required (SSOut may fail)", sizeof(data));
+				// hack below casts strlen() to unsigned long to avoid %zu vs. %Iu on Linux vs. Win 
+				ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->c->base_server, "bucket brigade contains more than %lu bytes, truncation required (SSOut may fail)", (unsigned long) sizeof(data));
 				memcpy(data + offset, bucketData, (sizeof(data) - offset) - 1); // copy what we can into the space remaining
 				break;
 			} else {
@@ -1987,7 +1988,8 @@ static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_inp
 		}
 	}
 
-	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->c->base_server, "read %d bytes (%s) from incoming buckets\n", strlen(data), data);
+	// hack below casts strlen() to unsigned long to avoid %zu vs. %Iu on Linux vs. Win 
+	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->c->base_server, "read %lu bytes (%s) from incoming buckets\n", (unsigned long) strlen(data), data);
 	CASSAMLLogout(f->r, data);
 
 	return APR_SUCCESS;

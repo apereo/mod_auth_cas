@@ -1700,6 +1700,7 @@ static int cas_authenticate(request_rec *r)
 	if (ap_is_initial_req(r) && d->CASScrubRequestHeaders) {
 		/* CAS-User header can be simply unset. */
 		if (d->CASAuthNHeader != NULL) {
+			ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "MOD_AUTH_CAS: Removed inbound CASAuthNHeader! (foul play?)");
 			apr_table_unset(r->headers_in, d->CASAuthNHeader);
 		}
 
@@ -1722,6 +1723,8 @@ static int cas_authenticate(request_rec *r)
 				for (i = 0; i < h->nelts; i++) {
 					if (e[i].key != NULL && 0 != strncasecmp(e[i].key, c->CASAttributePrefix, attributePrefixLength)) {
 						apr_table_addn(headers_in, e[i].key, e[i].val);
+					} else {
+						ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "MOD_AUTH_CAS: Removed inbound request header(%s: %s)", e[i].key, e[i].val);
 					}
 				}
 				r->headers_in = headers_in;

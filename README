@@ -64,6 +64,9 @@ BUG FIXES
 * Included a patch by Ben Noordhuis to improve performance
   by re-using a cached username on subrequests
 
+* Included a patch by Ben Noordhuis to strip inbound 
+  HTTP headers that may have special meaning upstream.
+
 * Fixed issue where cas_merge_dir_config was allocating
   more memory than necessary (reported by Ray Davison)
 
@@ -364,6 +367,12 @@ Default:	,
 Description:	mod_auth_cas will set the value of the attribute header (as described
 		in CASAttributePrefix) to <attrvalue><CASAttributeDelimiter><attrvalue>
 		in the case of multiple attribute values.
+
+Directive:	CASScrubRequestHeaders
+Default:	Off
+Description:	mod_auth_cas will strip request inbound request headers that may have
+		special meaning, such as those set with the CASAttributePrefix or the
+		CASAuthNHeader value. 
 
 ====================================================================
 CONTRIBUTORS 

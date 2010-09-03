@@ -95,6 +95,7 @@
 #define CAS_DEFAULT_SCOOKIE "MOD_AUTH_CAS_S"
 #define CAS_DEFAULT_GATEWAY_COOKIE "MOD_CAS_G"
 #define CAS_DEFAULT_AUTHN_HEADER "CAS-User"
+#define CAS_DEFAULT_SCRUB_REQUEST_HEADERS NULL
 #define CAS_DEFAULT_SSO_ENABLED FALSE
 
 #define CAS_MAX_RESPONSE_SIZE 4096
@@ -133,6 +134,7 @@ typedef struct cas_dir_cfg {
 	char *CASSecureCookie;
 	char *CASGatewayCookie;
 	char *CASAuthNHeader;
+	char *CASScrubRequestHeaders;
 } cas_dir_cfg;
 
 typedef struct cas_saml_attr_val {

@@ -153,6 +153,7 @@ static void *cas_create_dir_config(apr_pool_t *pool, char *path)
 	c->CASSecureCookie = CAS_DEFAULT_SCOOKIE;
 	c->CASGatewayCookie = CAS_DEFAULT_GATEWAY_COOKIE;
 	c->CASAuthNHeader = CAS_DEFAULT_AUTHN_HEADER;
+	c->CASScrubRequestHeaders = CAS_DEFAULT_SCRUB_REQUEST_HEADERS;
 	return(c);
 }
 
@@ -180,6 +181,11 @@ static void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASGatewayCookie = (add->CASGatewayCookie != CAS_DEFAULT_GATEWAY_COOKIE ? add->CASGatewayCookie : base->CASGatewayCookie);
 	
 	c->CASAuthNHeader = (add->CASAuthNHeader != CAS_DEFAULT_AUTHN_HEADER ? add->CASAuthNHeader : base->CASAuthNHeader);
+
+	c->CASScrubRequestHeaders = (add->CASScrubRequestHeaders != CAS_DEFAULT_SCRUB_REQUEST_HEADERS ? add->CASScrubRequestHeaders : base->CASScrubRequestHeaders);
+	if(add->CASScrubRequestHeaders != NULL && strcasecmp(add->CASScrubRequestHeaders, "Off") == 0)
+		c->CASScrubRequestHeaders = NULL;
+
 	return(c);
 }
 
@@ -1690,6 +1696,39 @@ static int cas_authenticate(request_rec *r)
 	c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 	d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
 
+	/* Safety measure: scrub CAS user/attribute headers from the incoming request. */
+	if (ap_is_initial_req(r) && d->CASScrubRequestHeaders) {
+		/* CAS-User header can be simply unset. */
+		if (d->CASAuthNHeader != NULL) {
+			apr_table_unset(r->headers_in, d->CASAuthNHeader);
+		}
+
+		/* Filtering the SAML attributes is a bit more laborious: we copy the headers table
+		 * into a new table, while filtering out headers that start with CASattributePrefix.
+		 */
+		if (c->CASValidateSAML) {
+			const int attributePrefixLength = strlen(c->CASAttributePrefix);
+
+			/* It's not illegal to set CASAttributePrefix to an empty string,
+			 * but don't scrub if such is the case: strncasecmp(string, "", 0)
+			 * always matches, it'd scrub ALL the request headers!
+			 */
+			if (attributePrefixLength > 0) {
+				const apr_array_header_t *const h = apr_table_elts(r->headers_in);
+				const apr_table_entry_t *const e = (const apr_table_entry_t *)h->elts;
+				int i;
+
+				apr_table_t *headers_in = apr_table_make(r->pool, h->nelts);
+				for (i = 0; i < h->nelts; i++) {
+					if (e[i].key != NULL && 0 != strncasecmp(e[i].key, c->CASAttributePrefix, attributePrefixLength)) {
+						apr_table_addn(headers_in, e[i].key, e[i].val);
+					}
+				}
+				r->headers_in = headers_in;
+			}
+		}
+	}
+
 	if(r->method_number == M_POST && c->CASSSOEnabled != FALSE) {
 		/* read the POST data here to determine if it is a SAML LogoutRequest and handle accordingly */
 		ap_add_input_filter("CAS", NULL, r, r->connection);
@@ -2039,6 +2078,7 @@ static const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASIdleTimeout", cfg_readCASParameter, (void *) cmd_idle_timeout, RSRC_CONF, "Maximum time (in seconds) a session can be idle for"),
 	AP_INIT_TAKE1("CASCacheCleanInterval", cfg_readCASParameter, (void *) cmd_cache_interval, RSRC_CONF, "Amount of time (in seconds) between cache cleanups.  This value is checked when a new local ticket is issued or when a ticket expires."),
 	AP_INIT_TAKE1("CASRootProxiedAs", cfg_readCASParameter, (void *) cmd_root_proxied_as, RSRC_CONF, "URL used to access the root of the virtual server (only needed when the server is proxied)"),
+ 	AP_INIT_TAKE1("CASScrubRequestHeaders", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASScrubRequestHeaders), ACCESS_CONF, "Scrub CAS user name and SAML attribute headers from the user's request."),
 	{NULL}
 };
 

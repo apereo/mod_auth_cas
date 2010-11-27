@@ -1,13 +1,19 @@
+LDFLAGS+=@LDFLAGS@
+LIBS+=@LIBS@ @LIBCURL@
+CFLAGS+=@CPPFLAGS@ @CFLAGS@ @LIBCURL_CPPFLAGS@
+
 #Set a few distribution variables
 DISTNAME=@PACKAGE_NAME@-@PACKAGE_VERSION@
 DISTDIR=${DISTNAME}
 DISTBALL=${DISTNAME}.tgz
 
 #BASEFILES represents all *source* files, in the truest sense (no auto* artifacts)
-BASEFILES=src/mod_auth_cas.c src/mod_auth_cas.h src/Makefile.in configure.ac config.h.in Makefile.in README README.win32 NOTES
+BASEFILES=src/mod_auth_cas.c src/mod_auth_cas.h src/Makefile.in configure.ac libcurl.m4 config.h.in Makefile.in README README.win32 NOTES
 
 #DISTFILES represents all distributable files, including auto* artifacts and BASEFILES
 DISTFILES=configure ${BASEFILES}
+
+
 
 all install:
 	cd src && $(MAKE) $@

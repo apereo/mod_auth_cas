@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2009 Phillip Ames / Matt Smith
+ * Copyright 2010 Phillip Ames / Matt Smith
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,14 +29,6 @@
 #include "config.h"
 #endif
 
-#ifdef WIN32
-#include <winsock2.h>
-#else
-#include <sys/socket.h>
-#include <unistd.h>
-#include <netdb.h>
-#endif
-
 #include <sys/types.h>
 
 #include <openssl/crypto.h>
@@ -44,6 +36,8 @@
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+
+#include <curl/curl.h>
 
 #include "httpd.h"
 #include "http_config.h"
@@ -57,10 +51,16 @@
 #include "apr_buckets.h"
 #include "apr_file_info.h"
 #include "apr_md5.h"
+#include "apr_thread_mutex.h"
 #include "apr_strings.h"
 #include "apr_xml.h"
 
 #include "mod_auth_cas.h"
+
+#if defined(OPENSSL_THREADS) && APR_HAS_THREADS
+static apr_thread_mutex_t **ssl_locks;
+static int ssl_num_locks;	
+#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
 
 /* mod_auth_cas configuration specific functions */
 static void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
@@ -153,6 +153,7 @@ static void *cas_create_dir_config(apr_pool_t *pool, char *path)
 	c->CASSecureCookie = CAS_DEFAULT_SCOOKIE;
 	c->CASGatewayCookie = CAS_DEFAULT_GATEWAY_COOKIE;
 	c->CASAuthNHeader = CAS_DEFAULT_AUTHN_HEADER;
+	c->CASScrubRequestHeaders = CAS_DEFAULT_SCRUB_REQUEST_HEADERS;
 	return(c);
 }
 
@@ -180,6 +181,11 @@ static void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASGatewayCookie = (add->CASGatewayCookie != CAS_DEFAULT_GATEWAY_COOKIE ? add->CASGatewayCookie : base->CASGatewayCookie);
 	
 	c->CASAuthNHeader = (add->CASAuthNHeader != CAS_DEFAULT_AUTHN_HEADER ? add->CASAuthNHeader : base->CASAuthNHeader);
+
+	c->CASScrubRequestHeaders = (add->CASScrubRequestHeaders != CAS_DEFAULT_SCRUB_REQUEST_HEADERS ? add->CASScrubRequestHeaders : base->CASScrubRequestHeaders);
+	if(add->CASScrubRequestHeaders != NULL && strcasecmp(add->CASScrubRequestHeaders, "Off") == 0)
+		c->CASScrubRequestHeaders = NULL;
+
 	return(c);
 }
 
@@ -232,6 +238,7 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 			c->CASAttributePrefix = apr_pstrdup(cmd->pool, value);
 		break;
 		case cmd_wildcard_cert:
+			// XXX this feature is broken now
 			/* if atoi() is used on value here with AP_INIT_FLAG, it works but results in a compile warning, so we use TAKE1 to avoid it */
 			if(apr_strnatcasecmp(value, "On") == 0)
 				c->CASAllowWildcardCert = TRUE;
@@ -467,23 +474,6 @@ static char *getCASRenew(request_rec *r)
 	return rv;
 }
 
-static char *getCASValidateURL(request_rec *r, cas_cfg *c)
-{
-	apr_uri_t test;
-
-	if(c->CASDebug)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getCASValidateURL()");
-
-	memset(&test, '\0', sizeof(apr_uri_t));
-	if(memcmp(&c->CASValidateURL, &test, sizeof(apr_uri_t)) == 0) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: CASValidateURL null (not set?)");
-		return NULL;
-	}
-	/* this is used in the 'GET /[validateURL]...' context */
-	return(apr_uri_unparse(r->pool, &(c->CASValidateURL), APR_URI_UNP_OMITSITEPART|APR_URI_UNP_OMITUSERINFO|APR_URI_UNP_OMITQUERY));
-
-}
-
 static char *getCASLoginURL(request_rec *r, cas_cfg *c)
 {
 	apr_uri_t test;
@@ -513,6 +503,14 @@ static char *getCASService(request_rec *r, cas_cfg *c)
 	apr_port_t port = r->connection->local_addr->port;
 	apr_byte_t printPort = FALSE;
 
+	if(queryString != NULL) { 
+		len = strlen(r->unparsed_uri) - strlen(queryString);
+		unparsedPath = apr_pcalloc(r->pool, len+1);
+		strncpy(unparsedPath, r->unparsed_uri, len);
+		unparsedPath[len] = '\0';
+	} else {
+		unparsedPath = r->unparsed_uri;
+	}
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getCASService()");
@@ -529,15 +527,6 @@ static char *getCASService(request_rec *r, cas_cfg *c)
 #else
 		scheme = (char *) ap_http_scheme(r);
 #endif
-		if(queryString != NULL) { 
-			len = strlen(r->unparsed_uri) - strlen(queryString);
-			unparsedPath = apr_pcalloc(r->pool, len+1);
-			strncpy(unparsedPath, r->unparsed_uri, len);
-			unparsedPath[len] = '\0';
-		} else {
-			unparsedPath = r->unparsed_uri;
-		}
-
 		if(printPort == TRUE)
 			service = apr_psprintf(r->pool, "%s%%3a%%2f%%2f%s%%3a%u%s%s%s", scheme, r->server->server_hostname, port, escapeString(r, unparsedPath), (r->args != NULL ? "%3f" : ""), escapeString(r, r->args));
 		else
@@ -1302,14 +1291,6 @@ static apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, cha
 	if(response == NULL)
 		return FALSE;
 
-	response = strstr((char *) response, "\r\n\r\n");
-
-	if(response == NULL)
-		return FALSE;
-
-	/* skip the \r\n\r\n after the HTTP headers */
-	response += 4;
-
 	if(c->CASDebug) {
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: response = %s", response);
 	}
@@ -1567,230 +1548,129 @@ static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, cha
 }
 
 
-/* SSL specific functions - these should be replaced by the APR-1.3 SSL functions when they are available */
-/* Credit to Shawn Bayern for the basis of most of this SSL related code */
-static apr_byte_t check_cert_cn(request_rec *r, cas_cfg *c, X509 *certificate, char *cn)
+/*
+ * from curl_easy_setopt documentation:
+ * This function gets called by libcurl as soon as there 
+ * is data received that needs to be saved. The size of the
+ * data pointed to by ptr is size multiplied with nmemb, it
+ * will not be zero terminated. Return the number of bytes
+ * actually taken care of. If that amount differs from the 
+ * amount passed to your function, it'll signal an error to the 
+ * library. This will abort the transfer and return 
+ * CURLE_WRITE_ERROR.
+ */
+
+static size_t cas_curl_write(void *ptr, size_t size, size_t nmemb, void *stream)
 {
-	char buf[512];
-	char *domain = cn;
+	cas_curl_buffer *curlBuffer = (cas_curl_buffer *) stream;
 
-	if(c->CASDebug)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering check_cert_cn()");
+	if((nmemb*size) + curlBuffer->written >= CAS_MAX_RESPONSE_SIZE)
+		return 0;
 
-	/* 
-	 * call to X509_verify_cert(xctx) removed - SSL_VERIFY_PEER verifies the certificate
-	 * and the X509_STORE here lacks any intermediate certificates.  Failure to validate
-	 * intermediate certificates reported by Chris Adams of Yale.
-	*/
+	memcpy((curlBuffer->buf + curlBuffer->written), ptr, (nmemb*size));
+	curlBuffer->written += (nmemb*size);
 
-	X509_NAME_get_text_by_NID(X509_get_subject_name(certificate), NID_commonName, buf, sizeof(buf) - 1);
-	/* don't match because of truncation - this will require a hostname > 512 characters, though */
-	if(strlen(cn) >= sizeof(buf) - 1)
-		return FALSE;
-
-	/* patch submitted by Earl Fogel for MAS-5 */
-	if(buf[0] == '*' && c->CASAllowWildcardCert != FALSE) {
-		do {
-			domain = strchr(domain + (domain[0] == '.' ? 1 : 0), '.');
-			if(domain != NULL && apr_strnatcasecmp(buf+1, domain) == 0)
-				return TRUE;
-		} while (domain != NULL);
-	} else {
-		if(apr_strnatcasecmp(buf, cn) == 0)
-			return TRUE;
-	}
-	
-	return FALSE;
+	return (nmemb*size);
 }
 
-static void CASCleanupSocket(socket_t s, SSL *ssl, SSL_CTX *ctx)
+CURLcode cas_curl_ssl_ctx(CURL *curl, void *sslctx, void *parm)
 {
-	if(s != INVALID_SOCKET)
-#ifdef WIN32
-		closesocket(s);
-#else
-		close(s);
-#endif
+	SSL_CTX *ctx = (SSL_CTX *) sslctx;
+	cas_cfg *c = (cas_cfg *)parm;
 
-	if(ssl != NULL)
-		SSL_free(ssl);
+	if(c->CASValidateServer != FALSE)
+		SSL_CTX_set_verify_depth(ctx, c->CASValidateDepth);
 
-	if(ctx != NULL)
-		SSL_CTX_free(ctx);
-
-#ifdef WIN32
-	WSACleanup();
-#endif
-	return;
+	return CURLE_OK;
 }
 
-/* also inspired by some code from Shawn Bayern */
 static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 {
-	char *validateRequest, validateResponse[CAS_MAX_RESPONSE_SIZE];
+	char curlError[CURL_ERROR_SIZE];
 	apr_finfo_t f;
-	int i, bytesIn;
-	socket_t s = INVALID_SOCKET;
-#ifdef WIN32
-	WSADATA wsaData;
-#endif
-
-	SSL_METHOD *m;
-	SSL_CTX *ctx = NULL;
-	SSL *ssl = NULL;
-	struct sockaddr_in sa;
-	struct hostent *server = gethostbyname(c->CASValidateURL.hostname);
+	apr_uri_t validateURL;
+	cas_curl_buffer curlBuffer;
+	struct curl_slist *headers = NULL;
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getResponseFromServer()");
-#ifdef WIN32
-	if (WSAStartup(MAKEWORD(2,0), &wsaData) != 0){
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: cannot initialize winsock2: (%d)", WSAGetLastError());
-		return NULL;
-	}
+
+	CURL *curl = curl_easy_init();
+
+	curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L); 
+	curl_easy_setopt(curl, CURLOPT_HEADER, 0L); 
+	curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+	curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+	curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlError);
+	curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+	curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
+	curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP|CURLPROTO_HTTPS);
+
+	curlBuffer.written = 0;
+	memset(curlBuffer.buf, '\0', sizeof(curlBuffer.buf));
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &curlBuffer);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cas_curl_write);
+	curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, cas_curl_ssl_ctx);
+	curl_easy_setopt(curl, CURLOPT_SSL_CTX_DATA, c);
+
+#ifndef LIBCURL_NO_CURLPROTO
+	curl_easy_setopt(curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP|CURLPROTO_HTTPS);
 #endif
 
-	if(server == NULL) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: gethostbyname() failed for %s", c->CASValidateURL.hostname);
-		return NULL;
-	}
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, (c->CASValidateServer != FALSE ? 1L : 0L));
 
-	/* establish a TCP connection with the remote server */
-	s = socket(AF_INET, SOCK_STREAM, 0);
-	if(s == INVALID_SOCKET) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: socket() failed for %s", c->CASValidateURL.hostname);
-		// no need to close(s) here since it was never successfully created
-		CASCleanupSocket(s, ssl, ctx);
+	if(apr_stat(&f, c->CASCertificatePath, APR_FINFO_TYPE, r->pool) == APR_INCOMPLETE) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not load CA certificate: %s", c->CASCertificatePath);
 		return (NULL);
 	}
-	
-	memset(&sa, 0, sizeof(struct sockaddr_in));
-	sa.sin_family = AF_INET;
-	sa.sin_port = htons(c->CASValidateURL.port);
-	memcpy(&(sa.sin_addr.s_addr), (server->h_addr_list[0]), sizeof(sa.sin_addr.s_addr));
-
-	if(connect(s, (struct sockaddr *) &sa, sizeof(sa)) < 0) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: connect() failed to %s:%d", c->CASValidateURL.hostname, ntohs(sa.sin_port));
-		CASCleanupSocket(s, ssl, ctx);
-		return (NULL);
-	}
-	
-	/* assign the created connection to an SSL object */
-	SSL_library_init();
-	SSL_load_error_strings();
-	m = SSLv23_method();
-	ctx = SSL_CTX_new(m);
-
-	if(c->CASValidateServer != FALSE) {
-		SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
-
-		if(apr_stat(&f, c->CASCertificatePath, APR_FINFO_TYPE, r->pool) == APR_INCOMPLETE) {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not load CA certificate: %s", c->CASCertificatePath);
-			CASCleanupSocket(s, ssl, ctx);
-			return (NULL);
-		}
-
-		if(f.filetype == APR_DIR) {
-			if(!(SSL_CTX_load_verify_locations(ctx, 0, c->CASCertificatePath))) {
-				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not load CA certificate path: %s", c->CASCertificatePath);
-				CASCleanupSocket(s, ssl, ctx);
-				return (NULL);
-			}
-		} else if (f.filetype == APR_REG) {
-			if(!(SSL_CTX_load_verify_locations(ctx, c->CASCertificatePath, 0))) {
-				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not load CA certificate file: %s", c->CASCertificatePath);
-				CASCleanupSocket(s, ssl, ctx);
-				return (NULL);
-			}
-		} else {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not process Certificate Authority: %s", c->CASCertificatePath);
-			CASCleanupSocket(s, ssl, ctx);
-			return (NULL);
-		}
-
-		SSL_CTX_set_verify_depth(ctx, c->CASValidateDepth);
-	}
-
-	ssl = SSL_new(ctx);
-
-	if(ssl == NULL) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not create an SSL connection to %s", c->CASValidateURL.hostname);
-		CASCleanupSocket(s, ssl, ctx);
+	if(f.filetype == APR_DIR)
+		curl_easy_setopt(curl, CURLOPT_CAPATH, c->CASCertificatePath);
+	else if (f.filetype == APR_REG)
+		curl_easy_setopt(curl, CURLOPT_CAINFO, c->CASCertificatePath);
+	else {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not process Certificate Authority: %s", c->CASCertificatePath);
 		return (NULL);
 	}
 
-	if(SSL_set_fd(ssl, s) == 0) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not bind SSL connection to socket for %s", c->CASValidateURL.hostname);
-		CASCleanupSocket(s, ssl, ctx);
-		return (NULL);
-	}
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, (c->CASValidateServer != FALSE ? 2L : 0L));
 
-	if(SSL_connect(ssl) <= 0) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not perform SSL handshake with %s (check CASCertificatePath)", c->CASValidateURL.hostname);
-		CASCleanupSocket(s, ssl, ctx);
-		return (NULL);
-	}
+	curl_easy_setopt(curl, CURLOPT_USERAGENT, "mod_auth_cas 1.0.9");
 
-	/* validate the server certificate if we require it, first by verifying the CA signature, then by verifying the CN of the certificate to the hostname */
-	if(c->CASValidateServer != FALSE) {
-		/* SSL_get_verify_result() will return X509_V_OK if the server did not present a certificate, so we must make sure they do present one */
-		if(SSL_get_verify_result(ssl) != X509_V_OK || SSL_get_peer_certificate(ssl) == NULL) {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Certificate not presented or not signed by CA (from %s)", c->CASValidateURL.hostname);
-			CASCleanupSocket(s, ssl, ctx);
-			return (NULL);
-		} else if(check_cert_cn(r, c, SSL_get_peer_certificate(ssl), c->CASValidateURL.hostname) == FALSE) {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Certificate CN does not match %s", c->CASValidateURL.hostname);
-			CASCleanupSocket(s, ssl, ctx);
-			return (NULL);
-		}
-	}
-
-	/* without Connection: close the HTTP/1.1 protocol defaults to trying to keep the connection alive.  this introduces ~15 second lag when receiving a response */
-	/* MAS-14 reverts this to HTTP/1.0 because the code that retrieves the ticket validation response can not handle transfer chunked encoding.  this will be solved
-	 * at a later date when migrating to libcurl/some other HTTP library to perform ticket validation.  It also removes the Connection: close header as the default
-	 * behavior for HTTP/1.0 is Connection: close
-	 */
 	if(c->CASValidateSAML == TRUE) {
+		curl_easy_setopt(curl, CURLOPT_POST, 1L);
 		char *samlPayload = apr_psprintf(r->pool, "<?xml version=\"1.0\" encoding=\"utf-8\"?><SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\"><SOAP-ENV:Header/><SOAP-ENV:Body><samlp:Request xmlns:samlp=\"urn:oasis:names:tc:SAML:1.0:protocol\"  MajorVersion=\"1\" MinorVersion=\"1\"><samlp:AssertionArtifact>%s%s</samlp:AssertionArtifact></samlp:Request></SOAP-ENV:Body></SOAP-ENV:Envelope>",ticket, getCASRenew(r));
-		validateRequest = apr_psprintf(r->pool, "POST %s?TARGET=%s HTTP/1.0\r\nHost: %s\r\nsoapaction: http://www.oasis-open.org/committees/security\r\ncache-control: no-cache\r\npragma: no-cache\r\naccept: text/xml\r\nconnection: keep-alive\r\ncontent-type: text/xml\r\nContent-Length: %d\r\n\r\n%s", getCASValidateURL(r, c), getCASService(r, c), c->CASValidateURL.hostname, (int) strlen(samlPayload), samlPayload);
-	} else {
-		validateRequest = apr_psprintf(r->pool, "GET %s?service=%s&ticket=%s%s HTTP/1.0\nHost: %s\n\n", getCASValidateURL(r, c), getCASService(r, c), ticket, getCASRenew(r), c->CASValidateURL.hostname);
-	}
-	if(c->CASDebug)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Validation request: %s", validateRequest);
-	/* send our validation request */
-	if(SSL_write(ssl, validateRequest, (int) strlen(validateRequest)) != strlen(validateRequest)) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: unable to write CAS validate request to %s%s", c->CASValidateURL.hostname, getCASValidateURL(r, c));
-		CASCleanupSocket(s, ssl, ctx);
-		return (NULL);
-	}
-	if(c->CASDebug)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Request successfully transmitted");
+		headers = curl_slist_append(headers, "soapaction: http://www.oasis-open.org/committees/security");
+		headers = curl_slist_append(headers, "cache-control: no-cache"); 
+		headers = curl_slist_append(headers, "pragma: no-cache");
+		headers = curl_slist_append(headers, "accept: text/xml"); 
+		headers = curl_slist_append(headers, "content-type: text/xml"); 
+		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, samlPayload);
+	} else
+		curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
 
-	/* read the response until there is no more */
-	i = 0;
-	do {
-		bytesIn = SSL_read(ssl, validateResponse + i, (sizeof(validateResponse)-i-1));
-		i += bytesIn;
+	memcpy(&validateURL, &c->CASValidateURL, sizeof(apr_uri_t));
+	if(c->CASValidateSAML == FALSE)
+		validateURL.query = apr_psprintf(r->pool, "service=%s&ticket=%s%s", getCASService(r, c), ticket, getCASRenew(r));
+	else
+		validateURL.query = apr_psprintf(r->pool, "TARGET=%s%s", getCASService(r, c), getCASRenew(r));
+
+	curl_easy_setopt(curl, CURLOPT_URL, apr_uri_unparse(r->pool, &validateURL, 0));
+
+	if(curl_easy_perform(curl) != CURLE_OK) {
 		if(c->CASDebug)
-			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Received %d bytes of response", bytesIn);
-	} while (bytesIn > 0 && i < sizeof(validateResponse));
-
-	validateResponse[i] = '\0';
-
-	if(c->CASDebug)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Validation response: %s", validateResponse);
-
-	if(bytesIn != 0 || i >= sizeof(validateResponse) - 1) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: oversized response received from %s%s", c->CASValidateURL.hostname, getCASValidateURL(r, c));
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "response: %s", validateResponse);
-		CASCleanupSocket(s, ssl, ctx);
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: curl_easy_perform() failed (%s)", curlError);
 		return (NULL);
 	}
-	
-	CASCleanupSocket(s, ssl, ctx);
 
-	return (apr_pstrndup(r->pool, validateResponse, strlen(validateResponse)));
+	if(headers != NULL)
+		curl_slist_free_all(headers);
+
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Validation response: %s", curlBuffer.buf);
+
+	curl_easy_cleanup(curl);
+	return (apr_pstrndup(r->pool, curlBuffer.buf, strlen(curlBuffer.buf)));
 }
 
 /* basic CAS module logic */
@@ -1815,6 +1695,42 @@ static int cas_authenticate(request_rec *r)
 
 	c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 	d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
+
+	/* Safety measure: scrub CAS user/attribute headers from the incoming request. */
+	if (ap_is_initial_req(r) && d->CASScrubRequestHeaders) {
+		/* CAS-User header can be simply unset. */
+		if (d->CASAuthNHeader != NULL) {
+			ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "MOD_AUTH_CAS: Removed inbound CASAuthNHeader! (foul play?)");
+			apr_table_unset(r->headers_in, d->CASAuthNHeader);
+		}
+
+		/* Filtering the SAML attributes is a bit more laborious: we copy the headers table
+		 * into a new table, while filtering out headers that start with CASattributePrefix.
+		 */
+		if (c->CASValidateSAML) {
+			const int attributePrefixLength = strlen(c->CASAttributePrefix);
+
+			/* It's not illegal to set CASAttributePrefix to an empty string,
+			 * but don't scrub if such is the case: strncasecmp(string, "", 0)
+			 * always matches, it'd scrub ALL the request headers!
+			 */
+			if (attributePrefixLength > 0) {
+				const apr_array_header_t *const h = apr_table_elts(r->headers_in);
+				const apr_table_entry_t *const e = (const apr_table_entry_t *)h->elts;
+				int i;
+
+				apr_table_t *headers_in = apr_table_make(r->pool, h->nelts);
+				for (i = 0; i < h->nelts; i++) {
+					if (e[i].key != NULL && 0 != strncasecmp(e[i].key, c->CASAttributePrefix, attributePrefixLength)) {
+						apr_table_addn(headers_in, e[i].key, e[i].val);
+					} else {
+						ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "MOD_AUTH_CAS: Removed inbound request header(%s: %s)", e[i].key, e[i].val);
+					}
+				}
+				r->headers_in = headers_in;
+			}
+		}
+	}
 
 	if(r->method_number == M_POST && c->CASSSOEnabled != FALSE) {
 		/* read the POST data here to determine if it is a SAML LogoutRequest and handle accordingly */
@@ -1959,11 +1875,65 @@ static int cas_authenticate(request_rec *r)
 	return HTTP_UNAUTHORIZED;
 }
 
+#if (defined(OPENSSL_THREADS) && APR_HAS_THREADS)
+
+/* shamelessly based on code from mod_ssl */
+static void cas_ssl_locking_callback(int mode, int type, const char *file, int line) {
+	if(type < ssl_num_locks) {
+		if (mode & CRYPTO_LOCK)
+			apr_thread_mutex_lock(ssl_locks[type]);
+		else
+			apr_thread_mutex_unlock(ssl_locks[type]);
+	}
+}
+
+#ifdef OPENSSL_NO_THREADID
+static unsigned long cas_ssl_id_callback(void) {
+	return (unsigned long) apr_os_thread_current();
+}
+#else
+static void cas_ssl_id_callback(CRYPTO_THREADID *id)
+{
+	CRYPTO_THREADID_set_numeric(id, (unsigned long) apr_os_thread_current());
+}
+#endif /* OPENSSL_NO_THREADID */
+
+
+#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
+
+static apr_status_t cas_cleanup(void *data)
+{
+	server_rec *s = (server_rec *) data;
+	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "entering cas_cleanup()");
+
+#if (defined (OPENSSL_THREADS) && APR_HAS_THREADS)
+	if(CRYPTO_get_locking_callback() == cas_ssl_locking_callback)
+		CRYPTO_set_locking_callback(NULL);
+#ifdef OPENSSL_NO_THREADID
+	if(CRYPTO_get_id_callback() == cas_ssl_id_callback)
+		CRYPTO_set_id_callback(NULL);
+#else
+	if(CRYPTO_THREADID_get_callback() == cas_ssl_id_callback)
+		CRYPTO_THREADID_set_callback(NULL);
+#endif /* OPENSSL_NO_THREADID */
+
+#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
+	curl_global_cleanup();
+	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "exiting cas_cleanup()");
+	return APR_SUCCESS;
+}
+
 static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec *s)
 {
 	cas_cfg *c = ap_get_module_config(s->module_config, &auth_cas_module);
 	apr_uri_t nullURL;
 	apr_finfo_t f;
+	void *data;
+	int i;
+	const char *userdata_key = "auth_cas_init";
+
+	if(c->CASDebug)
+		ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "entering cas_post_config()");
 
 	memset(&nullURL, '\0', sizeof(apr_uri_t));
 
@@ -1984,11 +1954,47 @@ static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, ser
 
 	if(memcmp(&c->CASValidateURL, &nullURL, sizeof(apr_uri_t)) != 0) {
 		if(strncmp(c->CASValidateURL.scheme, "https", 5) != 0) {
-			ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "MOD_AUTH_CAS: CASValidateURL must be HTTPS.");
-			return HTTP_INTERNAL_SERVER_ERROR;
+			ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, "MOD_AUTH_CAS: CASValidateURL should be HTTPS.");
 		}
 	}
 
+
+	/* Since the post_config hook is invoked twice (once
+	 * for 'sanity checking' of the config and once for
+	 * the actual server launch, we have to use a hack
+	 * to not run twice
+	 */
+	apr_pool_userdata_get(&data, userdata_key, s->process->pool);
+
+	if(data) {
+		curl_global_init(CURL_GLOBAL_ALL);
+
+#if (defined(OPENSSL_THREADS) && APR_HAS_THREADS)
+		ssl_num_locks = CRYPTO_num_locks();
+		ssl_locks = apr_pcalloc(s->process->pool, ssl_num_locks * sizeof(*ssl_locks));
+
+		for(i = 0; i < ssl_num_locks; i++)
+			apr_thread_mutex_create(&(ssl_locks[i]), APR_THREAD_MUTEX_DEFAULT, s->process->pool);
+
+#ifdef OPENSSL_NO_THREADID
+		if(CRYPTO_get_locking_callback() == NULL && CRYPTO_get_id_callback() == NULL) {
+			CRYPTO_set_locking_callback(cas_ssl_locking_callback);
+			CRYPTO_set_id_callback(cas_ssl_id_callback);
+		}
+#else
+		if(CRYPTO_get_locking_callback() == NULL && CRYPTO_THREADID_get_id_callback() == NULL) {
+			CRYPTO_set_locking_callback(cas_ssl_locking_callback);
+			CRYPTO_THREADID_set_id_callback(cas_ssl_id_callback);
+		}
+#endif /* OPENSSL_NO_THREADID */
+#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
+		apr_pool_cleanup_register(pool, s, cas_cleanup, apr_pool_cleanup_null);
+	}
+
+	apr_pool_userdata_set((const void *)1, userdata_key, apr_pool_cleanup_null, s->process->pool);
+
+	if(c->CASDebug)
+		ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "exiting cas_post_config()");
 	return OK;
 }
 
@@ -2014,8 +2020,9 @@ static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_inp
 			continue;
 		if(apr_bucket_read(b, &bucketData, &len, APR_BLOCK_READ) == APR_SUCCESS) {
 			if(offset + len >= sizeof(data)) {
-				ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->c->base_server, "bucket brigade contains more than %d bytes, truncation required (SSOut may fail)", sizeof(data));
-				memcpy(data + offset, bucketData, sizeof(data) - offset - 1); // copy what we can into the space remaining
+				// hack below casts strlen() to unsigned long to avoid %zu vs. %Iu on Linux vs. Win 
+				ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->c->base_server, "bucket brigade contains more than %lu bytes, truncation required (SSOut may fail)", (unsigned long) sizeof(data));
+				memcpy(data + offset, bucketData, (sizeof(data) - offset) - 1); // copy what we can into the space remaining
 				break;
 			} else {
 				memcpy(data + offset, bucketData, len);
@@ -2023,7 +2030,8 @@ static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_inp
 		}
 	}
 
-	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->c->base_server, "read %d bytes (%s) from incoming buckets\n", strlen(data), data);
+	// hack below casts strlen() to unsigned long to avoid %zu vs. %Iu on Linux vs. Win 
+	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->c->base_server, "read %lu bytes (%s) from incoming buckets\n", (unsigned long) strlen(data), data);
 	CASSAMLLogout(f->r, data);
 
 	return APR_SUCCESS;
@@ -2031,7 +2039,7 @@ static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_inp
 
 static void cas_register_hooks(apr_pool_t *p)
 {
-	ap_hook_post_config(cas_post_config, NULL, NULL, APR_HOOK_MIDDLE);
+	ap_hook_post_config(cas_post_config, NULL, NULL, APR_HOOK_LAST);
 	ap_hook_check_user_id(cas_authenticate, NULL, NULL, APR_HOOK_MIDDLE);
 	ap_register_input_filter("CAS", cas_in_filter, NULL, AP_FTYPE_RESOURCE); 
 }
@@ -2073,6 +2081,7 @@ static const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASIdleTimeout", cfg_readCASParameter, (void *) cmd_idle_timeout, RSRC_CONF, "Maximum time (in seconds) a session can be idle for"),
 	AP_INIT_TAKE1("CASCacheCleanInterval", cfg_readCASParameter, (void *) cmd_cache_interval, RSRC_CONF, "Amount of time (in seconds) between cache cleanups.  This value is checked when a new local ticket is issued or when a ticket expires."),
 	AP_INIT_TAKE1("CASRootProxiedAs", cfg_readCASParameter, (void *) cmd_root_proxied_as, RSRC_CONF, "URL used to access the root of the virtual server (only needed when the server is proxied)"),
+ 	AP_INIT_TAKE1("CASScrubRequestHeaders", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASScrubRequestHeaders), ACCESS_CONF, "Scrub CAS user name and SAML attribute headers from the user's request."),
 	{NULL}
 };
 

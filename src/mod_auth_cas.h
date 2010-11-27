@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2009 Phillip Ames / Matt Smith
+ * Copyright 2010 Phillip Ames / Matt Smith
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,21 @@
 #include <stddef.h>
 #include "ap_release.h"
 
+#define OPENSSL_THREAD_DEFINES
+#include <openssl/opensslconf.h>
+
+#include <openssl/opensslv.h>
+#if (OPENSSL_VERSION_NUMBER < 0x01000000)
+#define OPENSSL_NO_THREADID
+#endif
+
+#include "curl/curlver.h"
+#if (LIBCURL_VERSION_NUM < 0x00071904)
+#define LIBCURL_NO_CURLPROTO
+#endif
+
+
+
 #ifndef AP_SERVER_MAJORVERSION_NUMBER
 	#ifndef AP_SERVER_MINORVERSION_NUMBER
 		#define APACHE2_0
@@ -49,13 +64,6 @@
 			#endif
 		#endif
 	#endif
-#endif
-
-#ifdef WIN32
-typedef SOCKET socket_t;
-#else
-typedef int socket_t;
-#define INVALID_SOCKET -1
 #endif
 
 #define CAS_DEFAULT_VERSION 2
@@ -87,6 +95,7 @@ typedef int socket_t;
 #define CAS_DEFAULT_SCOOKIE "MOD_AUTH_CAS_S"
 #define CAS_DEFAULT_GATEWAY_COOKIE "MOD_CAS_G"
 #define CAS_DEFAULT_AUTHN_HEADER "CAS-User"
+#define CAS_DEFAULT_SCRUB_REQUEST_HEADERS NULL
 #define CAS_DEFAULT_SSO_ENABLED FALSE
 
 #define CAS_MAX_RESPONSE_SIZE 4096
@@ -125,6 +134,7 @@ typedef struct cas_dir_cfg {
 	char *CASSecureCookie;
 	char *CASGatewayCookie;
 	char *CASAuthNHeader;
+	char *CASScrubRequestHeaders;
 } cas_dir_cfg;
 
 typedef struct cas_saml_attr_val {
@@ -149,6 +159,11 @@ typedef struct cas_cache_entry {
 	cas_saml_attr *attrs;
 } cas_cache_entry;
 
+typedef struct cas_curl_buffer {
+	char buf[CAS_MAX_RESPONSE_SIZE];
+	size_t written;
+} cas_curl_buffer;
+
 typedef enum {
 	cmd_version, cmd_debug, cmd_validate_server, cmd_validate_depth, cmd_wildcard_cert,
 	cmd_ca_path, cmd_cookie_path, cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy,
@@ -162,8 +177,6 @@ static void *cas_create_server_config(apr_pool_t *pool, server_rec *svr);
 static void *cas_create_dir_config(apr_pool_t *pool, char *path);
 static void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD);
 static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value);
-static apr_byte_t check_cert_cn(request_rec *r, cas_cfg *c, X509 *certificate, char *cn);
-static void CASCleanupSocket(socket_t s, SSL *ssl, SSL_CTX *ctx);
 static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket);
 static apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **user, cas_saml_attr **attrs);
 static apr_byte_t isSSL(request_rec *r);
@@ -182,7 +195,6 @@ static char *escapeString(request_rec *r, char *str);
 static char *urlEncode(request_rec *r, char *str, char *charsToEncode);
 static char *getCASGateway(request_rec *r);
 static char *getCASRenew(request_rec *r);
-static char *getCASValidateURL(request_rec *r, cas_cfg *c);
 static char *getCASLoginURL(request_rec *r, cas_cfg *c);
 static char *getCASService(request_rec *r, cas_cfg *c);
 static void redirectRequest(request_rec *r, cas_cfg *c);

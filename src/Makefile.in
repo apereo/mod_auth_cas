@@ -1,8 +1,12 @@
+LDFLAGS+=@LDFLAGS@
+LIBS+=@LIBS@ @LIBCURL@
+CFLAGS+=@CPPFLAGS@ @CFLAGS@ @LIBCURL_CPPFLAGS@
+
 APXS_LIBEXECDIR:=$(shell @APXS@ -q LIBEXECDIR)
 all: mod_auth_cas.la
 
 mod_auth_cas.la: mod_auth_cas.c mod_auth_cas.h
-	@APXS@ -c @LIBS@ -Wc,"@CFLAGS@" -Wl,"@LDFLAGS@" mod_auth_cas.c
+	@APXS@ -c ${LIBS} -Wc,"${CFLAGS} ${CPPFLAGS}" -Wl,"${LDFLAGS}" mod_auth_cas.c
 
 install: mod_auth_cas.la
 	if test ! -d ${DESTDIR}${APXS_LIBEXECDIR}; then mkdir -p ${DESTDIR}${APXS_LIBEXECDIR}; fi

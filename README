@@ -74,8 +74,11 @@ BUG FIXES
   where ap_is_initial_req() returns FALSE, but the value of
   request_rec->main is NULL (reported by David Gelbart)
 
+* Included patch by Jesse Weisner for CASRootProxiedAs directive.
+
 * Patch by Ben Noordhuis to improve VirtualHost configuration
   support.
+
 ====================================================================
 KNOWN LIMITATIONS
 ====================================================================
@@ -104,6 +107,10 @@ These limitations are known to exists in this release of the software:
   to /dev/random("-r /dev/urandom").  The  last way is to reduce
   the size of the CASCookieEntropy setting, reducing the demand on
   the pool.
+
+* Win32 support has been dropped (but not removed) due to lack of
+  development resources, and seemingly minimal community usage.
+  You are welcome to try it, but YMMV for success.
 
 ====================================================================
 GETTING STARTED
@@ -385,6 +392,12 @@ Phil Ames 	<modauthcas [at] gmail [dot] com>
 Designers:
 Phil Ames 	<modauthcas [at] gmail [dot] com>
 Matt Smith 	<matt [dot] smith [at] uconn [dot] edu>
+
+Frequent Community Contributors:
+Ben Noordhuis
+Chris Adams
+David Hawes
+David Ohsie
 
 Portions of this module are based on code from a CAS module by Yale.
 See comments in mod_auth_cas.c

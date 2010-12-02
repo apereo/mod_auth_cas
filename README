@@ -74,6 +74,8 @@ BUG FIXES
   where ap_is_initial_req() returns FALSE, but the value of
   request_rec->main is NULL (reported by David Gelbart)
 
+* Patch by Ben Noordhuis to improve VirtualHost configuration
+  support.
 ====================================================================
 KNOWN LIMITATIONS
 ====================================================================

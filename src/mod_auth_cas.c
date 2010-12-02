@@ -66,6 +66,8 @@ static int ssl_num_locks;
 static void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 {
 	cas_cfg *c = apr_pcalloc(pool, sizeof(cas_cfg));
+
+	c->merged = FALSE;
 	c->CASVersion = CAS_DEFAULT_VERSION;
 	c->CASDebug = CAS_DEFAULT_DEBUG;
 	c->CASValidateServer = CAS_DEFAULT_VALIDATE_SERVER;
@@ -100,6 +102,7 @@ static void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	apr_uri_t test;
 	memset(&test, '\0', sizeof(apr_uri_t));
 
+	c->merged = TRUE;
 	c->CASVersion = (add->CASVersion != CAS_DEFAULT_VERSION ? add->CASVersion : base->CASVersion);
 	c->CASDebug = (add->CASDebug != CAS_DEFAULT_DEBUG ? add->CASDebug : base->CASDebug);
 	c->CASValidateServer = (add->CASValidateServer != CAS_DEFAULT_VALIDATE_SERVER ? add->CASValidateServer : base->CASValidateServer);
@@ -1923,17 +1926,14 @@ static apr_status_t cas_cleanup(void *data)
 	return APR_SUCCESS;
 }
 
-static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec *s)
+static int check_vhost_config(apr_pool_t *pool, server_rec *s)
 {
 	cas_cfg *c = ap_get_module_config(s->module_config, &auth_cas_module);
-	apr_uri_t nullURL;
 	apr_finfo_t f;
-	void *data;
-	int i;
-	const char *userdata_key = "auth_cas_init";
+	apr_uri_t nullURL;
 
 	if(c->CASDebug)
-		ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "entering cas_post_config()");
+		ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "entering check_vhost_config()");
 
 	memset(&nullURL, '\0', sizeof(apr_uri_t));
 
@@ -1958,6 +1958,47 @@ static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, ser
 		}
 	}
 
+	return OK;
+}
+
+static int check_merged_vhost_configs(apr_pool_t *pool, server_rec *s)
+{
+	int status = OK;
+
+	while (s != NULL && status == OK) {
+		cas_cfg *c = ap_get_module_config(s->module_config, &auth_cas_module);
+
+		if (c->merged) {
+			status = check_vhost_config(pool, s);
+		}
+
+		s = s->next;
+	}
+
+	return status;
+}
+
+/* Do any merged vhost configs exist? */
+static int merged_vhost_configs_exist(server_rec *s)
+{
+	while (s != NULL) {
+		cas_cfg *c = ap_get_module_config(s->module_config, &auth_cas_module);
+
+		if (c->merged) {
+			return TRUE;
+		}
+
+		s = s->next;
+	}
+
+	return FALSE;
+}
+
+static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec *s)
+{
+	const char *userdata_key = "auth_cas_init";
+	void *data;
+	int i;
 
 	/* Since the post_config hook is invoked twice (once
 	 * for 'sanity checking' of the config and once for
@@ -1993,9 +2034,25 @@ static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, ser
 
 	apr_pool_userdata_set((const void *)1, userdata_key, apr_pool_cleanup_null, s->process->pool);
 
-	if(c->CASDebug)
-		ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "exiting cas_post_config()");
-	return OK;
+	/*
+	 * Apache has a base vhost that true vhosts derive from.
+	 * There are two startup scenarios:
+	 *
+	 * 1. Only the base vhost contains CAS settings.
+	 *    No server configs have been merged.
+	 *    Only the base vhost needs to be checked.
+	 *
+	 * 2. The base vhost contains zero or more CAS settings.
+	 *    One or more vhosts override these.
+	 *    These vhosts have a merged config.
+	 *    All merged configs need to be checked.
+	 */
+	if (!merged_vhost_configs_exist(s)) {
+		/* nothing merged, only check the base vhost */
+		return check_vhost_config(pool, s);
+	}
+
+	return check_merged_vhost_configs(pool, s);
 }
 
 static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes) {

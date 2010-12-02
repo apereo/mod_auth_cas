@@ -103,6 +103,8 @@
 #define CAS_MAX_XML_SIZE 1024
 
 typedef struct cas_cfg {
+	/* non-zero if this is a merged vhost config */
+	unsigned int merged;
 	unsigned int CASVersion;
 	unsigned int CASDebug;
 	unsigned int CASValidateServer;

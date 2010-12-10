@@ -119,7 +119,7 @@ static void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASSSOEnabled = (add->CASSSOEnabled != CAS_DEFAULT_SSO_ENABLED ? add->CASSSOEnabled : base->CASSSOEnabled);
 	c->CASValidateSAML = (add->CASValidateSAML != CAS_DEFAULT_VALIDATE_SAML ? add->CASValidateSAML : base->CASValidateSAML);
 	c->CASAttributeDelimiter = (apr_strnatcasecmp(add->CASAttributeDelimiter, CAS_DEFAULT_ATTRIBUTE_DELIMITER) != 0 ? add->CASAttributeDelimiter : base->CASAttributeDelimiter);
-	c->CASAttributePrefix = (add->CASAttributePrefix != CAS_DEFAULT_ATTRIBUTE_PREFIX ? add->CASAttributePrefix : base->CASAttributePrefix);
+	c->CASAttributePrefix = (apr_strnatcasecmp(add->CASAttributePrefix, CAS_DEFAULT_ATTRIBUTE_PREFIX) != 0 ? add->CASAttributePrefix : base->CASAttributePrefix);
 
 	/* if add->CASLoginURL == NULL, we want to copy base -- otherwise, copy the one from add, and so on and so forth */
 	if(memcmp(&add->CASLoginURL, &test, sizeof(apr_uri_t)) == 0)
@@ -1035,7 +1035,8 @@ static apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry
 	char *path;
 	apr_file_t *f;
 	apr_off_t begin = 0;
-	int i, cnt = 0;
+	int cnt = 0;
+	apr_status_t i = APR_EGENERAL;
 	apr_byte_t lock = FALSE;
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 
@@ -1162,7 +1163,7 @@ static char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, c
 	return(apr_pstrdup(r->pool, rv));
 }
 
-static void expireCASST(request_rec *r, char *ticketname)
+static void expireCASST(request_rec *r, const char *ticketname)
 {
 	char *ticket, *path;
 	char line[APR_MD5_DIGESTSIZE*2+1];
@@ -1243,7 +1244,7 @@ static void CASSAMLLogout(request_rec *r, char *body)
 		node = doc->root->first_child;
 		while(node != NULL) {
 			if(apr_strnatcmp(node->name, "SessionIndex") == 0 && node->first_cdata.first != NULL) {
-				expireCASST(r, (char *) node->first_cdata.first->text);
+				expireCASST(r, node->first_cdata.first->text);
 				return;
 			}
 			node = node->next;

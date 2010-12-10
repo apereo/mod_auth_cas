@@ -188,7 +188,7 @@ static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, cha
 static char *getCASCookie(request_rec *r, char *cookieName);
 static apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache, apr_byte_t exists);
 static char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ticket);
-static void expireCASST(request_rec *r, char *ticketname);
+static void expireCASST(request_rec *r, const char *ticketname);
 static void CASSAMLLogout(request_rec *r, char *body);
 static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes);
 static void deleteCASCacheFile(request_rec *r, char *cookieName);

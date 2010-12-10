@@ -1,5 +1,5 @@
 ====================================================================
-MOD_AUTH_CAS 1.0.9 README
+MOD_AUTH_CAS 1.0.9.1 README
 ====================================================================
 Apache CAS Authentication Module
 
@@ -78,6 +78,8 @@ BUG FIXES
 
 * Patch by Ben Noordhuis to improve VirtualHost configuration
   support.
+
+* Fix erroneous service URL construction.
 
 ====================================================================
 KNOWN LIMITATIONS

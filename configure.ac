@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.65])
-AC_INIT([mod_auth_cas], [1.0.9], [modauthcas@gmail.com])
+AC_INIT([mod_auth_cas], [1.0.9.1], [modauthcas@gmail.com])
 AC_CONFIG_SRCDIR([src/mod_auth_cas.c])
 AC_CONFIG_HEADERS([config.h])
 

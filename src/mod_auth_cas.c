@@ -16,7 +16,7 @@
  *
  * mod_auth_cas.c
  * Apache CAS Authentication Module
- * Version 1.0.9
+ * Version 1.0.9.1
  *
  * Author:
  * Phil Ames       <modauthcas [at] gmail [dot] com>
@@ -504,7 +504,7 @@ static char *getCASService(request_rec *r, cas_cfg *c)
 	char *scheme, *service, *unparsedPath = NULL, *queryString = strchr(r->unparsed_uri, '?');
 	int len;
 	apr_port_t port = r->connection->local_addr->port;
-	apr_byte_t printPort = FALSE;
+	apr_byte_t printPort = TRUE;
 
 	if(queryString != NULL) { 
 		len = strlen(r->unparsed_uri) - strlen(queryString);
@@ -521,10 +521,10 @@ static char *getCASService(request_rec *r, cas_cfg *c)
 	if(c->CASRootProxiedAs.is_initialized) {
 		service = apr_psprintf(r->pool, "%s%s%s%s", escapeString(r, apr_uri_unparse(r->pool, &c->CASRootProxiedAs, 0)), escapeString(r, unparsedPath), (r->args != NULL ? "%3f" : ""), escapeString(r, r->args));
 	} else {
-		if(isSSL(r) && port != 443)
-			printPort = TRUE;
-		else if(port != 80)
-			printPort = TRUE;
+		if(isSSL(r) && port == 443)
+			printPort = FALSE;
+		else if(!isSSL(r) && port == 80)
+			printPort = FALSE;
 #ifdef APACHE2_0
 		scheme = (char *) ap_http_method(r);
 #else

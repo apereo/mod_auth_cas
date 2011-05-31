@@ -1791,7 +1791,7 @@ static int cas_authenticate(request_rec *r)
 					printPort = TRUE;
 
 				if(c->CASRootProxiedAs.is_initialized) {
-						newLocation = apr_psprintf(r->pool, "%s%s%s%s", apr_uri_unparse(r->pool, &c->CASRootProxiedAs, 0), r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? escapeString(r, r->args) : ""));
+						newLocation = apr_psprintf(r->pool, "%s%s%s%s", apr_uri_unparse(r->pool, &c->CASRootProxiedAs, 0), r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
 				} else {
 #ifdef APACHE2_0
 					if(printPort == TRUE)

@@ -28,6 +28,13 @@
 #ifndef MOD_AUTH_CAS_H
 #define MOD_AUTH_CAS_H
 
+/* Apache is NOT a well-behaved citizen. It unconditionally
+ *	pollutes global defines with its own autoheaders.
+ *	Given that apxs2 does not define HAVE_CONFIG_H, the issue
+ *	was not previously observed. Undef here for warning-less
+ *	compiling of tests, until a more elegant solution is found
+ */
+#undef HAVE_CONFIG_H
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -193,7 +200,7 @@ static void CASSAMLLogout(request_rec *r, char *body);
 static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes);
 static void deleteCASCacheFile(request_rec *r, char *cookieName);
 static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure);
-static char *escapeString(request_rec *r, char *str);
+char *escapeString(request_rec *r, char *str);
 static char *urlEncode(request_rec *r, char *str, char *charsToEncode);
 static char *getCASGateway(request_rec *r);
 static char *getCASRenew(request_rec *r);

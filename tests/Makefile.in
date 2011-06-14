@@ -34,7 +34,8 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-subdir = src
+@TESTS_TRUE@mactest_PROGRAMS = mactest$(EXEEXT)
+subdir = tests
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/curl.m4 \
@@ -47,32 +48,15 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
-am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
-am__vpath_adj = case $$p in \
-    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
-    *) f=$$p;; \
-  esac;
-am__strip_dir = f=`echo $$p | sed -e 's|^.*/||'`;
-am__install_max = 40
-am__nobase_strip_setup = \
-  srcdirstrip=`echo "$(srcdir)" | sed 's/[].[^$$\\*|]/\\\\&/g'`
-am__nobase_strip = \
-  for p in $$list; do echo "$$p"; done | sed -e "s|$$srcdirstrip/||"
-am__nobase_list = $(am__nobase_strip_setup); \
-  for p in $$list; do echo "$$p $$p"; done | \
-  sed "s| $$srcdirstrip/| |;"' / .*\//!s/ .*/ ./; s,\( .*\)/[^/]*$$,\1,' | \
-  $(AWK) 'BEGIN { files["."] = "" } { files[$$2] = files[$$2] " " $$1; \
-    if (++n[$$2] == $(am__install_max)) \
-      { print $$2, files[$$2]; n[$$2] = 0; files[$$2] = "" } } \
-    END { for (dir in files) print dir, files[dir] }'
-am__base_list = \
-  sed '$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;s/\n/ /g' | \
-  sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
-am__installdirs = "$(DESTDIR)$(libdir)"
-LTLIBRARIES = $(lib_LTLIBRARIES)
-mod_auth_cas_la_DEPENDENCIES =
-mod_auth_cas_la_SOURCES = mod_auth_cas.c
-mod_auth_cas_la_OBJECTS = mod_auth_cas.lo
+am__installdirs = "$(DESTDIR)$(mactestdir)"
+PROGRAMS = $(mactest_PROGRAMS)
+am__mactest_SOURCES_DIST = ap_stubs.c curl_stubs.c openssl_stubs.c \
+	../src/mod_auth_cas.c mod_auth_cas_test.c
+@TESTS_TRUE@am_mactest_OBJECTS = ap_stubs.$(OBJEXT) \
+@TESTS_TRUE@	curl_stubs.$(OBJEXT) openssl_stubs.$(OBJEXT) \
+@TESTS_TRUE@	mod_auth_cas.$(OBJEXT) mod_auth_cas_test.$(OBJEXT)
+mactest_OBJECTS = $(am_mactest_OBJECTS)
+mactest_DEPENDENCIES =
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
 am__v_lt_0 = --silent
@@ -102,8 +86,8 @@ am__v_CCLD_0 = @echo "  CCLD  " $@;
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
 am__v_GEN_0 = @echo "  GEN   " $@;
-SOURCES = mod_auth_cas.c
-DIST_SOURCES = mod_auth_cas.c
+SOURCES = $(mactest_SOURCES)
+DIST_SOURCES = $(am__mactest_SOURCES_DIST)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -246,10 +230,20 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 with_apr_config = @with_apr_config@
 with_apxs = @with_apxs@
-lib_LTLIBRARIES = mod_auth_cas.la
-AM_CFLAGS = @CPPFLAGS@ @CFLAGS@ @LIBCURL_CPPFLAGS@
-AM_LDFLAGS = -module @LDFLAGS@
-mod_auth_cas_la_LIBADD = @LIBS@ @LIBCURL@
+@TESTS_TRUE@AM_CFLAGS = @CPPFLAGS@ @CFLAGS@ @LIBCURL_CPPFLAGS@ \
+@TESTS_TRUE@@APR_CPPFLAGS@ \
+@TESTS_TRUE@@APR_CPPFLAGS@ \
+@TESTS_TRUE@@APR_INCLUDES@ \
+@TESTS_TRUE@@APACHE_INCLUDES@ \
+@TESTS_TRUE@-D_LARGEFILE64_SOURCE @LIBS@ @LIBCURL@
+
+
+#OLD, preserved just for notes
+#@-D_LARGEFILE64_SOURCE @LIBS@ @LIBCURL@ @APR_LDFLAGS@ 
+@TESTS_TRUE@AM_LDFLAGS = @LDFLAGS@ 
+@TESTS_TRUE@mactest_SOURCES = ap_stubs.c curl_stubs.c openssl_stubs.c ../src/mod_auth_cas.c mod_auth_cas_test.c 
+@TESTS_TRUE@mactest_LDADD = -lcheck -lapr-1 -laprutil-1
+@TESTS_TRUE@mactestdir = @PREFIX@/tests
 all: all-am
 
 .SUFFIXES:
@@ -263,9 +257,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign src/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign tests/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign src/Makefile
+	  $(AUTOMAKE) --foreign tests/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -284,37 +278,52 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
-install-libLTLIBRARIES: $(lib_LTLIBRARIES)
+install-mactestPROGRAMS: $(mactest_PROGRAMS)
 	@$(NORMAL_INSTALL)
-	test -z "$(libdir)" || $(MKDIR_P) "$(DESTDIR)$(libdir)"
-	@list='$(lib_LTLIBRARIES)'; test -n "$(libdir)" || list=; \
-	list2=; for p in $$list; do \
-	  if test -f $$p; then \
-	    list2="$$list2 $$p"; \
-	  else :; fi; \
-	done; \
-	test -z "$$list2" || { \
-	  echo " $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL) $(INSTALL_STRIP_FLAG) $$list2 '$(DESTDIR)$(libdir)'"; \
-	  $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL) $(INSTALL_STRIP_FLAG) $$list2 "$(DESTDIR)$(libdir)"; \
-	}
+	test -z "$(mactestdir)" || $(MKDIR_P) "$(DESTDIR)$(mactestdir)"
+	@list='$(mactest_PROGRAMS)'; test -n "$(mactestdir)" || list=; \
+	for p in $$list; do echo "$$p $$p"; done | \
+	sed 's/$(EXEEXT)$$//' | \
+	while read p p1; do if test -f $$p || test -f $$p1; \
+	  then echo "$$p"; echo "$$p"; else :; fi; \
+	done | \
+	sed -e 'p;s,.*/,,;n;h' -e 's|.*|.|' \
+	    -e 'p;x;s,.*/,,;s/$(EXEEXT)$$//;$(transform);s/$$/$(EXEEXT)/' | \
+	sed 'N;N;N;s,\n, ,g' | \
+	$(AWK) 'BEGIN { files["."] = ""; dirs["."] = 1 } \
+	  { d=$$3; if (dirs[d] != 1) { print "d", d; dirs[d] = 1 } \
+	    if ($$2 == $$4) files[d] = files[d] " " $$1; \
+	    else { print "f", $$3 "/" $$4, $$1; } } \
+	  END { for (d in files) print "f", d, files[d] }' | \
+	while read type dir files; do \
+	    if test "$$dir" = .; then dir=; else dir=/$$dir; fi; \
+	    test -z "$$files" || { \
+	    echo " $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files '$(DESTDIR)$(mactestdir)$$dir'"; \
+	    $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files "$(DESTDIR)$(mactestdir)$$dir" || exit $$?; \
+	    } \
+	; done
 
-uninstall-libLTLIBRARIES:
+uninstall-mactestPROGRAMS:
 	@$(NORMAL_UNINSTALL)
-	@list='$(lib_LTLIBRARIES)'; test -n "$(libdir)" || list=; \
-	for p in $$list; do \
-	  $(am__strip_dir) \
-	  echo " $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=uninstall rm -f '$(DESTDIR)$(libdir)/$$f'"; \
-	  $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=uninstall rm -f "$(DESTDIR)$(libdir)/$$f"; \
-	done
+	@list='$(mactest_PROGRAMS)'; test -n "$(mactestdir)" || list=; \
+	files=`for p in $$list; do echo "$$p"; done | \
+	  sed -e 'h;s,^.*/,,;s/$(EXEEXT)$$//;$(transform)' \
+	      -e 's/$$/$(EXEEXT)/' `; \
+	test -n "$$list" || exit 0; \
+	echo " ( cd '$(DESTDIR)$(mactestdir)' && rm -f" $$files ")"; \
+	cd "$(DESTDIR)$(mactestdir)" && rm -f $$files
 
-clean-libLTLIBRARIES:
-	-test -z "$(lib_LTLIBRARIES)" || rm -f $(lib_LTLIBRARIES)
-	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
-	  dir="`echo $$p | sed -e 's|/[^/]*$$||'`"; \
-	  test "$$dir" != "$$p" || dir=.; \
-	  echo "rm -f \"$${dir}/so_locations\""; \
-	  rm -f "$${dir}/so_locations"; \
-	done
+clean-mactestPROGRAMS:
+	@list='$(mactest_PROGRAMS)'; test -n "$$list" || exit 0; \
+	echo " rm -f" $$list; \
+	rm -f $$list || exit $$?; \
+	test -n "$(EXEEXT)" || exit 0; \
+	list=`for p in $$list; do echo "$$p"; done | sed 's/$(EXEEXT)$$//'`; \
+	echo " rm -f" $$list; \
+	rm -f $$list
+mactest$(EXEEXT): $(mactest_OBJECTS) $(mactest_DEPENDENCIES) 
+	@rm -f mactest$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(mactest_OBJECTS) $(mactest_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -322,7 +331,11 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mod_auth_cas.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ap_stubs.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/curl_stubs.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mod_auth_cas.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mod_auth_cas_test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/openssl_stubs.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -347,6 +360,22 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
+
+mod_auth_cas.o: ../src/mod_auth_cas.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT mod_auth_cas.o -MD -MP -MF $(DEPDIR)/mod_auth_cas.Tpo -c -o mod_auth_cas.o `test -f '../src/mod_auth_cas.c' || echo '$(srcdir)/'`../src/mod_auth_cas.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/mod_auth_cas.Tpo $(DEPDIR)/mod_auth_cas.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../src/mod_auth_cas.c' object='mod_auth_cas.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o mod_auth_cas.o `test -f '../src/mod_auth_cas.c' || echo '$(srcdir)/'`../src/mod_auth_cas.c
+
+mod_auth_cas.obj: ../src/mod_auth_cas.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT mod_auth_cas.obj -MD -MP -MF $(DEPDIR)/mod_auth_cas.Tpo -c -o mod_auth_cas.obj `if test -f '../src/mod_auth_cas.c'; then $(CYGPATH_W) '../src/mod_auth_cas.c'; else $(CYGPATH_W) '$(srcdir)/../src/mod_auth_cas.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/mod_auth_cas.Tpo $(DEPDIR)/mod_auth_cas.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../src/mod_auth_cas.c' object='mod_auth_cas.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o mod_auth_cas.obj `if test -f '../src/mod_auth_cas.c'; then $(CYGPATH_W) '../src/mod_auth_cas.c'; else $(CYGPATH_W) '$(srcdir)/../src/mod_auth_cas.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -436,13 +465,16 @@ distdir: $(DISTFILES)
 	    || exit 1; \
 	  fi; \
 	done
+@TESTS_FALSE@check-local:
 check-am: all-am
+	$(MAKE) $(AM_MAKEFLAGS) check-local
 check: check-am
-all-am: Makefile $(LTLIBRARIES)
+all-am: Makefile $(PROGRAMS)
 installdirs:
-	for dir in "$(DESTDIR)$(libdir)"; do \
+	for dir in "$(DESTDIR)$(mactestdir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
+install: install-am
 install-exec: install-exec-am
 install-data: install-data-am
 uninstall: uninstall-am
@@ -467,9 +499,14 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
-clean-am: clean-generic clean-libLTLIBRARIES clean-libtool \
+clean: clean-am
+
+clean-am: clean-generic clean-libtool clean-mactestPROGRAMS \
 	mostlyclean-am
 
+distclean: distclean-am
+	-rm -rf ./$(DEPDIR)
+	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
 
@@ -485,13 +522,13 @@ info: info-am
 
 info-am:
 
-install-data-am:
+install-data-am: install-mactestPROGRAMS
 
 install-dvi: install-dvi-am
 
 install-dvi-am:
 
-install-exec-am: install-libLTLIBRARIES
+install-exec-am:
 
 install-html: install-html-am
 
@@ -531,37 +568,35 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-libLTLIBRARIES
+uninstall-am: uninstall-mactestPROGRAMS
 
-.MAKE: install-am install-strip
+.MAKE: check-am install-am install-strip
 
-.PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
-	clean-libLTLIBRARIES clean-libtool ctags distclean \
-	distclean-compile distclean-generic distclean-libtool \
-	distclean-tags distdir dvi dvi-am html html-am info info-am \
-	install install-am install-data install-data-am install-dvi \
-	install-dvi-am install-exec install-exec-am install-html \
-	install-html-am install-info install-info-am \
-	install-libLTLIBRARIES install-man install-pdf install-pdf-am \
-	install-ps install-ps-am install-strip installcheck \
-	installcheck-am installdirs maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags uninstall uninstall-am uninstall-libLTLIBRARIES
+.PHONY: CTAGS GTAGS all all-am check check-am check-local clean \
+	clean-generic clean-libtool clean-mactestPROGRAMS ctags \
+	distclean distclean-compile distclean-generic \
+	distclean-libtool distclean-tags distdir dvi dvi-am html \
+	html-am info info-am install install-am install-data \
+	install-data-am install-dvi install-dvi-am install-exec \
+	install-exec-am install-html install-html-am install-info \
+	install-info-am install-mactestPROGRAMS install-man \
+	install-pdf install-pdf-am install-ps install-ps-am \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
+	pdf pdf-am ps ps-am tags uninstall uninstall-am \
+	uninstall-mactestPROGRAMS
 
 
-mod_auth_cas.la: mod_auth_cas.c mod_auth_cas.h
-	@APXS@ -c ${LIBS} -Wc,"${CFLAGS} ${CPPFLAGS}" -Wl,"${LDFLAGS}" mod_auth_cas.c
-
-install: mod_auth_cas.la
-	if test ! -d ${DESTDIR}${APXS_LIBEXECDIR}; then mkdir -p ${DESTDIR}${APXS_LIBEXECDIR}; fi
-	@APXS@ -i -S LIBEXECDIR=${DESTDIR}${APXS_LIBEXECDIR} mod_auth_cas.la
-
-clean:
-	rm -rf mod_auth_cas.slo mod_auth_cas.la mod_auth_cas.lo .libs
-
-distclean: clean
-	rm Makefile
+@TESTS_TRUE@check-local: mactest
+@TESTS_TRUE@	@echo -e "\n\n"
+@TESTS_TRUE@	@echo -e "--------------------------------"
+@TESTS_TRUE@	@echo -e "Running mod_auth_cas testsuite.."
+@TESTS_TRUE@	@echo -e "\n\n"
+@TESTS_TRUE@	@./mactest
+@TESTS_TRUE@	@echo -e "\n\n"
+@TESTS_TRUE@	@echo -e "--------------------------------"
+@TESTS_TRUE@	@echo -e "\n\n"
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

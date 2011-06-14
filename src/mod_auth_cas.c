@@ -25,10 +25,6 @@
  * Matt Smith      <matt [dot] smith [at] uconn [dot] edu>
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <sys/types.h>
 
 #include <openssl/crypto.h>
@@ -719,7 +715,7 @@ static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, ap
  * 7/25/2009 - add '+' to list of characters to escape
  */
 
-static char *escapeString(request_rec *r, char *str)
+char *escapeString(request_rec *r, char *str)
 {
 	char *rfc1738 = "+ <>\"%{}|\\^~[]`;/?:@=&#";
 

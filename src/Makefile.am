@@ -1,0 +1,19 @@
+lib_LTLIBRARIES = mod_auth_cas.la
+
+AM_CFLAGS = @CPPFLAGS@ @CFLAGS@ @LIBCURL_CPPFLAGS@
+AM_LDFLAGS= -module @LDFLAGS@
+mod_auth_cas_la_LIBADD = @LIBS@ @LIBCURL@
+
+
+mod_auth_cas.la: mod_auth_cas.c mod_auth_cas.h
+	@APXS@ -c ${LIBS} -Wc,"${CFLAGS} ${CPPFLAGS}" -Wl,"${LDFLAGS}" mod_auth_cas.c
+
+install: mod_auth_cas.la
+	if test ! -d ${DESTDIR}${APXS_LIBEXECDIR}; then mkdir -p ${DESTDIR}${APXS_LIBEXECDIR}; fi
+	@APXS@ -i -S LIBEXECDIR=${DESTDIR}${APXS_LIBEXECDIR} mod_auth_cas.la
+
+clean:
+	rm -rf mod_auth_cas.slo mod_auth_cas.la mod_auth_cas.lo .libs
+
+distclean: clean
+	rm Makefile

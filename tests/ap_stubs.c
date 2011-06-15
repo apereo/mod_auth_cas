@@ -71,7 +71,9 @@ AP_DECLARE(ap_filter_rec_t *) ap_register_input_filter(const char *name,
 }
 
 const char *ap_run_http_scheme(const request_rec *r) {
-  return "";
+  char *rv;
+  apr_pool_userdata_get((void **) &rv, "scheme", r->pool); 
+  return (const char *) rv;
 }
 
 AP_DECLARE_NONSTD(const char *) ap_set_string_slot(cmd_parms *cmd,

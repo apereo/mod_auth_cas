@@ -181,37 +181,41 @@ typedef enum {
 } valid_cmds;
 
 module AP_MODULE_DECLARE_DATA auth_cas_module;
-static apr_byte_t cas_setURL(apr_pool_t *pool, apr_uri_t *uri, const char *url);
-static void *cas_create_server_config(apr_pool_t *pool, server_rec *svr);
-static void *cas_create_dir_config(apr_pool_t *pool, char *path);
-static void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD);
-static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value);
-static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket);
-static apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **user, cas_saml_attr **attrs);
-static apr_byte_t isSSL(request_rec *r);
-static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_entry *cache);
-static void CASCleanCache(request_rec *r, cas_cfg *c);
-static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **user, cas_saml_attr **attrs);
-static char *getCASCookie(request_rec *r, char *cookieName);
-static apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache, apr_byte_t exists);
-static char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ticket);
-static void expireCASST(request_rec *r, const char *ticketname);
-static void CASSAMLLogout(request_rec *r, char *body);
-static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes);
-static void deleteCASCacheFile(request_rec *r, char *cookieName);
-static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure);
+apr_byte_t cas_setURL(apr_pool_t *pool, apr_uri_t *uri, const char *url);
+void *cas_create_server_config(apr_pool_t *pool, server_rec *svr);
+void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD);
+void *cas_create_dir_config(apr_pool_t *pool, char *path);
+void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD);
+const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value);
+char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket);
+apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **user, cas_saml_attr **attrs);
+apr_byte_t isSSL(request_rec *r);
+apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_entry *cache);
+void CASCleanCache(request_rec *r, cas_cfg *c);
+apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **user, cas_saml_attr **attrs);
+char *getCASCookie(request_rec *r, char *cookieName);
+char *getCASPath(request_rec *r);
+void CASSAMLLogout(request_rec *r, char *body);
+apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes);
+void deleteCASCacheFile(request_rec *r, char *cookieName);
+void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure);
 char *escapeString(request_rec *r, char *str);
-static char *urlEncode(request_rec *r, char *str, char *charsToEncode);
-static char *getCASGateway(request_rec *r);
-static char *getCASRenew(request_rec *r);
-static char *getCASLoginURL(request_rec *r, cas_cfg *c);
-static char *getCASService(request_rec *r, cas_cfg *c);
-static void redirectRequest(request_rec *r, cas_cfg *c);
-static char *getCASTicket(request_rec *r);
-static apr_byte_t removeCASParams(request_rec *r);
-static int cas_authenticate(request_rec *r);
-static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec *s);
-static void cas_register_hooks(apr_pool_t *p);
+char *urlEncode(request_rec *r, char *str, char *charsToEncode);
+char *getCASGateway(request_rec *r);
+char *getCASRenew(request_rec *r);
+char *getCASLoginURL(request_rec *r, cas_cfg *c);
+char *getCASService(request_rec *r, cas_cfg *c);
+void redirectRequest(request_rec *r, cas_cfg *c);
+char *getCASTicket(request_rec *r);
+apr_byte_t removeCASParams(request_rec *r);
+int cas_authenticate(request_rec *r);
+#ifdef OPENSSL_NO_THREADID
+unsigned long cas_ssl_id_callback(void);
+#else
+void cas_ssl_id_callback(CRYPTO_THREADID *id);
+#endif
+int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec *s);
+void cas_register_hooks(apr_pool_t *p);
 
 /* apr forward compatibility */
 #ifndef APR_FOPEN_READ

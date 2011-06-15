@@ -59,7 +59,7 @@ static int ssl_num_locks;
 #endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
 
 /* mod_auth_cas configuration specific functions */
-static void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
+void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 {
 	cas_cfg *c = apr_pcalloc(pool, sizeof(cas_cfg));
 
@@ -90,7 +90,7 @@ static void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	return c;
 }
 
-static void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
+void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 {
 	cas_cfg *c = apr_pcalloc(pool, sizeof(cas_cfg));
 	cas_cfg *base = BASE;
@@ -142,7 +142,7 @@ static void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	return c;
 }
 
-static void *cas_create_dir_config(apr_pool_t *pool, char *path)
+void *cas_create_dir_config(apr_pool_t *pool, char *path)
 {
 	cas_dir_cfg *c = apr_pcalloc(pool, sizeof(cas_dir_cfg));
 	c->CASScope = CAS_DEFAULT_SCOPE;
@@ -156,7 +156,7 @@ static void *cas_create_dir_config(apr_pool_t *pool, char *path)
 	return(c);
 }
 
-static void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
+void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 {
 	cas_dir_cfg *c = apr_pcalloc(pool, sizeof(cas_dir_cfg));
 	cas_dir_cfg *base = BASE;
@@ -188,7 +188,7 @@ static void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 	return(c);
 }
 
-static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
+const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 {
 	cas_cfg *c = (cas_cfg *) ap_get_module_config(cmd->server->module_config, &auth_cas_module);
 	apr_finfo_t f;
@@ -357,7 +357,7 @@ static const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *v
 }
 
 /* utility functions to set/retrieve values from the configuration */
-static apr_byte_t cas_setURL(apr_pool_t *pool, apr_uri_t *uri, const char *url)
+apr_byte_t cas_setURL(apr_pool_t *pool, apr_uri_t *uri, const char *url)
 {
 
 	if(url == NULL) {
@@ -377,7 +377,7 @@ static apr_byte_t cas_setURL(apr_pool_t *pool, apr_uri_t *uri, const char *url)
 	return TRUE;
 }
 
-static apr_byte_t isSSL(request_rec *r)
+apr_byte_t isSSL(request_rec *r)
 {
 
 #ifdef APACHE2_0
@@ -391,7 +391,7 @@ static apr_byte_t isSSL(request_rec *r)
 }
 
 /* r->parsed_uri.path will return something like /xyz/index.html - this removes the file portion */
-static char *getCASPath(request_rec *r)
+char *getCASPath(request_rec *r)
 {
 	char *p = r->parsed_uri.path, *rv;
 	size_t i, l = 0;
@@ -403,7 +403,7 @@ static char *getCASPath(request_rec *r)
 	return(rv);
 }
 
-static char *getCASScope(request_rec *r)
+char *getCASScope(request_rec *r)
 {
 	char *rv = NULL, *requestPath = getCASPath(r);
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
@@ -448,7 +448,7 @@ static char *getCASScope(request_rec *r)
 	return (rv);
 }
 
-static char *getCASGateway(request_rec *r)
+char *getCASGateway(request_rec *r)
 {
 	char *rv = "";
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
@@ -463,7 +463,7 @@ static char *getCASGateway(request_rec *r)
 	return rv;
 }
 
-static char *getCASRenew(request_rec *r)
+char *getCASRenew(request_rec *r)
 {
 	char *rv = "";
 	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
@@ -473,7 +473,7 @@ static char *getCASRenew(request_rec *r)
 	return rv;
 }
 
-static char *getCASLoginURL(request_rec *r, cas_cfg *c)
+char *getCASLoginURL(request_rec *r, cas_cfg *c)
 {
 	apr_uri_t test;
 
@@ -495,7 +495,7 @@ static char *getCASLoginURL(request_rec *r, cas_cfg *c)
  * in the apr_uri_t structure...  unimportant things, like 'hostname', and 'scheme', and 'port'...  so we must
  * implement a trimmed down version of apr_uri_unparse
  */
-static char *getCASService(request_rec *r, cas_cfg *c)
+char *getCASService(request_rec *r, cas_cfg *c)
 {
 	char *scheme, *service, *unparsedPath = NULL, *queryString = strchr(r->unparsed_uri, '?');
 	int len;
@@ -539,7 +539,7 @@ static char *getCASService(request_rec *r, cas_cfg *c)
 
 
 /* utility functions that relate to request handling */
-static void redirectRequest(request_rec *r, cas_cfg *c)
+void redirectRequest(request_rec *r, cas_cfg *c)
 {
 	char *destination;
 	char *service = getCASService(r, c);
@@ -564,7 +564,7 @@ static void redirectRequest(request_rec *r, cas_cfg *c)
 
 }
 
-static apr_byte_t removeCASParams(request_rec *r)
+apr_byte_t removeCASParams(request_rec *r)
 {
 	char *newArgs, *oldArgs, *p;
 	apr_byte_t copy = TRUE;
@@ -611,7 +611,7 @@ static apr_byte_t removeCASParams(request_rec *r)
 	return changed;
 }
 
-static char *getCASTicket(request_rec *r)
+char *getCASTicket(request_rec *r)
 {
 	char *tokenizerCtx, *ticket, *args, *rv = NULL;
 	apr_byte_t ticketFound = FALSE;
@@ -642,7 +642,7 @@ static char *getCASTicket(request_rec *r)
 	return rv;
 }
 
-static char *getCASCookie(request_rec *r, char *cookieName)
+char *getCASCookie(request_rec *r, char *cookieName)
 {
 	char *cookie, *tokenizerCtx, *rv = NULL;
 	apr_byte_t cookieFound = FALSE;
@@ -670,7 +670,7 @@ static char *getCASCookie(request_rec *r, char *cookieName)
 	return rv;
 }
 
-static void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure)
+void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure)
 {
 	char *headerString, *currentCookies, *pathPrefix = "";
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
@@ -723,7 +723,7 @@ char *escapeString(request_rec *r, char *str)
 
 }
 
-static char *urlEncode(request_rec *r, char *str, char *charsToEncode)
+char *urlEncode(request_rec *r, char *str, char *charsToEncode)
 {
 	char *rv, *p, *q;
 	size_t i, j, size;
@@ -769,7 +769,7 @@ static char *urlEncode(request_rec *r, char *str, char *charsToEncode)
 }
 
 /* functions related to the local cache */
-static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_entry *cache)
+apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_entry *cache)
 {
 	apr_off_t begin = 0;
 	apr_file_t *f;
@@ -926,7 +926,7 @@ static apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_c
 	return TRUE;
 }
 
-static void CASCleanCache(request_rec *r, cas_cfg *c)
+void CASCleanCache(request_rec *r, cas_cfg *c)
 {
 	apr_time_t lastClean;
 	apr_off_t begin = 0;
@@ -1026,7 +1026,7 @@ static void CASCleanCache(request_rec *r, cas_cfg *c)
 
 }
 
-static apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache, apr_byte_t exists)
+apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache, apr_byte_t exists)
 {
 	char *path;
 	apr_file_t *f;
@@ -1106,7 +1106,7 @@ static apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry
 	return TRUE;
 }
 
-static char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ticket)
+char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ticket)
 {
 	char *path, *buf, *rv;
 	apr_file_t *f;
@@ -1159,7 +1159,7 @@ static char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, c
 	return(apr_pstrdup(r->pool, rv));
 }
 
-static void expireCASST(request_rec *r, const char *ticketname)
+void expireCASST(request_rec *r, const char *ticketname)
 {
 	char *ticket, *path;
 	char line[APR_MD5_DIGESTSIZE*2+1];
@@ -1198,7 +1198,7 @@ static void expireCASST(request_rec *r, const char *ticketname)
 	deleteCASCacheFile(r, line);
 }
 
-static void CASSAMLLogout(request_rec *r, char *body)
+void CASSAMLLogout(request_rec *r, char *body)
 {
 	apr_xml_doc *doc;
 	apr_xml_elem *node;
@@ -1250,7 +1250,7 @@ static void CASSAMLLogout(request_rec *r, char *body)
 	return;
 }
 
-static void deleteCASCacheFile(request_rec *r, char *cookieName)
+void deleteCASCacheFile(request_rec *r, char *cookieName)
 {
 	char *path, *ticket;
 	cas_cache_entry e;
@@ -1275,7 +1275,7 @@ static void deleteCASCacheFile(request_rec *r, char *cookieName)
 }
 
 /* functions related to validation of tickets/cache entries */
-static apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **user, cas_saml_attr **attrs)
+apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **user, cas_saml_attr **attrs)
 {
 	char *line;
 	apr_xml_doc *doc;
@@ -1459,7 +1459,7 @@ static apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, cha
 	return FALSE;
 }
 
-static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **user, cas_saml_attr **attrs)
+apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **user, cas_saml_attr **attrs)
 {
 	char *path;
 	cas_cache_entry cache;
@@ -1560,7 +1560,7 @@ static apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, cha
  * CURLE_WRITE_ERROR.
  */
 
-static size_t cas_curl_write(void *ptr, size_t size, size_t nmemb, void *stream)
+size_t cas_curl_write(void *ptr, size_t size, size_t nmemb, void *stream)
 {
 	cas_curl_buffer *curlBuffer = (cas_curl_buffer *) stream;
 
@@ -1584,7 +1584,7 @@ CURLcode cas_curl_ssl_ctx(CURL *curl, void *sslctx, void *parm)
 	return CURLE_OK;
 }
 
-static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
+char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 {
 	char curlError[CURL_ERROR_SIZE];
 	apr_finfo_t f;
@@ -1674,7 +1674,7 @@ static char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 }
 
 /* basic CAS module logic */
-static int cas_authenticate(request_rec *r)
+int cas_authenticate(request_rec *r)
 {
 	char *cookieString = NULL;
 	char *ticket = NULL;
@@ -1878,7 +1878,7 @@ static int cas_authenticate(request_rec *r)
 #if (defined(OPENSSL_THREADS) && APR_HAS_THREADS)
 
 /* shamelessly based on code from mod_ssl */
-static void cas_ssl_locking_callback(int mode, int type, const char *file, int line) {
+void cas_ssl_locking_callback(int mode, int type, const char *file, int line) {
 	if(type < ssl_num_locks) {
 		if (mode & CRYPTO_LOCK)
 			apr_thread_mutex_lock(ssl_locks[type]);
@@ -1888,11 +1888,11 @@ static void cas_ssl_locking_callback(int mode, int type, const char *file, int l
 }
 
 #ifdef OPENSSL_NO_THREADID
-static unsigned long cas_ssl_id_callback(void) {
+unsigned long cas_ssl_id_callback(void) {
 	return (unsigned long) apr_os_thread_current();
 }
 #else
-static void cas_ssl_id_callback(CRYPTO_THREADID *id)
+void cas_ssl_id_callback(CRYPTO_THREADID *id)
 {
 	CRYPTO_THREADID_set_numeric(id, (unsigned long) apr_os_thread_current());
 }
@@ -1901,7 +1901,7 @@ static void cas_ssl_id_callback(CRYPTO_THREADID *id)
 
 #endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
 
-static apr_status_t cas_cleanup(void *data)
+apr_status_t cas_cleanup(void *data)
 {
 	server_rec *s = (server_rec *) data;
 	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "entering cas_cleanup()");
@@ -1923,7 +1923,7 @@ static apr_status_t cas_cleanup(void *data)
 	return APR_SUCCESS;
 }
 
-static int check_vhost_config(apr_pool_t *pool, server_rec *s)
+int check_vhost_config(apr_pool_t *pool, server_rec *s)
 {
 	cas_cfg *c = ap_get_module_config(s->module_config, &auth_cas_module);
 	apr_finfo_t f;
@@ -1958,7 +1958,7 @@ static int check_vhost_config(apr_pool_t *pool, server_rec *s)
 	return OK;
 }
 
-static int check_merged_vhost_configs(apr_pool_t *pool, server_rec *s)
+int check_merged_vhost_configs(apr_pool_t *pool, server_rec *s)
 {
 	int status = OK;
 
@@ -1976,7 +1976,7 @@ static int check_merged_vhost_configs(apr_pool_t *pool, server_rec *s)
 }
 
 /* Do any merged vhost configs exist? */
-static int merged_vhost_configs_exist(server_rec *s)
+int merged_vhost_configs_exist(server_rec *s)
 {
 	while (s != NULL) {
 		cas_cfg *c = ap_get_module_config(s->module_config, &auth_cas_module);
@@ -1991,7 +1991,7 @@ static int merged_vhost_configs_exist(server_rec *s)
 	return FALSE;
 }
 
-static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec *s)
+int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec *s)
 {
 	const char *userdata_key = "auth_cas_init";
 	void *data;
@@ -2052,7 +2052,7 @@ static int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, ser
 	return check_merged_vhost_configs(pool, s);
 }
 
-static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes) {
+apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes) {
 	apr_bucket *b;
 	apr_status_t rv;
 	apr_size_t len = 0, offset = 0;
@@ -2091,14 +2091,14 @@ static apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_inp
 	return APR_SUCCESS;
 }
 
-static void cas_register_hooks(apr_pool_t *p)
+void cas_register_hooks(apr_pool_t *p)
 {
 	ap_hook_post_config(cas_post_config, NULL, NULL, APR_HOOK_LAST);
 	ap_hook_check_user_id(cas_authenticate, NULL, NULL, APR_HOOK_MIDDLE);
 	ap_register_input_filter("CAS", cas_in_filter, NULL, AP_FTYPE_RESOURCE); 
 }
 
-static const command_rec cas_cmds [] = {
+const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASVersion", cfg_readCASParameter, (void *) cmd_version, RSRC_CONF, "Set CAS Protocol Version (1 or 2)"),
 	AP_INIT_TAKE1("CASDebug", cfg_readCASParameter, (void *) cmd_debug, RSRC_CONF, "Enable or disable debug mode (On or Off)"),
 	/* cas protocol options */

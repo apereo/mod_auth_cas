@@ -51,6 +51,20 @@
 #include "apr_strings.h"
 #include "apr_xml.h"
 
+/* Apache is NOT a well-behaved citizen. It unconditionally
+ *	pollutes global defines with its own autoheaders.
+ *  Must undef any autoconf variables that need local definition. */
+#undef PACKAGE_BUGREPORT
+#undef PACKAGE_NAME
+#undef PACKAGE_STRING
+#undef PACKAGE_TARNAME
+#undef PACKAGE_VERSION
+
+/* Autoconf config.h */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "mod_auth_cas.h"
 
 #if defined(OPENSSL_THREADS) && APR_HAS_THREADS

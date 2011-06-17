@@ -28,17 +28,6 @@
 #ifndef MOD_AUTH_CAS_H
 #define MOD_AUTH_CAS_H
 
-/* Apache is NOT a well-behaved citizen. It unconditionally
- *	pollutes global defines with its own autoheaders.
- *	Given that apxs2 does not define HAVE_CONFIG_H, the issue
- *	was not previously observed. Undef here for warning-less
- *	compiling of tests, until a more elegant solution is found
- */
-#undef HAVE_CONFIG_H
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <stddef.h>
 #include "ap_release.h"
 

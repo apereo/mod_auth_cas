@@ -1,15 +1,32 @@
 #include <curl/curl.h>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct curl_stub {
+  void *data;
+  size_t (*writefunc)(void *, size_t, size_t, void*);
+} curl_stub;
 
 CURL_EXTERN CURL *curl_easy_init(void) {
-  return NULL;
+  CURL *rv = (CURL *) malloc(sizeof(curl_stub));
+  return rv;
 }
 
 CURL_EXTERN void curl_easy_cleanup(CURL *curl)
 {
-  return;
+  free(curl);
 }
 
 CURL_EXTERN CURLcode curl_easy_perform(CURL *curl) {
+  const char *response = "<cas:serviceResponse xmlns:cas="
+      "'http://www.yale.edu/tp/cas'>"
+      "<cas:authenticationSuccess>"
+      "<cas:user>username</cas:user>"
+      "</cas:authenticationSuccess>"
+      "</cas:serviceResponse>";
+  curl_stub *c = (curl_stub *) curl;
+  c->writefunc(response, sizeof(char), strlen(response), c->data);
 
   return CURLE_OK;
 }
@@ -18,6 +35,22 @@ CURL_EXTERN CURLcode curl_easy_perform(CURL *curl) {
 #pragma push_macro("curl_easy_setopt")
 #undef curl_easy_setopt
 CURL_EXTERN CURLcode curl_easy_setopt (CURL *curl, CURLoption option, ...) {
+  curl_stub *cs = (curl_stub *) curl;
+  void *arg;
+  va_list args;
+  va_start(args, option);
+  arg = va_arg(args, void *);
+  va_end(args);
+  switch (option) {
+    case CURLOPT_WRITEDATA:
+      cs->data = arg;
+      break;
+    case CURLOPT_WRITEFUNCTION:
+      cs->writefunc = arg;
+      break;
+    default:
+      break;
+  }
   return CURLE_OK;
 }
 

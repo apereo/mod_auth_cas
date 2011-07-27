@@ -72,7 +72,7 @@ BUG FIXES
 
 * Fixed possible NULL pointer dereference in rare circumstances
   where ap_is_initial_req() returns FALSE, but the value of
-  request_rec->main is NULL (reported by David Gelbart)
+  request_rec->main is NULL
 
 * Included patch by Jesse Weisner for CASRootProxiedAs directive.
 

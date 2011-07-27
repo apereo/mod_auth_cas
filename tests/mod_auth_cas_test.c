@@ -2,12 +2,15 @@
 #include <stdio.h>
 
 #include <apr.h>
+#include <apr_file_io.h>
 #include <apr_general.h>
 #include <apr_portable.h>
+#include <apr_strings.h>
 
 #include <httpd.h>
 #include <http_config.h>
 #include <util_filter.h>
+#include <util_md5.h>
 #include <mod_include.h>
 
 #include "../src/mod_auth_cas.h"
@@ -151,37 +154,154 @@ START_TEST(getCASRenew_test) {
 END_TEST
 
 START_TEST(getCASLoginURL_test) {
-  fail();
+  cas_cfg *c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+  const char *url = "https://user:password@login.example.com/cas/login?foo=bar";
+  char *rv;
+  apr_uri_t parsed_url;
+  apr_uri_parse(request->pool, url, &parsed_url);
+  memcpy(&c->CASLoginURL, &parsed_url, sizeof(apr_uri_t));
+  rv = getCASLoginURL(request, c);
+  fail_unless(strcmp(rv, "https://login.example.com/cas/login") == 0);
 }
 END_TEST
 
-START_TEST(getCASService_test) {
-  fail();
+START_TEST(getCASService_http_test) {
+  cas_cfg *c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+  char *service;
+  const char *expected_service =
+      "http%3a%2f%2ffoo.example.com%2ffoo%3fbar%3dbaz%26zot%3dqux";
+
+  apr_pool_userdata_set("http", "scheme", NULL, request->pool);
+
+  service = getCASService(request, c);
+  fail_unless(strcmp(service, expected_service) == 0);
 }
 END_TEST
+
+START_TEST(getCASService_https_test) {
+  cas_cfg *c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+  char *service;
+  const char *expected_service = 
+      "https%3a%2f%2ffoo.example.com%2ffoo%3fbar%3dbaz%26zot%3dqux";
+
+  apr_pool_userdata_set("https", "scheme", NULL, request->pool);
+  request->connection->local_addr->port = 443;
+ 
+  service = getCASService(request, c);
+  fail_unless(strcmp(service, expected_service) == 0);
+}
+END_TEST
+
+START_TEST(getCASService_http_port_test) {
+  cas_cfg *c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+  char *service;
+  const char *expected_service = 
+      "http%3a%2f%2ffoo.example.com%3a8080%2ffoo%3fbar%3dbaz%26zot%3dqux";
+
+  apr_pool_userdata_set("http", "scheme", NULL, request->pool);
+  request->connection->local_addr->port = 8080;
+
+  service = getCASService(request, c);
+  fail_unless(strcmp(service, expected_service) == 0);
+}
+END_TEST
+
+START_TEST(getCASService_https_port_test) {
+  cas_cfg *c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+  char *service;
+  const char *expected_service = 
+      "https%3a%2f%2ffoo.example.com%3a8443%2ffoo%3fbar%3dbaz%26zot%3dqux";
+
+  apr_pool_userdata_set("https", "scheme", NULL, request->pool);
+  request->connection->local_addr->port = 8443;
+
+  service = getCASService(request, c);
+  fail_unless(strcmp(service, expected_service) == 0);
+}
+END_TEST
+
+START_TEST(getCASService_root_proxied_test) {
+  cas_cfg *c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+  char *service;
+  const char *expected_service = 
+      "http%3a%2f%2frev-proxy.example.com%2fapp%2ffoo%3fbar%3dbaz%26zot%3dqux";
+  const char *root = "http://rev-proxy.example.com/app";
+  apr_uri_t parsed_url;
+  apr_uri_parse(request->pool, root, &parsed_url);
+  apr_pool_userdata_set("https", "scheme", NULL, request->pool);
+  request->connection->local_addr->port = 9999;
+  memcpy(&c->CASRootProxiedAs, &parsed_url, sizeof(apr_uri_t));
+
+  service = getCASService(request, c);
+  fail_unless(strcmp(service, expected_service) == 0);
+}
+END_TEST
+
 
 START_TEST(redirectRequest_test) {
-  fail();
+  cas_cfg *c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+  const char *expected = "https://login.example.com/cas/login?service=http%3a"
+      "%2f%2ffoo.example.com%2ffoo%3fbar%3dbaz%26zot%3dqux", *rv;
+  fail_unless(apr_table_get(request->headers_out, "Location") == NULL);
+  apr_pool_userdata_set("http", "scheme", NULL, request->pool);
+  redirectRequest(request, c);
+
+  rv = apr_table_get(request->headers_out, "Location");
+  fail_if(rv == NULL);
+  fail_unless(strcmp(rv, expected) == 0);
 }
 END_TEST
 
 START_TEST(removeCASParams_test) {
-  fail();
+  char *args = "foo=bar&ticket=ST-1234&baz=zot";
+  const char *expected = "foo=bar&baz=zot";
+
+  request->args = apr_pstrdup(request->pool, args);
+  fail_if(removeCASParams(request) == FALSE);
+  fail_unless(strcmp(request->args, expected) == 0);
+
+  args = "foo=bar&ticket=not-expected-format&baz=zot";
+  request->args = apr_pstrdup(request->pool, args);
+  fail_if(removeCASParams(request) == TRUE);
+  fail_unless(strcmp(request->args, args) == 0);
+
 }
 END_TEST
 
 START_TEST(getCASTicket_test) {
-  fail();
+  char *args = "foo=bar&ticket=ST-1234&baz=zot", *rv;
+  const char *expected = "ST-1234";
+  request->args = apr_pstrdup(request->pool, args);
+  rv = getCASTicket(request);
+  fail_unless(strcmp(rv, expected) == 0);
 }
 END_TEST
 
 START_TEST(getCASCookie_test) {
-  fail();
+  const char *expected = "0123456789abcdef";
+  cas_dir_cfg *d = ap_get_module_config(request->per_dir_config,
+                                        &auth_cas_module);
+  fail_unless(strcmp(getCASCookie(request, d->CASCookie), expected) == 0);
 }
 END_TEST
 
 START_TEST(setCASCookie_test) {
-  fail();
+  const char *expected = "cookie_name=cookie_value;Path=/";
+  const char *rv;
+  fail_if (apr_table_get(request->err_headers_out, "Set-Cookie") != NULL);
+  setCASCookie(request, "cookie_name", "cookie_value", FALSE);
+  rv = apr_table_get(request->err_headers_out, "Set-Cookie");
+  fail_unless(strcmp(rv, expected) == 0);
+
+  /* TODO(pames): test with CASRootProxiedAs */
+  /* TODO(pames): test with secure, domain, httponly, a specific path... */
 }
 END_TEST
 
@@ -208,7 +328,43 @@ START_TEST(urlEncode_test) {
 END_TEST
 
 START_TEST(readCASCacheFile_test) {
-  fail();
+  apr_file_t *f;
+  apr_size_t sz;
+  cas_cache_entry cache;
+  char *fname = "0123456789abcdef0123456789abcdef", *path;
+  const char *contents = "<cacheEntry "
+      "xmlns=\"http://uconn.edu/cas/mod_auth_cas\">"
+      "<user>foo</user>"
+      "<issued>86400</issued>"
+      "<lastactive>87000</lastactive>"
+      "<path>/foo</path>"
+      "<ticket>ST-1234</ticket>"
+      "<renewed />"
+      "<secure />"
+      "</cacheEntry>";
+
+  cas_cfg *c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+
+  c->CASCookiePath = "/tmp/";
+  path = apr_pstrcat(request->pool, c->CASCookiePath, fname, NULL);
+  apr_file_open(&f, path, APR_CREATE|APR_WRITE|APR_TRUNCATE, APR_OS_DEFAULT,
+                request->pool);
+  sz = strlen(contents);
+  apr_file_write(f, contents, &sz);
+  apr_file_close(f);
+
+  readCASCacheFile(request, c, fname, &cache);
+
+  fail_unless(strcmp(cache.user, "foo") == 0);
+  fail_unless(cache.issued == 86400);
+  fail_unless(cache.lastactive == 87000);
+  fail_unless(strcmp(cache.path, "/foo") == 0);
+  fail_unless(strcmp(cache.ticket, "ST-1234") == 0);
+  fail_if(cache.renewed == FALSE);
+  fail_if(cache.secure == FALSE);
+  /* TODO(pames): test w/attributes */
+  apr_file_remove(path, request->pool);
 }
 END_TEST
 
@@ -218,12 +374,55 @@ START_TEST(CASCleanCache_test) {
 END_TEST
 
 START_TEST(writeCASCacheEntry_test) {
-  fail();
+  apr_file_t *f;
+  cas_cache_entry cache;
+  char *fname = "fedcba9876543210fedcba9876543210", *path;
+  cas_cfg *c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+  c->CASCookiePath = "/tmp/";
+ 
+  cache.user = "foo";
+  cache.issued = 86400;
+  cache.lastactive = 87000;
+  cache.path = "/bar";
+  cache.ticket = "ST-4321";
+  cache.attrs = NULL;
+
+  writeCASCacheEntry(request, fname, &cache, FALSE);
+
+  path = apr_pstrcat(request->pool, c->CASCookiePath, fname, NULL);
+  fail_if(apr_file_open(&f, path, APR_READ, APR_OS_DEFAULT, request->pool) !=
+          APR_SUCCESS);
+  /* TODO(pames): verify file contents. */
+  /* TODO(pames): test w/attributes */
+  apr_file_close(f);
+  apr_file_remove(path, request->pool);
 }
 END_TEST
 
 START_TEST(createCASCookie_test) {
-  fail();
+  unsigned int i;
+  char *path, *rv;
+  char *ticket = "ST-ABCD";
+  cas_cfg *c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+  c->CASCookiePath = "/tmp/";
+
+  /* TODO(pames): const */
+  rv = createCASCookie(request, "foo", NULL, ticket);
+
+  path = apr_pstrcat(request->pool, c->CASCookiePath, rv, NULL);
+  apr_file_remove(path, request->pool);
+
+  for(i = 0; i < strlen(rv); i++) {
+    if ((rv[i] < '0' || rv[i] > '9') &&
+        (rv[i] < 'a' || rv[i] > 'f')) {
+      fail();
+    }
+  }
+  
+  if (i != APR_MD5_DIGESTSIZE*2)
+    fail();
 }
 END_TEST
 
@@ -253,7 +452,13 @@ START_TEST(isValidCASCookie_test) {
 END_TEST
 
 START_TEST(cas_curl_write_test) {
-  fail();
+  cas_curl_buffer cb;
+  memset(&cb, 0, sizeof(cb));
+  const char *data = "This is some test data.";
+  cas_curl_write(data, sizeof(char), sizeof(char)*strlen(data), &cb);
+
+  fail_unless(strcmp(cb.buf, data) == 0);
+  fail_unless(cb.written == strlen(data));
 }
 END_TEST
 
@@ -263,7 +468,17 @@ START_TEST(cas_curl_ssl_ctx_test) {
 END_TEST
 
 START_TEST(getResponseFromServer_test) {
-  fail();
+  const char *expected = "<cas:serviceResponse xmlns:cas="
+      "'http://www.yale.edu/tp/cas'>"
+      "<cas:authenticationSuccess>"
+      "<cas:user>username</cas:user>"
+      "</cas:authenticationSuccess>"
+      "</cas:serviceResponse>";
+  char *rv;
+  cas_cfg *c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+  rv = getResponseFromServer(request, c, "ST-1234");
+  fail_unless(strcmp(rv, expected) == 0);
 }
 END_TEST
 
@@ -325,19 +540,45 @@ END_TEST
 void core_setup() {
   const unsigned int kIdx = 0;
   const unsigned int kEls = kIdx + 1;
+  apr_uri_t login;
   request = (request_rec *) malloc(sizeof(request_rec));
 
   apr_pool_create(&pool, NULL);
   request->pool = pool;
   /* set up the request */
+  request->headers_in = apr_table_make(request->pool, 0);
+  request->headers_out = apr_table_make(request->pool, 0);
+  request->err_headers_out = apr_table_make(request->pool, 0);
+
+  apr_table_set(request->headers_in, "Host", "foo.example.com");
+  apr_table_set(request->headers_in, "CAS_foo", "foo-value");
+  apr_table_set(request->headers_in, "Cookie", "foo=bar; "
+                CAS_DEFAULT_COOKIE "=0123456789abcdef; baz=zot");
+
   request->server = apr_pcalloc(request->pool,
                                 sizeof(struct server_rec));
+  request->connection = apr_pcalloc(request->pool, sizeof(struct conn_rec));
+  request->connection->local_addr = apr_pcalloc(request->pool,
+                                                sizeof(apr_sockaddr_t));
 
 
+  apr_pool_userdata_set("https", "scheme", NULL, request->pool);
+  request->server->server_hostname = "foo.example.com";
+  request->connection->local_addr->port = 80;
+  request->unparsed_uri = "/foo?bar=baz&zot=qux";
+  request->args = "bar=baz&zot=qux";
+  apr_uri_parse(request->pool, "http://foo.example.com/foo?bar=baz&zot=qux",
+                &request->parsed_uri);
+ 
   /* set up the per server, and per directory configs */
   auth_cas_module.module_index = kIdx;
   cas_cfg *cfg = cas_create_server_config(request->pool, request->server);
   cfg->CASDebug = TRUE;
+  login.scheme = "https";
+  login.hostname = "login.example.com";
+  login.path = "/cas/login";
+  memcpy(&cfg->CASLoginURL, &login, sizeof(apr_uri_t));
+
   cas_dir_cfg *d_cfg = cas_create_dir_config(request->pool, NULL);
 
   request->server->module_config = apr_pcalloc(request->pool,
@@ -349,6 +590,14 @@ void core_setup() {
 }
 
 void core_teardown() {
+  // created by various cookie test functions above
+  apr_file_remove("/tmp/.metadata", request->pool);
+  apr_file_remove("/tmp/.md5", request->pool);
+  /* 
+   * TODO(pames): figure out why one of these cookie/file-related tests creates
+   * a /tmp/.md5 file in addition to the /tmp/.metadata file. and do the cleanup
+   * there? 
+   */
   apr_pool_destroy(request->pool);
   free(request);
 }
@@ -369,7 +618,11 @@ Suite *mod_auth_cas_suite() {
   tcase_add_test(tc_core, getCASGatewayV2_test);
   tcase_add_test(tc_core, getCASRenew_test);
   tcase_add_test(tc_core, getCASLoginURL_test);
-  tcase_add_test(tc_core, getCASService_test);
+  tcase_add_test(tc_core, getCASService_http_test);
+  tcase_add_test(tc_core, getCASService_https_test);
+  tcase_add_test(tc_core, getCASService_http_port_test);
+  tcase_add_test(tc_core, getCASService_https_port_test);
+  tcase_add_test(tc_core, getCASService_root_proxied_test);
   tcase_add_test(tc_core, redirectRequest_test);
   tcase_add_test(tc_core, removeCASParams_test);
   tcase_add_test(tc_core, getCASTicket_test);

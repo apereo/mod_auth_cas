@@ -1,0 +1,11 @@
+*.slo
+*.l[ao]
+*.[ao]
+Makefile
+.deps/
+.libs/
+autom4te.cache/
+config.h
+config.log
+config.status
+tests/mactest

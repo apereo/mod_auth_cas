@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.65])
-AC_INIT([mod_auth_cas], [1.0.10], [modauthcas@gmail.com])
+AC_INIT([mod_auth_cas], [1.0.10], [mod-auth-cas-dev@lists.jasig.org])
 AC_CONFIG_SRCDIR([Makefile.am])
 AC_CONFIG_MACRO_DIR([m4])
 AM_CONFIG_HEADER([config.h])

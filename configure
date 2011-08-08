@@ -898,7 +898,7 @@ with_gnu_ld
 enable_libtool_lock
 enable_dependency_tracking
 enable_silent_rules
-with_apxs2
+with_apxs
 with_apache_include
 with_apr_config
 enable_tests
@@ -11351,9 +11351,9 @@ fi
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking for Apache apxs" >&5
 $as_echo_n "checking for Apache apxs... " >&6; }
 
-# Check whether --with-apxs2 was given.
-if test "${with_apxs2+set}" = set; then :
-  withval=$with_apxs2; if test -x "${with_apxs}" ; then
+# Check whether --with-apxs was given.
+if test "${with_apxs+set}" = set; then :
+  withval=$with_apxs; if test -x "${with_apxs}" ; then
         apxs_found="${with_apxs}"
             { $as_echo "$as_me:${as_lineno-$LINENO}: result: $apxs_found" >&5
 $as_echo "$apxs_found" >&6; }

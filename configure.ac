@@ -28,7 +28,7 @@ AM_PROG_CC_C_O
 AC_DEFUN([CHECK_APXS],[
     AC_MSG_CHECKING(for Apache apxs)
     AC_ARG_WITH(
-        apxs2,
+        apxs,
         [  --with-apxs=FILE        location of the Apache apxs utility],  
     [if test -x "${with_apxs}" ; then
         apxs_found="${with_apxs}"

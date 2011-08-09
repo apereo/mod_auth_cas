@@ -1714,8 +1714,16 @@ int cas_authenticate(request_rec *r)
 	if (ap_is_initial_req(r) && d->CASScrubRequestHeaders) {
 		/* CAS-User header can be simply unset. */
 		if (d->CASAuthNHeader != NULL) {
-			ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "MOD_AUTH_CAS: Removed inbound CASAuthNHeader! (foul play?)");
-			apr_table_unset(r->headers_in, d->CASAuthNHeader);
+
+			/* This value will be NULL if the header is not set. */
+			const char *const bogus_cas_authn_header_value = apr_table_get(r->headers_in, d->CASAuthNHeader);
+			if (bogus_cas_authn_header_value) {
+				/* Log what happened for diagnostic reasons */
+				ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "MOD_AUTH_CAS: Removed inbound CASAuthNHeader! Foul play? (%s: %s)", d->CASAuthNHeader, bogus_cas_authn_header_value);
+
+				/* Unset the header */
+				apr_table_unset(r->headers_in, d->CASAuthNHeader);
+			}
 		}
 
 		/* Filtering the SAML attributes is a bit more laborious: we copy the headers table

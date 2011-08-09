@@ -2057,7 +2057,7 @@ static int cas_authorize(request_rec *r)
 	char *lasts;
 	char *brkstr = ", ";
 
-	if (strlen(casattr) < 3) {
+	if (!casattr || strlen(casattr) < 3) {
 		return DECLINED;
 	}
 	if (!reqs_arr) {

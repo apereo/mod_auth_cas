@@ -750,18 +750,13 @@ LIBOBJS
 LIBCURL
 LIBCURL_CPPFLAGS
 _libcurl_config
-RUNTESTS_FALSE
-RUNTESTS_TRUE
-BUILD_TESTS
+CHECK_FALSE
+CHECK_TRUE
 CHECK_LIBS
 CHECK_CFLAGS
 PKG_CONFIG_LIBDIR
 PKG_CONFIG_PATH
 PKG_CONFIG
-CHECK_FALSE
-CHECK_TRUE
-TESTS_FALSE
-TESTS_TRUE
 APR_LDFLAGS
 APR_INCLUDES
 APR_CPPFLAGS
@@ -901,9 +896,7 @@ enable_silent_rules
 with_apxs
 with_apache_include
 with_apr_config
-enable_tests
 with_check
-enable_runtests
 with_openssl
 with_libcurl
 '
@@ -1550,8 +1543,6 @@ Optional Features:
   --enable-dependency-tracking   do not reject slow dependency extractors
   --enable-silent-rules          less verbose build output (undo: `make V=1')
   --disable-silent-rules         verbose build output (undo: `make V=0')
-  --enable-tests          enable building of tests [default=no]
-  --enable-runtests       enable running of tests [default=no]
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -1562,7 +1553,7 @@ Optional Packages:
   --with-apxs=FILE        location of the Apache apxs utility
   --with-apache-include=DIR     Apache server directory
   --with-apr-config=FILE     apr portable apr-1-config path
-  --with-check            use Check for unit testing [default=yes]
+  --with-check            enable Check for unit testing [default=yes]
   --with-openssl          /absolute/path/to/openssl-base
   --with-libcurl=DIR      look for the curl library in DIR
 
@@ -4315,13 +4306,13 @@ if test "${lt_cv_nm_interface+set}" = set; then :
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:4318: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:4309: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4321: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:4312: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4324: output\"" >&5)
+  (eval echo "\"\$as_me:4315: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -5526,7 +5517,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 5529 "configure"' > conftest.$ac_ext
+  echo '#line 5520 "configure"' > conftest.$ac_ext
   if { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_compile\""; } >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -6786,11 +6777,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:6789: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:6780: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:6793: \$? = $ac_status" >&5
+   echo "$as_me:6784: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -7125,11 +7116,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7128: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7119: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7132: \$? = $ac_status" >&5
+   echo "$as_me:7123: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -7230,11 +7221,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7233: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7224: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:7237: \$? = $ac_status" >&5
+   echo "$as_me:7228: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -7285,11 +7276,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7288: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7279: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:7292: \$? = $ac_status" >&5
+   echo "$as_me:7283: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -9669,7 +9660,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 9672 "configure"
+#line 9663 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -9765,7 +9756,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 9768 "configure"
+#line 9759 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11630,48 +11621,15 @@ $as_echo "$apr_found" >&6; }
 
 
 #### unit testing with Check
-# Check whether --enable-tests was given.
-if test "${enable_tests+set}" = set; then :
-  enableval=$enable_tests;
-fi
-
- if test "x$enable_tests" != "xno"; then
-  TESTS_TRUE=
-  TESTS_FALSE='#'
-else
-  TESTS_TRUE='#'
-  TESTS_FALSE=
-fi
-
-
-if test "x$enable_tests" != "xno"
-then
-	# NOTE: this first stanza is largely superflous, but will assist if
-	#	we choose to move away from Check at some point in the future
-	#	(or use multiple test frameworks)
 
 # Check whether --with-check was given.
 if test "${with_check+set}" = set; then :
-  withval=$with_check; case "${withval}" in
-	       yes) check=true ;;
-	       no)  check=false ;;
-	       *)   as_fn_error $? "bad value ${withval} for --with-check" "$LINENO" 5  ;;
-	     esac
+  withval=$with_check;
 else
-  check=false
+  with_check=no
 fi
 
 
-	 if test x"$check" = "xtrue"; then
-  CHECK_TRUE=
-  CHECK_FALSE='#'
-else
-  CHECK_TRUE='#'
-  CHECK_FALSE=
-fi
-
-
-	if test "x$check" = "xtrue"; then
 
 
 
@@ -11791,6 +11749,7 @@ $as_echo "no" >&6; }
 		PKG_CONFIG=""
 	fi
 fi
+if test "x$with_check" != xno; then :
 
 pkg_failed=no
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for CHECK" >&5
@@ -11848,57 +11807,29 @@ fi
 	# Put the nasty error message in config.log where it belongs
 	echo "$CHECK_PKG_ERRORS" >&5
 
-	as_fn_error $? "Package requirements (check >= 0.9.4) were not met:
-
-$CHECK_PKG_ERRORS
-
-Consider adjusting the PKG_CONFIG_PATH environment variable if you
-installed software in a non-standard prefix.
-
-Alternatively, you may set the environment variables CHECK_CFLAGS
-and CHECK_LIBS to avoid the need to call pkg-config.
-See the pkg-config man page for more details." "$LINENO" 5
+	as_fn_error $? "Could not find the Check library required to build test suite for mod_auth_cas" "$LINENO" 5
 elif test $pkg_failed = untried; then
      	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
-	{ { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
-$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
-as_fn_error $? "The pkg-config script could not be found or is too old.  Make sure it
-is in your PATH or set the PKG_CONFIG environment variable to the full
-path to pkg-config.
-
-Alternatively, you may set the environment variables CHECK_CFLAGS
-and CHECK_LIBS to avoid the need to call pkg-config.
-See the pkg-config man page for more details.
-
-To get pkg-config, see <http://pkg-config.freedesktop.org/>.
-See \`config.log' for more details" "$LINENO" 5 ; }
+	as_fn_error $? "Could not find the Check library required to build test suite for mod_auth_cas" "$LINENO" 5
 else
 	CHECK_CFLAGS=$pkg_cv_CHECK_CFLAGS
 	CHECK_LIBS=$pkg_cv_CHECK_LIBS
         { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 $as_echo "yes" >&6; }
-	as_fn_error $? "Could not find the Check library required to build test suite for mod_auth_cas" "$LINENO" 5
-
-fi
-		BUILD_TESTS="yes"
-
-	fi
-
-	# Check whether --enable-runtests was given.
-if test "${enable_runtests+set}" = set; then :
-  enableval=$enable_runtests;
+	with_check=yes
 fi
 
-	 if test "x$enable_runtests" != "xno"; then
-  RUNTESTS_TRUE=
-  RUNTESTS_FALSE='#'
+fi
+
+ if test x$with_check = xyes; then
+  CHECK_TRUE=
+  CHECK_FALSE='#'
 else
-  RUNTESTS_TRUE='#'
-  RUNTESTS_FALSE=
+  CHECK_TRUE='#'
+  CHECK_FALSE=
 fi
 
-fi
 
 #### Find OpenSSL
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for --with-openssl" >&5
@@ -12574,16 +12505,8 @@ else
   am__EXEEXT_FALSE=
 fi
 
-if test -z "${TESTS_TRUE}" && test -z "${TESTS_FALSE}"; then
-  as_fn_error $? "conditional \"TESTS\" was never defined.
-Usually this means the macro was only invoked conditionally." "$LINENO" 5
-fi
 if test -z "${CHECK_TRUE}" && test -z "${CHECK_FALSE}"; then
   as_fn_error $? "conditional \"CHECK\" was never defined.
-Usually this means the macro was only invoked conditionally." "$LINENO" 5
-fi
-if test -z "${RUNTESTS_TRUE}" && test -z "${RUNTESTS_FALSE}"; then
-  as_fn_error $? "conditional \"RUNTESTS\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 

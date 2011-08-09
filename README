@@ -281,6 +281,13 @@ Description:	Set the optional 'HttpOnly' flag for cookies issues by mod_auth_cas
 		for more information.  Please note this feature is not honored by all
 		browsers.
 
+Directive:	CASAuthoritative
+Default:	Off
+Description:	This directive determines whether an optional authorization directive
+		(see 'Require cas-attribute') is authoritative and thus binding or
+		if other authorization modules will also be applied.
+		'On' means authoritative, 'Off' means not authoritative.
+
 Valid Directory/.htaccess Directives
 ------------------------------------
 Directive:	CASScope
@@ -362,6 +369,13 @@ Default:	Off
 Description:	mod_auth_cas will strip request inbound request headers that may have
 		special meaning, such as those set with the CASAttributePrefix or the
 		CASAuthNHeader value. 
+
+Directive:	Require cas-attribute <attribute>:<value>
+Default:	NULL
+Description:	Use this directive to authorize based on SAML cas attributes
+		returned via the session validation call. Multiple directives
+		are OR-ed.
+		See also CASAuthoritative.
 
 ====================================================================
 CONTACT INFORMATION AND WEBSITE

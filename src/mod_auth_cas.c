@@ -95,6 +95,7 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASValidateSAML = CAS_DEFAULT_VALIDATE_SAML;
 	c->CASAttributeDelimiter = CAS_DEFAULT_ATTRIBUTE_DELIMITER;
 	c->CASAttributePrefix = CAS_DEFAULT_ATTRIBUTE_PREFIX;
+	c->CASAuthoritative = CAS_DEFAULT_AUTHORITATIVE;
 
 	cas_setURL(pool, &(c->CASLoginURL), CAS_DEFAULT_LOGIN_URL);
 	cas_setURL(pool, &(c->CASValidateURL), CAS_DEFAULT_VALIDATE_URL);
@@ -128,6 +129,7 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASCookieHttpOnly = (add->CASCookieHttpOnly != CAS_DEFAULT_COOKIE_HTTPONLY ? add->CASCookieHttpOnly : base->CASCookieHttpOnly);
 	c->CASSSOEnabled = (add->CASSSOEnabled != CAS_DEFAULT_SSO_ENABLED ? add->CASSSOEnabled : base->CASSSOEnabled);
 	c->CASValidateSAML = (add->CASValidateSAML != CAS_DEFAULT_VALIDATE_SAML ? add->CASValidateSAML : base->CASValidateSAML);
+	c->CASAuthoritative = (add->CASAuthoritative != CAS_DEFAULT_AUTHORITATIVE ? add->CASAuthoritative : base->CASAuthoritative);
 	c->CASAttributeDelimiter = (apr_strnatcasecmp(add->CASAttributeDelimiter, CAS_DEFAULT_ATTRIBUTE_DELIMITER) != 0 ? add->CASAttributeDelimiter : base->CASAttributeDelimiter);
 	c->CASAttributePrefix = (apr_strnatcasecmp(add->CASAttributePrefix, CAS_DEFAULT_ATTRIBUTE_PREFIX) != 0 ? add->CASAttributePrefix : base->CASAttributePrefix);
 
@@ -377,6 +379,14 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 				c->CASSSOEnabled = FALSE;
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASSSOEnabled - must be 'On' or 'Off'"));
+		break;
+		case cmd_authoritative:
+			if(apr_strnatcasecmp(value, "On") == 0)
+				c->CASAuthoritative = TRUE;
+			else if(apr_strnatcasecmp(value, "Off") == 0)
+				c->CASAuthoritative = FALSE;
+			else
+				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASAuthoritative - must be 'On' or 'Off'"));
 		break;
 		default:
 			/* should not happen */
@@ -1998,15 +2008,22 @@ int cas_authenticate(request_rec *r)
  					while(a != NULL) {
  						cas_saml_attr_val *av = a->values;
  						char *csvs = NULL;
+ 						char *csvs_notes = NULL;
  						while(av != NULL) {
  							if(csvs != NULL) {
  								csvs = apr_psprintf(r->pool, "%s%s%s", csvs, c->CASAttributeDelimiter, av->value);
+								/* we separate multiple values of the same attribute with ", ". This is the delimiter apr_table_merge
+								 * will also use automatically to merge multiple attributes of the same name */
+ 								csvs_notes = apr_psprintf(r->pool, "%s, %s:%s", csvs_notes, a->attr, av->value);
  							} else {
  								csvs = apr_psprintf(r->pool, "%s", av->value);
+ 								csvs_notes = apr_psprintf(r->pool, "%s", av->value);
  							}
  							av = av->next;
  						}
  						apr_table_set(r->headers_in, apr_psprintf(r->pool, "%s%s", c->CASAttributePrefix, normalizeHeaderName(r, a->attr)), csvs);
+						ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "adding the following cas-attribute(s) to request notes '%s:%s'", a->attr, csvs_notes);
+						apr_table_merge(r->notes, "cas-attributes", apr_psprintf(r->pool, "%s:%s", a->attr, csvs_notes));
  						a = a->next;
  					}
  				}
@@ -2020,6 +2037,94 @@ int cas_authenticate(request_rec *r)
 	}
 
 	return HTTP_UNAUTHORIZED;
+}
+
+/* CAS authorization module, code adopted from Nick Kew's Apache Modules Book, 2007, p. 190f */
+static int cas_authorize(request_rec *r)
+{
+
+	const char *casattr = apr_table_get(r->notes, "cas-attributes");
+	int m = r->method_number;
+	const apr_array_header_t *reqs_arr = ap_requires(r);
+	require_line *reqs = reqs_arr ? (require_line *) reqs_arr->elts : NULL;
+	cas_cfg *c;
+	char *w;
+	const char *t;
+	int i;
+	int have_casattr = 0;
+
+	char *str, *s;
+	char *lasts;
+	char *brkstr = ", ";
+
+	if (strlen(casattr) < 3) {
+		return DECLINED;
+	}
+	if (!reqs_arr) {
+		return DECLINED;
+	}
+
+	c = ap_get_module_config(r->server->module_config, &auth_cas_module);
+
+	/* Go through applicable Require directives */
+	for (i = 0; i < reqs_arr->nelts; ++i) {
+
+		/* Ignore this Require if it's in a <Limit> section
+		 * that exclude this method
+		 */
+		if (!(reqs[i].method_mask & (AP_METHOD_BIT << m))) {
+			continue;
+		}
+
+		/* ignore if it's not a "Require cas-attribute ..." */
+		t = reqs[i].requirement;
+		w = ap_getword_white(r->pool, &t);
+		if (strcasecmp(w, "cas-attribute")) {
+			continue;
+		}
+
+		/* OK, we have a "Require cas-attribute" to satisfy */
+		have_casattr = 1;
+
+		/* Loop over allowed casattr */
+		while (*t) {
+			w = ap_getword_white(r->pool, &t);
+
+			str = (char *)apr_pstrdup(r->pool, casattr);
+
+			/* Loop over cas-attributes from request / session */
+			for ( s = (char *)apr_strtok( str, brkstr, &lasts );
+			  s != NULL;
+			  s = (char *)apr_strtok( NULL, brkstr, &lasts ) ) {
+
+				if ((strlen(w) >= 1) && !apr_strnatcmp(w, s)) {
+					ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Require cas-attribute '%s' matched", w);
+					return OK;
+				}
+			}
+
+		}
+	}
+
+	/* If there weren't any "Require cas-attribute" directives, we're irrelevant */
+	if (!have_casattr) {
+		return DECLINED;
+	}
+
+	/* If we're not authoritative, hand over to other authz modules */
+	if (!c->CASAuthoritative) {
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Authorization failed, but we are not authoritative, thus handing over to other module(s).");
+   		return DECLINED;
+   	}
+
+	/* OK, our decision is final and binding */
+	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		"Authorization denied for client session with cas-attributes %s", casattr);
+
+	ap_note_auth_failure(r);
+
+	return HTTP_UNAUTHORIZED;
+
 }
 
 #if (defined(OPENSSL_THREADS) && APR_HAS_THREADS)
@@ -2240,8 +2345,13 @@ apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode
 
 void cas_register_hooks(apr_pool_t *p)
 {
+	/* make sure we run before mod_authz_user so that a "require valid-user"
+         *  directive doesn't just automatically pass us. */
+	static const char *const authzSucc[] = { "mod_authz_user.c", NULL };
+
 	ap_hook_post_config(cas_post_config, NULL, NULL, APR_HOOK_LAST);
 	ap_hook_check_user_id(cas_authenticate, NULL, NULL, APR_HOOK_MIDDLE);
+	ap_hook_auth_checker(cas_authorize, NULL, authzSucc, APR_HOOK_MIDDLE);
 	ap_register_input_filter("CAS", cas_in_filter, NULL, AP_FTYPE_RESOURCE); 
 }
 
@@ -2283,6 +2393,10 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASCacheCleanInterval", cfg_readCASParameter, (void *) cmd_cache_interval, RSRC_CONF, "Amount of time (in seconds) between cache cleanups.  This value is checked when a new local ticket is issued or when a ticket expires."),
 	AP_INIT_TAKE1("CASRootProxiedAs", cfg_readCASParameter, (void *) cmd_root_proxied_as, RSRC_CONF, "URL used to access the root of the virtual server (only needed when the server is proxied)"),
  	AP_INIT_TAKE1("CASScrubRequestHeaders", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASScrubRequestHeaders), ACCESS_CONF, "Scrub CAS user name and SAML attribute headers from the user's request."),
+
+	/* authorization options */
+	AP_INIT_TAKE1("CASAuthoritative", cfg_readCASParameter, (void *) cmd_authoritative, RSRC_CONF, "Set 'On' to reject if access isn't allowed based on our rules; 'Off' (default) to allow checking against other modules too."),
+
 	{NULL}
 };
 

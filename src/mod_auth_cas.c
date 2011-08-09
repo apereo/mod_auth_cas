@@ -1719,7 +1719,8 @@ int cas_authenticate(request_rec *r)
 			const char *const bogus_cas_authn_header_value = apr_table_get(r->headers_in, d->CASAuthNHeader);
 			if (bogus_cas_authn_header_value) {
 				/* Log what happened for diagnostic reasons */
-				ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "MOD_AUTH_CAS: Removed inbound CASAuthNHeader! Foul play? (%s: %s)", d->CASAuthNHeader, bogus_cas_authn_header_value);
+				const char *const log_fmt = "MOD_AUTH_CAS: Removed inbound CASAuthNHeader! Foul play? (%s: %s)";
+				ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, log_fmt, d->CASAuthNHeader, bogus_cas_authn_header_value);
 
 				/* Unset the header */
 				apr_table_unset(r->headers_in, d->CASAuthNHeader);

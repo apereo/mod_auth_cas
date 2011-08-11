@@ -1704,7 +1704,6 @@ int cas_char_to_env(int c) {
  * first argument's conversion to an environment variable is less
  * than, equal to, or greater than the second. */
 int cas_strnenvcmp(const char *a, const char *b, int len) {
-	unsigned char ca, cb;
 	int i = 0;
 	while (1) {
 		/* If len < 0 then we don't stop based on length */
@@ -1748,8 +1747,6 @@ apr_table_t *cas_scrub_headers(
 		)
 {
 	const apr_array_header_t *const h = apr_table_elts(headers);
-	const apr_table_entry_t *const e = (const apr_table_entry_t *)h->elts;
-	int i;
 	const int prefix_len = attr_prefix ? strlen(attr_prefix) : 0;
 
 	/* Each header from the headers table is put in one of these two
@@ -1759,6 +1756,10 @@ apr_table_t *cas_scrub_headers(
 	apr_table_t *clean_headers = apr_table_make(p, h->nelts);
 	apr_table_t *dirty_headers =
 		dirty_headers_ptr ? apr_table_make(p, h->nelts) : NULL;
+
+	/* Loop state */
+	const apr_table_entry_t *const e = (const apr_table_entry_t *)h->elts;
+	int i;
 
 	for (i = 0; i < h->nelts; i++) {
 		const char *const k = e[i].key;
@@ -1798,8 +1799,8 @@ apr_table_t *cas_scrub_headers(
 		}
 	}
 
-	/* If the caller wants access to the dirty headers, then given
-	 * them a pointer. */
+	/* If the caller wants the dirty headers, then give them a
+	 * pointer. */
 	if (dirty_headers_ptr) {
 		*dirty_headers_ptr = dirty_headers;
 	}

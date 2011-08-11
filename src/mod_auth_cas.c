@@ -46,6 +46,7 @@
 #include "ap_release.h"
 #include "apr_buckets.h"
 #include "apr_file_info.h"
+#include "apr_lib.h"
 #include "apr_md5.h"
 #include "apr_thread_mutex.h"
 #include "apr_strings.h"
@@ -1687,6 +1688,155 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	return (apr_pstrndup(r->pool, curlBuffer.buf, strlen(curlBuffer.buf)));
 }
 
+/* convert a character to a normalized representation, as for using as
+ * an environment variable. Perform the same character transformation
+ * as http2env() from server/util_script.c at e.g.
+ * <http://svn.apache.org/viewvc/httpd/httpd/tags/2.2.19/
+ * server/util_script.c?revision=1125468&view=markup#l56> */
+int cas_char_to_env(int c) {
+	return apr_isalnum(c) ? apr_toupper(c) : '_';
+}
+
+/* Compare two strings based on how they would be converted to an
+ * environment variable, as per cas_char_to_env. If len is specified
+ * as less than zero, then the full strings will be compared. Returns
+ * less than, equal to, or greater than zero based on whether the
+ * first argument's conversion to an environment variable is less
+ * than, equal to, or greater than the second. */
+int cas_strnenvcmp(const char *a, const char *b, int len) {
+	unsigned char ca, cb;
+	int i = 0;
+	while (1) {
+		/* If len < 0 then we don't stop based on length */
+		if (len >= 0 && i >= len) return 0;
+
+		/* If we're at the end of both strings, they're equal */
+		if (!*a && !*b) return 0;
+
+		/* If the second string is shorter, pick it: */
+		if (*a && !*b) return 1;
+
+		/* If the first string is shorter, pick it: */
+		if (!*a && *b) return -1;
+
+		/* Normalize the characters as for conversion to an
+		 * environment variable. */
+		int d = cas_char_to_env(*a) - cas_char_to_env(*b);
+		if (d) return d;
+
+		a++;
+		b++;
+		i++;
+	}
+}
+
+/* Remove headers that applications would interpret as headers set by
+ * this module.
+ *
+ * The return value is the table of headers to pass through. Upon
+ * completion of this function, dirty_headers_ptr will point to the
+ * table of headers that were scrubbed. If dirty_headers_ptr is NULL,
+ * then what (and whether) the headers were scrubbed will not be
+ * recorded/returned.
+ */
+apr_table_t *cas_scrub_headers(
+		apr_pool_t *p,
+		const char *const attr_prefix,
+		const char *const authn_header,
+		const apr_table_t *const headers,
+		const apr_table_t **const dirty_headers_ptr
+		)
+{
+	const apr_array_header_t *const h = apr_table_elts(headers);
+	const apr_table_entry_t *const e = (const apr_table_entry_t *)h->elts;
+	int i;
+	const int prefix_len = attr_prefix ? strlen(attr_prefix) : 0;
+
+	/* Each header from the headers table is put in one of these two
+	   buckets. If the header would be interpreted as a CAS attribute,
+	   and it wasn't set by this module, then it gets put in the dirty
+	   bucket. */
+	apr_table_t *clean_headers = apr_table_make(p, h->nelts);
+	apr_table_t *dirty_headers =
+		dirty_headers_ptr ? apr_table_make(p, h->nelts) : NULL;
+
+	for (i = 0; i < h->nelts; i++) {
+		const char *const k = e[i].key;
+
+		/* Is this header's name equivalent to the header that CAS
+		 * would set for the authenticated user? */
+		const int authn_header_matches =
+			(k != NULL) &&
+			authn_header &&
+			(cas_strnenvcmp(k, authn_header, -1) == 0);
+
+		/* Would this header be interpreted as a CAS attribute? Note
+		 * that prefix_len will be zero if no attr_prefix is defined,
+		 * so this will always be false. Also note that we do not
+		 * scrub headers if the prefix is empty because every header
+		 * would match.
+		 */
+		const int prefix_matches =
+			(k != NULL) &&
+			prefix_len &&
+			(cas_strnenvcmp(k, attr_prefix, prefix_len) == 0);
+
+		/* Is this header a spoofed CASAuthNHeader or a spoofed CAS
+		 * attribute header? */
+		const int should_scrub = prefix_matches || authn_header_matches;
+
+		/* If it's a spoofed header, put it in the dirty bucket. If it
+		 * is not, put it in the clean bucket. */
+		apr_table_t *const target =
+			should_scrub ? dirty_headers : clean_headers;
+
+		/* The target might be the dirty_headers table, and if the
+		 * caller doesn't want to see the dirty headers, then we
+		 * should skip that work. */
+		if (target) {
+			apr_table_addn(target, k, e[i].val);
+		}
+	}
+
+	/* If the caller wants access to the dirty headers, then given
+	 * them a pointer. */
+	if (dirty_headers_ptr) {
+		*dirty_headers_ptr = dirty_headers;
+	}
+	return clean_headers;
+}
+
+/* Modify a request by removing any headers that could be interpreted
+ * as CAS-created (prevent CAS header spoofing) */
+void cas_scrub_request_headers(
+		request_rec *r,
+		const cas_cfg *const c,
+		const cas_dir_cfg *const d)
+{
+	const apr_table_t *dirty_headers;
+
+	/* Partition the headers into clean and dirty, assigning the clean
+	 * headers to the request. */
+	r->headers_in =
+		cas_scrub_headers(
+			r->pool,
+			c->CASValidateSAML ? c->CASAttributePrefix : NULL,
+			d->CASAuthNHeader,
+			r->headers_in,
+			&dirty_headers);
+
+	/* Write log messages for all of the dirty headers (if any) */
+	const char *const log_fmt =
+		"MOD_AUTH_CAS: Scrubbed suspicious request header (%s: %0.32s)";
+	const apr_array_header_t *const h = apr_table_elts(dirty_headers);
+	const apr_table_entry_t *const e = (const apr_table_entry_t *)h->elts;
+	int i;
+
+	for (i = 0; i < h->nelts; i++) {
+		ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, log_fmt, e[i].key, e[i].val);
+	}
+}
+
 /* basic CAS module logic */
 int cas_authenticate(request_rec *r)
 {
@@ -1712,47 +1862,7 @@ int cas_authenticate(request_rec *r)
 
 	/* Safety measure: scrub CAS user/attribute headers from the incoming request. */
 	if (ap_is_initial_req(r) && d->CASScrubRequestHeaders) {
-		/* CAS-User header can be simply unset. */
-		if (d->CASAuthNHeader != NULL) {
-
-			/* This value will be NULL if the header is not set. */
-			const char *const bogus_cas_authn_header_value = apr_table_get(r->headers_in, d->CASAuthNHeader);
-			if (bogus_cas_authn_header_value) {
-				/* Log what happened for diagnostic reasons */
-				const char *const log_fmt = "MOD_AUTH_CAS: Removed inbound CASAuthNHeader! Foul play? (%s: %s)";
-				ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, log_fmt, d->CASAuthNHeader, bogus_cas_authn_header_value);
-
-				/* Unset the header */
-				apr_table_unset(r->headers_in, d->CASAuthNHeader);
-			}
-		}
-
-		/* Filtering the SAML attributes is a bit more laborious: we copy the headers table
-		 * into a new table, while filtering out headers that start with CASattributePrefix.
-		 */
-		if (c->CASValidateSAML) {
-			const int attributePrefixLength = strlen(c->CASAttributePrefix);
-
-			/* It's not illegal to set CASAttributePrefix to an empty string,
-			 * but don't scrub if such is the case: strncasecmp(string, "", 0)
-			 * always matches, it'd scrub ALL the request headers!
-			 */
-			if (attributePrefixLength > 0) {
-				const apr_array_header_t *const h = apr_table_elts(r->headers_in);
-				const apr_table_entry_t *const e = (const apr_table_entry_t *)h->elts;
-				int i;
-
-				apr_table_t *headers_in = apr_table_make(r->pool, h->nelts);
-				for (i = 0; i < h->nelts; i++) {
-					if (e[i].key != NULL && 0 != strncasecmp(e[i].key, c->CASAttributePrefix, attributePrefixLength)) {
-						apr_table_addn(headers_in, e[i].key, e[i].val);
-					} else {
-						ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "MOD_AUTH_CAS: Removed inbound request header(%s: %s)", e[i].key, e[i].val);
-					}
-				}
-				r->headers_in = headers_in;
-			}
-		}
+		cas_scrub_request_headers(r, c, d);
 	}
 
 	if(r->method_number == M_POST && c->CASSSOEnabled != FALSE) {

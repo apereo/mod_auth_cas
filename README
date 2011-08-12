@@ -133,6 +133,20 @@ mod_auth_cas.
 
 Compatibility with other versions will depend on those other libraries.
 
+To develop/test mod_auth_cas, the following Debian packages are necessary:
+apache2-threaded-dev
+autoconf
+automake
+check
+libapr1-dev
+libaprutil1-dev
+libcurl4-openssl-dev
+make
+pkg-config
+
+(this list should not be considered exhaustive)
+
+
 INSTALLATION INSTRUCTIONS
 --------------------------------------------------------------------
 Ensure that the follow files are in the working directory:
@@ -386,29 +400,12 @@ Description:	mod_auth_cas will strip request inbound request headers that may ha
 		CASAuthNHeader value. 
 
 ====================================================================
-CONTRIBUTORS 
-====================================================================  
-Author:
-Phil Ames 	<modauthcas [at] gmail [dot] com>
-
-Designers:
-Phil Ames 	<modauthcas [at] gmail [dot] com>
-Matt Smith 	<matt [dot] smith [at] uconn [dot] edu>
-
-Frequent Community Contributors:
-Ben Noordhuis
-Chris Adams
-David Hawes
-David Ohsie
-
-Portions of this module are based on code from a CAS module by Yale.
-See comments in mod_auth_cas.c
-
-====================================================================
 CONTACT INFORMATION AND WEBSITE
 ====================================================================
 We welcome your feedback, suggestions and contributions. Contact us
 via email if you have questions, feedback, code submissions, 
-and bug reports.
+and bug reports.  To reach the development team, send an e-mail to:
+
+mod-auth-cas-dev [at] lists [dot] jasig [dot] org
 
 ====================================================================

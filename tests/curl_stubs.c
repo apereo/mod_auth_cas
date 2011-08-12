@@ -26,7 +26,7 @@ CURL_EXTERN CURLcode curl_easy_perform(CURL *curl) {
       "</cas:authenticationSuccess>"
       "</cas:serviceResponse>";
   curl_stub *c = (curl_stub *) curl;
-  c->writefunc(response, sizeof(char), strlen(response), c->data);
+  c->writefunc((void *)response, sizeof(char), strlen(response), c->data);
 
   return CURLE_OK;
 }

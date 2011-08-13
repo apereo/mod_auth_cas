@@ -96,6 +96,9 @@
 #define CAS_MAX_ERROR_SIZE 1024
 #define CAS_MAX_XML_SIZE 1024
 
+#define CAS_ATTR_MATCH 0
+#define CAS_ATTR_NO_MATCH 1
+
 typedef struct cas_cfg {
 	/* non-zero if this is a merged vhost config */
 	unsigned int merged;

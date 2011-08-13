@@ -1956,6 +1956,10 @@ int cas_authenticate(request_rec *r)
 			remoteUser = NULL;
 		}
 
+		/* Store a reference to the attributes in the request
+		 * for later use by cas_authorize. */
+		ap_set_module_config(r, &auth_cas_module, attrs);
+
 		if(remoteUser) {
 			r->user = remoteUser;
 			if(d->CASAuthNHeader != NULL) {
@@ -1965,22 +1969,15 @@ int cas_authenticate(request_rec *r)
  					while(a != NULL) {
  						cas_saml_attr_val *av = a->values;
  						char *csvs = NULL;
- 						char *csvs_notes = NULL;
  						while(av != NULL) {
  							if(csvs != NULL) {
  								csvs = apr_psprintf(r->pool, "%s%s%s", csvs, c->CASAttributeDelimiter, av->value);
-								/* we separate multiple values of the same attribute with ", ". This is the delimiter apr_table_merge
-								 * will also use automatically to merge multiple attributes of the same name */
- 								csvs_notes = apr_psprintf(r->pool, "%s, %s:%s", csvs_notes, a->attr, av->value);
  							} else {
  								csvs = apr_psprintf(r->pool, "%s", av->value);
- 								csvs_notes = apr_psprintf(r->pool, "%s", av->value);
  							}
  							av = av->next;
  						}
  						apr_table_set(r->headers_in, apr_psprintf(r->pool, "%s%s", c->CASAttributePrefix, a->attr), csvs);
-						ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "adding the following cas-attribute(s) to request notes '%s:%s'", a->attr, csvs_notes);
-						apr_table_merge(r->notes, "cas-attributes", apr_psprintf(r->pool, "%s:%s", a->attr, csvs_notes));
  						a = a->next;
  					}
  				}
@@ -1996,32 +1993,90 @@ int cas_authenticate(request_rec *r)
 	return HTTP_UNAUTHORIZED;
 }
 
+/* Look for an attribute that matches the given attribute spec (e.g.
+ * from a Require directive)
+ *
+ * An attribute spec is a string containing an attribute name and an
+ * attribute value separated by a colon. This means that attribute
+ * specification strings containing more than one colon produce ambiguous
+ * specifications that match multiple attributes. For instance:
+ *
+ *   spec = "foo:bar:baz"
+ *
+ * matches both:
+ *
+ *   attr1 = "foo" "bar:baz"
+ *   attr2 = "foo:bar" "baz"
+ *
+ * Attribute name matching is exact, and value matching has some
+ * leeway. Value matching uses apr_strnatcmp to determine equality, so
+ * whitespace is ignored and decimal numbers can have differing
+ * representations. See the documentation of apr_strnatcmp for
+ * details.
+ */
+int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const attributes) {
+	const cas_saml_attr *attr = attributes;
+
+	/* Loop over all of the user attributes */
+	for ( ; attr; attr = attr->next ) {
+
+		const char *attr_c = attr->attr;
+		const char *spec_c = attr_spec;
+
+		/* Walk both strings until we get to the end of either or we
+		 * find a differing character */
+		while ((*attr_c) &&
+			   (*spec_c) &&
+			   (*attr_c) == (*spec_c)) {
+			attr_c++;
+			spec_c++;
+		}
+
+		/* The match is a success if we walked the whole attribute
+		 * name and the attr_spec is at a colon. */
+		if (!(*attr_c) && (*spec_c) == ':') {
+
+			/* Skip the colon */
+			spec_c++;
+
+			/* Compare the attribute values */
+			const cas_saml_attr_val *val = attr->values;
+			for ( ; val; val = val->next ) {
+
+				/* Approximately compare the attribute value (ignoring
+				 * whitespace). At this point, spec_c points to the
+				 * NULL-terminated value pattern. */
+				if (apr_strnatcmp(val->value, spec_c) == 0) {
+					return CAS_ATTR_MATCH;
+				}
+			}
+		}
+	}
+	return CAS_ATTR_NO_MATCH;
+}
+
 /* CAS authorization module, code adopted from Nick Kew's Apache Modules Book, 2007, p. 190f */
 static int cas_authorize(request_rec *r)
 {
+	cas_saml_attr *attrs = ap_get_module_config(r, &auth_cas_module);
 
-	const char *casattr = apr_table_get(r->notes, "cas-attributes");
 	int m = r->method_number;
 	const apr_array_header_t *reqs_arr = ap_requires(r);
 	require_line *reqs = reqs_arr ? (require_line *) reqs_arr->elts : NULL;
-	cas_cfg *c;
-	char *w;
-	const char *t;
+	const cas_cfg *c;
+	const char *token;
+	const char *requirement;
 	int i;
 	int have_casattr = 0;
 
-	char *str, *s;
-	char *lasts;
-	char *brkstr = ", ";
+	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Entering cas_authorize.");
 
-	if (!casattr || strlen(casattr) < 3) {
-		return DECLINED;
-	}
 	if (!reqs_arr) {
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		              "No require statements found, "
+		              "so declining to perform authorization.");
 		return DECLINED;
 	}
-
-	c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 
 	/* Go through applicable Require directives */
 	for (i = 0; i < reqs_arr->nelts; ++i) {
@@ -2034,54 +2089,72 @@ static int cas_authorize(request_rec *r)
 		}
 
 		/* ignore if it's not a "Require cas-attribute ..." */
-		t = reqs[i].requirement;
-		w = ap_getword_white(r->pool, &t);
-		if (strcasecmp(w, "cas-attribute")) {
+		requirement = reqs[i].requirement;
+
+		token = ap_getword_white(r->pool, &requirement);
+		if (strcasecmp(token, "cas-attribute")) {
 			continue;
 		}
 
 		/* OK, we have a "Require cas-attribute" to satisfy */
 		have_casattr = 1;
 
-		/* Loop over allowed casattr */
-		while (*t) {
-			w = ap_getword_white(r->pool, &t);
+		/* If we have an applicable cas-attribute, but no
+		 * attributes were sent in the request, then we can
+		 * just stop looking here, because it's not
+		 * satisfiable. The code after this loop will give the
+		 * appropriate response. */
+		if (!attrs) {
+			break;
+		}
 
-			str = (char *)apr_pstrdup(r->pool, casattr);
+		/* Iterate over the attribute specification strings in this
+		 * require directive searching for a specification that
+		 * matches one of the attributes. */
+		while (*requirement) {
+			token = ap_getword_conf(r->pool, &requirement);
 
-			/* Loop over cas-attributes from request / session */
-			for ( s = (char *)apr_strtok( str, brkstr, &lasts );
-			  s != NULL;
-			  s = (char *)apr_strtok( NULL, brkstr, &lasts ) ) {
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+				     "Evaluating attribute specification: %s", token);
 
-				if ((strlen(w) >= 1) && !apr_strnatcmp(w, s)) {
-					ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Require cas-attribute '%s' matched", w);
-					return OK;
-				}
+			if (cas_match_attribute(token, attrs) == CAS_ATTR_MATCH) {
+
+				/* If *any* attribute matches, then authorization has
+				 * succeeded and all of the others are ignored. */
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+				              "Require cas-attribute '%s' matched", token);
+				return OK;
 			}
-
 		}
 	}
 
-	/* If there weren't any "Require cas-attribute" directives, we're irrelevant */
+	/* If there weren't any "Require cas-attribute" directives, we're
+	 * irrelevant. J3H: XXX: is this true if we are in an AuthType CAS
+	 * section?
+	 */
 	if (!have_casattr) {
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		              "No cas-attribute statements found. Not performing authZ.");
 		return DECLINED;
 	}
 
+	c = ap_get_module_config(r->server->module_config, &auth_cas_module);
+
 	/* If we're not authoritative, hand over to other authz modules */
 	if (!c->CASAuthoritative) {
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Authorization failed, but we are not authoritative, thus handing over to other module(s).");
-   		return DECLINED;
-   	}
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		              "Authorization failed, but we are not authoritative, "
+		              "thus handing over to other module(s).");
+		return DECLINED;
+	}
 
 	/* OK, our decision is final and binding */
 	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-		"Authorization denied for client session with cas-attributes %s", casattr);
+	              "Authorization denied for client session");
 
 	ap_note_auth_failure(r);
 
 	return HTTP_UNAUTHORIZED;
-
 }
 
 #if (defined(OPENSSL_THREADS) && APR_HAS_THREADS)

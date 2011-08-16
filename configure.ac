@@ -164,7 +164,7 @@ APR_HANDLING
 #### unit testing with Check
 AC_ARG_WITH(
 	[check],
-	[AS_HELP_STRING([--with-check],[enable Check for unit testing @<:@default=yes@:>@])],
+	[AS_HELP_STRING([--with-check],[enable Check for unit testing @<:@default=no@:>@])],
 	[],
 	[with_check=no])
 

@@ -247,7 +247,8 @@ AM_LDFLAGS = @LDFLAGS@
 @CHECK_TRUE@check_mac_SOURCES = ap_stubs.c curl_stubs.c openssl_stubs.c ../src/mod_auth_cas.c mod_auth_cas_test.c
 @CHECK_TRUE@check_mac_LDADD = -lcheck -lapr-1 -laprutil-1
 @CHECK_TRUE@check_mac_CFLAGS = @CHECK_CFLAGS@ ${AM_CFLAGS}
-@CHECK_TRUE@check_mac_LDFLAGS = @CHECK_LDFLAGS@ ${AM_LDFLAGS}
+@CHECK_TRUE@check_mac_LIBS = @CHECK_LIBS@ ${AM_LIBS}
+@CHECK_TRUE@check_mac_LDFLAGS = ${AM_LDFLAGS}
 all: all-am
 
 .SUFFIXES:

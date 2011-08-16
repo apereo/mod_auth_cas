@@ -1553,7 +1553,7 @@ Optional Packages:
   --with-apxs=FILE        location of the Apache apxs utility
   --with-apache-include=DIR     Apache server directory
   --with-apr-config=FILE     apr portable apr-1-config path
-  --with-check            enable Check for unit testing [default=yes]
+  --with-check            enable Check for unit testing [default=no]
   --with-openssl          /absolute/path/to/openssl-base
   --with-libcurl=DIR      look for the curl library in DIR
 

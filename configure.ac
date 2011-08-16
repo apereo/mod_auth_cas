@@ -162,37 +162,22 @@ APR_HANDLING
 
 
 #### unit testing with Check
-AC_ARG_ENABLE([tests], AS_HELP_STRING([--enable-tests],[enable building of tests @<:@default=no@:>@]))
-AM_CONDITIONAL([TESTS], [test "x$enable_tests" != "xno"])
+AC_ARG_WITH(
+	[check],
+	[AS_HELP_STRING([--with-check],[enable Check for unit testing @<:@default=no@:>@])],
+	[],
+	[with_check=no])
 
-if test "x$enable_tests" != "xno"
-then
-	# NOTE: this first stanza is largely superflous, but will assist if
-	#	we choose to move away from Check at some point in the future
-	#	(or use multiple test frameworks)
-	AC_ARG_WITH(check,
-	    AS_HELP_STRING([--with-check],
-			   [use Check for unit testing @<:@default=yes@:>@]),
-	    [case "${withval}" in
-	       yes) check=true ;;
-	       no)  check=false ;;
-	       *)   AC_MSG_ERROR([bad value ${withval} for --with-check]) ;;
-	     esac],
-	    [check=false])
+AS_IF(
+	[test "x$with_check" != xno],
+	[PKG_CHECK_MODULES(
+		[CHECK],
+		[check >= 0.9.4],
+		[with_check=yes],
+		[AC_MSG_ERROR([Could not find the Check library required to build test suite for mod_auth_cas])])
+])
 
-	AM_CONDITIONAL(CHECK, test x"$check" = "xtrue")
-
-	if test "x$check" = "xtrue"; then
-		PKG_CHECK_MODULES([CHECK], [check >= 0.9.4],
-			[AC_MSG_ERROR([Could not find the Check library required to build test suite for mod_auth_cas])]
-		)
-		BUILD_TESTS="yes"
-		AC_SUBST(BUILD_TESTS)
-	fi
-
-	AC_ARG_ENABLE([runtests], AS_HELP_STRING([--enable-runtests],[enable running of tests @<:@default=no@:>@]))
-	AM_CONDITIONAL([RUNTESTS], [test "x$enable_runtests" != "xno"])
-fi
+AM_CONDITIONAL([CHECK],[test x$with_check = xyes])
 
 #### Find OpenSSL
 AC_MSG_CHECKING([for --with-openssl])

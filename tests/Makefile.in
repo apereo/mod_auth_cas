@@ -14,7 +14,6 @@
 # PARTICULAR PURPOSE.
 
 @SET_MAKE@
-
 VPATH = @srcdir@
 pkgdatadir = $(datadir)/@PACKAGE@
 pkgincludedir = $(includedir)/@PACKAGE@
@@ -34,7 +33,9 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-@TESTS_TRUE@mactest_PROGRAMS = mactest$(EXEEXT)
+TESTS = $(am__EXEEXT_1)
+@CHECK_TRUE@am__append_1 = check_mac
+@CHECK_TRUE@check_PROGRAMS = check_mac$(EXEEXT)
 subdir = tests
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -48,18 +49,21 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
-am__installdirs = "$(DESTDIR)$(mactestdir)"
-PROGRAMS = $(mactest_PROGRAMS)
-am__mactest_SOURCES_DIST = ap_stubs.c curl_stubs.c openssl_stubs.c \
+am__check_mac_SOURCES_DIST = ap_stubs.c curl_stubs.c openssl_stubs.c \
 	../src/mod_auth_cas.c mod_auth_cas_test.c
-@TESTS_TRUE@am_mactest_OBJECTS = ap_stubs.$(OBJEXT) \
-@TESTS_TRUE@	curl_stubs.$(OBJEXT) openssl_stubs.$(OBJEXT) \
-@TESTS_TRUE@	mod_auth_cas.$(OBJEXT) mod_auth_cas_test.$(OBJEXT)
-mactest_OBJECTS = $(am_mactest_OBJECTS)
-mactest_DEPENDENCIES =
+@CHECK_TRUE@am_check_mac_OBJECTS = check_mac-ap_stubs.$(OBJEXT) \
+@CHECK_TRUE@	check_mac-curl_stubs.$(OBJEXT) \
+@CHECK_TRUE@	check_mac-openssl_stubs.$(OBJEXT) \
+@CHECK_TRUE@	check_mac-mod_auth_cas.$(OBJEXT) \
+@CHECK_TRUE@	check_mac-mod_auth_cas_test.$(OBJEXT)
+check_mac_OBJECTS = $(am_check_mac_OBJECTS)
+check_mac_DEPENDENCIES =
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
 am__v_lt_0 = --silent
+check_mac_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(check_mac_CFLAGS) \
+	$(CFLAGS) $(check_mac_LDFLAGS) $(LDFLAGS) -o $@
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -86,10 +90,13 @@ am__v_CCLD_0 = @echo "  CCLD  " $@;
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
 am__v_GEN_0 = @echo "  GEN   " $@;
-SOURCES = $(mactest_SOURCES)
-DIST_SOURCES = $(am__mactest_SOURCES_DIST)
+SOURCES = $(check_mac_SOURCES)
+DIST_SOURCES = $(am__check_mac_SOURCES_DIST)
 ETAGS = etags
 CTAGS = ctags
+am__tty_colors = \
+red=; grn=; lgn=; blu=; std=
+@CHECK_TRUE@am__EXEEXT_1 = check_mac$(EXEEXT)
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
@@ -113,7 +120,6 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
-BUILD_TESTS = @BUILD_TESTS@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
@@ -230,20 +236,19 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 with_apr_config = @with_apr_config@
 with_apxs = @with_apxs@
-@TESTS_TRUE@AM_CFLAGS = @CPPFLAGS@ @CFLAGS@ @LIBCURL_CPPFLAGS@ \
-@TESTS_TRUE@@APR_CPPFLAGS@ \
-@TESTS_TRUE@@APR_CPPFLAGS@ \
-@TESTS_TRUE@@APR_INCLUDES@ \
-@TESTS_TRUE@@APACHE_INCLUDES@ \
-@TESTS_TRUE@-D_LARGEFILE64_SOURCE @LIBS@ @LIBCURL@
+AM_CFLAGS = @CPPFLAGS@ @CFLAGS@ @LIBCURL_CPPFLAGS@ \
+@APR_CPPFLAGS@ \
+@APR_CPPFLAGS@ \
+@APR_INCLUDES@ \
+@APACHE_INCLUDES@ \
+-D_LARGEFILE64_SOURCE @LIBS@ @LIBCURL@
 
-
-#OLD, preserved just for notes
-#@-D_LARGEFILE64_SOURCE @LIBS@ @LIBCURL@ @APR_LDFLAGS@ 
-@TESTS_TRUE@AM_LDFLAGS = @LDFLAGS@ 
-@TESTS_TRUE@mactest_SOURCES = ap_stubs.c curl_stubs.c openssl_stubs.c ../src/mod_auth_cas.c mod_auth_cas_test.c 
-@TESTS_TRUE@mactest_LDADD = -lcheck -lapr-1 -laprutil-1
-@TESTS_TRUE@mactestdir = @PREFIX@/tests
+AM_LDFLAGS = @LDFLAGS@
+@CHECK_TRUE@check_mac_SOURCES = ap_stubs.c curl_stubs.c openssl_stubs.c ../src/mod_auth_cas.c mod_auth_cas_test.c
+@CHECK_TRUE@check_mac_LDADD = -lcheck -lapr-1 -laprutil-1
+@CHECK_TRUE@check_mac_CFLAGS = @CHECK_CFLAGS@ ${AM_CFLAGS}
+@CHECK_TRUE@check_mac_LIBS = @CHECK_LIBS@ ${AM_LIBS}
+@CHECK_TRUE@check_mac_LDFLAGS = ${AM_LDFLAGS}
 all: all-am
 
 .SUFFIXES:
@@ -278,52 +283,18 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
-install-mactestPROGRAMS: $(mactest_PROGRAMS)
-	@$(NORMAL_INSTALL)
-	test -z "$(mactestdir)" || $(MKDIR_P) "$(DESTDIR)$(mactestdir)"
-	@list='$(mactest_PROGRAMS)'; test -n "$(mactestdir)" || list=; \
-	for p in $$list; do echo "$$p $$p"; done | \
-	sed 's/$(EXEEXT)$$//' | \
-	while read p p1; do if test -f $$p || test -f $$p1; \
-	  then echo "$$p"; echo "$$p"; else :; fi; \
-	done | \
-	sed -e 'p;s,.*/,,;n;h' -e 's|.*|.|' \
-	    -e 'p;x;s,.*/,,;s/$(EXEEXT)$$//;$(transform);s/$$/$(EXEEXT)/' | \
-	sed 'N;N;N;s,\n, ,g' | \
-	$(AWK) 'BEGIN { files["."] = ""; dirs["."] = 1 } \
-	  { d=$$3; if (dirs[d] != 1) { print "d", d; dirs[d] = 1 } \
-	    if ($$2 == $$4) files[d] = files[d] " " $$1; \
-	    else { print "f", $$3 "/" $$4, $$1; } } \
-	  END { for (d in files) print "f", d, files[d] }' | \
-	while read type dir files; do \
-	    if test "$$dir" = .; then dir=; else dir=/$$dir; fi; \
-	    test -z "$$files" || { \
-	    echo " $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files '$(DESTDIR)$(mactestdir)$$dir'"; \
-	    $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files "$(DESTDIR)$(mactestdir)$$dir" || exit $$?; \
-	    } \
-	; done
 
-uninstall-mactestPROGRAMS:
-	@$(NORMAL_UNINSTALL)
-	@list='$(mactest_PROGRAMS)'; test -n "$(mactestdir)" || list=; \
-	files=`for p in $$list; do echo "$$p"; done | \
-	  sed -e 'h;s,^.*/,,;s/$(EXEEXT)$$//;$(transform)' \
-	      -e 's/$$/$(EXEEXT)/' `; \
-	test -n "$$list" || exit 0; \
-	echo " ( cd '$(DESTDIR)$(mactestdir)' && rm -f" $$files ")"; \
-	cd "$(DESTDIR)$(mactestdir)" && rm -f $$files
-
-clean-mactestPROGRAMS:
-	@list='$(mactest_PROGRAMS)'; test -n "$$list" || exit 0; \
+clean-checkPROGRAMS:
+	@list='$(check_PROGRAMS)'; test -n "$$list" || exit 0; \
 	echo " rm -f" $$list; \
 	rm -f $$list || exit $$?; \
 	test -n "$(EXEEXT)" || exit 0; \
 	list=`for p in $$list; do echo "$$p"; done | sed 's/$(EXEEXT)$$//'`; \
 	echo " rm -f" $$list; \
 	rm -f $$list
-mactest$(EXEEXT): $(mactest_OBJECTS) $(mactest_DEPENDENCIES) 
-	@rm -f mactest$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(mactest_OBJECTS) $(mactest_LDADD) $(LIBS)
+check_mac$(EXEEXT): $(check_mac_OBJECTS) $(check_mac_DEPENDENCIES) 
+	@rm -f check_mac$(EXEEXT)
+	$(AM_V_CCLD)$(check_mac_LINK) $(check_mac_OBJECTS) $(check_mac_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -331,11 +302,11 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ap_stubs.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/curl_stubs.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mod_auth_cas.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mod_auth_cas_test.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/openssl_stubs.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/check_mac-ap_stubs.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/check_mac-curl_stubs.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/check_mac-mod_auth_cas.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/check_mac-mod_auth_cas_test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/check_mac-openssl_stubs.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -361,21 +332,85 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
-mod_auth_cas.o: ../src/mod_auth_cas.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT mod_auth_cas.o -MD -MP -MF $(DEPDIR)/mod_auth_cas.Tpo -c -o mod_auth_cas.o `test -f '../src/mod_auth_cas.c' || echo '$(srcdir)/'`../src/mod_auth_cas.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/mod_auth_cas.Tpo $(DEPDIR)/mod_auth_cas.Po
+check_mac-ap_stubs.o: ap_stubs.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -MT check_mac-ap_stubs.o -MD -MP -MF $(DEPDIR)/check_mac-ap_stubs.Tpo -c -o check_mac-ap_stubs.o `test -f 'ap_stubs.c' || echo '$(srcdir)/'`ap_stubs.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/check_mac-ap_stubs.Tpo $(DEPDIR)/check_mac-ap_stubs.Po
 @am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../src/mod_auth_cas.c' object='mod_auth_cas.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='ap_stubs.c' object='check_mac-ap_stubs.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o mod_auth_cas.o `test -f '../src/mod_auth_cas.c' || echo '$(srcdir)/'`../src/mod_auth_cas.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -c -o check_mac-ap_stubs.o `test -f 'ap_stubs.c' || echo '$(srcdir)/'`ap_stubs.c
 
-mod_auth_cas.obj: ../src/mod_auth_cas.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT mod_auth_cas.obj -MD -MP -MF $(DEPDIR)/mod_auth_cas.Tpo -c -o mod_auth_cas.obj `if test -f '../src/mod_auth_cas.c'; then $(CYGPATH_W) '../src/mod_auth_cas.c'; else $(CYGPATH_W) '$(srcdir)/../src/mod_auth_cas.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/mod_auth_cas.Tpo $(DEPDIR)/mod_auth_cas.Po
+check_mac-ap_stubs.obj: ap_stubs.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -MT check_mac-ap_stubs.obj -MD -MP -MF $(DEPDIR)/check_mac-ap_stubs.Tpo -c -o check_mac-ap_stubs.obj `if test -f 'ap_stubs.c'; then $(CYGPATH_W) 'ap_stubs.c'; else $(CYGPATH_W) '$(srcdir)/ap_stubs.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/check_mac-ap_stubs.Tpo $(DEPDIR)/check_mac-ap_stubs.Po
 @am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../src/mod_auth_cas.c' object='mod_auth_cas.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='ap_stubs.c' object='check_mac-ap_stubs.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o mod_auth_cas.obj `if test -f '../src/mod_auth_cas.c'; then $(CYGPATH_W) '../src/mod_auth_cas.c'; else $(CYGPATH_W) '$(srcdir)/../src/mod_auth_cas.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -c -o check_mac-ap_stubs.obj `if test -f 'ap_stubs.c'; then $(CYGPATH_W) 'ap_stubs.c'; else $(CYGPATH_W) '$(srcdir)/ap_stubs.c'; fi`
+
+check_mac-curl_stubs.o: curl_stubs.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -MT check_mac-curl_stubs.o -MD -MP -MF $(DEPDIR)/check_mac-curl_stubs.Tpo -c -o check_mac-curl_stubs.o `test -f 'curl_stubs.c' || echo '$(srcdir)/'`curl_stubs.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/check_mac-curl_stubs.Tpo $(DEPDIR)/check_mac-curl_stubs.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='curl_stubs.c' object='check_mac-curl_stubs.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -c -o check_mac-curl_stubs.o `test -f 'curl_stubs.c' || echo '$(srcdir)/'`curl_stubs.c
+
+check_mac-curl_stubs.obj: curl_stubs.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -MT check_mac-curl_stubs.obj -MD -MP -MF $(DEPDIR)/check_mac-curl_stubs.Tpo -c -o check_mac-curl_stubs.obj `if test -f 'curl_stubs.c'; then $(CYGPATH_W) 'curl_stubs.c'; else $(CYGPATH_W) '$(srcdir)/curl_stubs.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/check_mac-curl_stubs.Tpo $(DEPDIR)/check_mac-curl_stubs.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='curl_stubs.c' object='check_mac-curl_stubs.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -c -o check_mac-curl_stubs.obj `if test -f 'curl_stubs.c'; then $(CYGPATH_W) 'curl_stubs.c'; else $(CYGPATH_W) '$(srcdir)/curl_stubs.c'; fi`
+
+check_mac-openssl_stubs.o: openssl_stubs.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -MT check_mac-openssl_stubs.o -MD -MP -MF $(DEPDIR)/check_mac-openssl_stubs.Tpo -c -o check_mac-openssl_stubs.o `test -f 'openssl_stubs.c' || echo '$(srcdir)/'`openssl_stubs.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/check_mac-openssl_stubs.Tpo $(DEPDIR)/check_mac-openssl_stubs.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='openssl_stubs.c' object='check_mac-openssl_stubs.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -c -o check_mac-openssl_stubs.o `test -f 'openssl_stubs.c' || echo '$(srcdir)/'`openssl_stubs.c
+
+check_mac-openssl_stubs.obj: openssl_stubs.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -MT check_mac-openssl_stubs.obj -MD -MP -MF $(DEPDIR)/check_mac-openssl_stubs.Tpo -c -o check_mac-openssl_stubs.obj `if test -f 'openssl_stubs.c'; then $(CYGPATH_W) 'openssl_stubs.c'; else $(CYGPATH_W) '$(srcdir)/openssl_stubs.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/check_mac-openssl_stubs.Tpo $(DEPDIR)/check_mac-openssl_stubs.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='openssl_stubs.c' object='check_mac-openssl_stubs.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -c -o check_mac-openssl_stubs.obj `if test -f 'openssl_stubs.c'; then $(CYGPATH_W) 'openssl_stubs.c'; else $(CYGPATH_W) '$(srcdir)/openssl_stubs.c'; fi`
+
+check_mac-mod_auth_cas.o: ../src/mod_auth_cas.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -MT check_mac-mod_auth_cas.o -MD -MP -MF $(DEPDIR)/check_mac-mod_auth_cas.Tpo -c -o check_mac-mod_auth_cas.o `test -f '../src/mod_auth_cas.c' || echo '$(srcdir)/'`../src/mod_auth_cas.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/check_mac-mod_auth_cas.Tpo $(DEPDIR)/check_mac-mod_auth_cas.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../src/mod_auth_cas.c' object='check_mac-mod_auth_cas.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -c -o check_mac-mod_auth_cas.o `test -f '../src/mod_auth_cas.c' || echo '$(srcdir)/'`../src/mod_auth_cas.c
+
+check_mac-mod_auth_cas.obj: ../src/mod_auth_cas.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -MT check_mac-mod_auth_cas.obj -MD -MP -MF $(DEPDIR)/check_mac-mod_auth_cas.Tpo -c -o check_mac-mod_auth_cas.obj `if test -f '../src/mod_auth_cas.c'; then $(CYGPATH_W) '../src/mod_auth_cas.c'; else $(CYGPATH_W) '$(srcdir)/../src/mod_auth_cas.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/check_mac-mod_auth_cas.Tpo $(DEPDIR)/check_mac-mod_auth_cas.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../src/mod_auth_cas.c' object='check_mac-mod_auth_cas.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -c -o check_mac-mod_auth_cas.obj `if test -f '../src/mod_auth_cas.c'; then $(CYGPATH_W) '../src/mod_auth_cas.c'; else $(CYGPATH_W) '$(srcdir)/../src/mod_auth_cas.c'; fi`
+
+check_mac-mod_auth_cas_test.o: mod_auth_cas_test.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -MT check_mac-mod_auth_cas_test.o -MD -MP -MF $(DEPDIR)/check_mac-mod_auth_cas_test.Tpo -c -o check_mac-mod_auth_cas_test.o `test -f 'mod_auth_cas_test.c' || echo '$(srcdir)/'`mod_auth_cas_test.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/check_mac-mod_auth_cas_test.Tpo $(DEPDIR)/check_mac-mod_auth_cas_test.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='mod_auth_cas_test.c' object='check_mac-mod_auth_cas_test.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -c -o check_mac-mod_auth_cas_test.o `test -f 'mod_auth_cas_test.c' || echo '$(srcdir)/'`mod_auth_cas_test.c
+
+check_mac-mod_auth_cas_test.obj: mod_auth_cas_test.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -MT check_mac-mod_auth_cas_test.obj -MD -MP -MF $(DEPDIR)/check_mac-mod_auth_cas_test.Tpo -c -o check_mac-mod_auth_cas_test.obj `if test -f 'mod_auth_cas_test.c'; then $(CYGPATH_W) 'mod_auth_cas_test.c'; else $(CYGPATH_W) '$(srcdir)/mod_auth_cas_test.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/check_mac-mod_auth_cas_test.Tpo $(DEPDIR)/check_mac-mod_auth_cas_test.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='mod_auth_cas_test.c' object='check_mac-mod_auth_cas_test.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -c -o check_mac-mod_auth_cas_test.obj `if test -f 'mod_auth_cas_test.c'; then $(CYGPATH_W) 'mod_auth_cas_test.c'; else $(CYGPATH_W) '$(srcdir)/mod_auth_cas_test.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -435,6 +470,98 @@ GTAGS:
 distclean-tags:
 	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
 
+check-TESTS: $(TESTS)
+	@failed=0; all=0; xfail=0; xpass=0; skip=0; \
+	srcdir=$(srcdir); export srcdir; \
+	list=' $(TESTS) '; \
+	$(am__tty_colors); \
+	if test -n "$$list"; then \
+	  for tst in $$list; do \
+	    if test -f ./$$tst; then dir=./; \
+	    elif test -f $$tst; then dir=; \
+	    else dir="$(srcdir)/"; fi; \
+	    if $(TESTS_ENVIRONMENT) $${dir}$$tst; then \
+	      all=`expr $$all + 1`; \
+	      case " $(XFAIL_TESTS) " in \
+	      *[\ \	]$$tst[\ \	]*) \
+		xpass=`expr $$xpass + 1`; \
+		failed=`expr $$failed + 1`; \
+		col=$$red; res=XPASS; \
+	      ;; \
+	      *) \
+		col=$$grn; res=PASS; \
+	      ;; \
+	      esac; \
+	    elif test $$? -ne 77; then \
+	      all=`expr $$all + 1`; \
+	      case " $(XFAIL_TESTS) " in \
+	      *[\ \	]$$tst[\ \	]*) \
+		xfail=`expr $$xfail + 1`; \
+		col=$$lgn; res=XFAIL; \
+	      ;; \
+	      *) \
+		failed=`expr $$failed + 1`; \
+		col=$$red; res=FAIL; \
+	      ;; \
+	      esac; \
+	    else \
+	      skip=`expr $$skip + 1`; \
+	      col=$$blu; res=SKIP; \
+	    fi; \
+	    echo "$${col}$$res$${std}: $$tst"; \
+	  done; \
+	  if test "$$all" -eq 1; then \
+	    tests="test"; \
+	    All=""; \
+	  else \
+	    tests="tests"; \
+	    All="All "; \
+	  fi; \
+	  if test "$$failed" -eq 0; then \
+	    if test "$$xfail" -eq 0; then \
+	      banner="$$All$$all $$tests passed"; \
+	    else \
+	      if test "$$xfail" -eq 1; then failures=failure; else failures=failures; fi; \
+	      banner="$$All$$all $$tests behaved as expected ($$xfail expected $$failures)"; \
+	    fi; \
+	  else \
+	    if test "$$xpass" -eq 0; then \
+	      banner="$$failed of $$all $$tests failed"; \
+	    else \
+	      if test "$$xpass" -eq 1; then passes=pass; else passes=passes; fi; \
+	      banner="$$failed of $$all $$tests did not behave as expected ($$xpass unexpected $$passes)"; \
+	    fi; \
+	  fi; \
+	  dashes="$$banner"; \
+	  skipped=""; \
+	  if test "$$skip" -ne 0; then \
+	    if test "$$skip" -eq 1; then \
+	      skipped="($$skip test was not run)"; \
+	    else \
+	      skipped="($$skip tests were not run)"; \
+	    fi; \
+	    test `echo "$$skipped" | wc -c` -le `echo "$$banner" | wc -c` || \
+	      dashes="$$skipped"; \
+	  fi; \
+	  report=""; \
+	  if test "$$failed" -ne 0 && test -n "$(PACKAGE_BUGREPORT)"; then \
+	    report="Please report to $(PACKAGE_BUGREPORT)"; \
+	    test `echo "$$report" | wc -c` -le `echo "$$banner" | wc -c` || \
+	      dashes="$$report"; \
+	  fi; \
+	  dashes=`echo "$$dashes" | sed s/./=/g`; \
+	  if test "$$failed" -eq 0; then \
+	    echo "$$grn$$dashes"; \
+	  else \
+	    echo "$$red$$dashes"; \
+	  fi; \
+	  echo "$$banner"; \
+	  test -z "$$skipped" || echo "$$skipped"; \
+	  test -z "$$report" || echo "$$report"; \
+	  echo "$$dashes$$std"; \
+	  test "$$failed" -eq 0; \
+	else :; fi
+
 distdir: $(DISTFILES)
 	@srcdirstrip=`echo "$(srcdir)" | sed 's/[].[^$$\\*]/\\\\&/g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's/[].[^$$\\*]/\\\\&/g'`; \
@@ -465,15 +592,12 @@ distdir: $(DISTFILES)
 	    || exit 1; \
 	  fi; \
 	done
-@TESTS_FALSE@check-local:
 check-am: all-am
-	$(MAKE) $(AM_MAKEFLAGS) check-local
+	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS)
+	$(MAKE) $(AM_MAKEFLAGS) check-TESTS
 check: check-am
-all-am: Makefile $(PROGRAMS)
+all-am: Makefile
 installdirs:
-	for dir in "$(DESTDIR)$(mactestdir)"; do \
-	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
-	done
 install: install-am
 install-exec: install-exec-am
 install-data: install-data-am
@@ -501,7 +625,7 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-generic clean-libtool clean-mactestPROGRAMS \
+clean-am: clean-checkPROGRAMS clean-generic clean-libtool \
 	mostlyclean-am
 
 distclean: distclean-am
@@ -522,7 +646,7 @@ info: info-am
 
 info-am:
 
-install-data-am: install-mactestPROGRAMS
+install-data-am:
 
 install-dvi: install-dvi-am
 
@@ -568,35 +692,24 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-mactestPROGRAMS
+uninstall-am:
 
 .MAKE: check-am install-am install-strip
 
-.PHONY: CTAGS GTAGS all all-am check check-am check-local clean \
-	clean-generic clean-libtool clean-mactestPROGRAMS ctags \
+.PHONY: CTAGS GTAGS all all-am check check-TESTS check-am clean \
+	clean-checkPROGRAMS clean-generic clean-libtool ctags \
 	distclean distclean-compile distclean-generic \
 	distclean-libtool distclean-tags distdir dvi dvi-am html \
 	html-am info info-am install install-am install-data \
 	install-data-am install-dvi install-dvi-am install-exec \
 	install-exec-am install-html install-html-am install-info \
-	install-info-am install-mactestPROGRAMS install-man \
-	install-pdf install-pdf-am install-ps install-ps-am \
-	install-strip installcheck installcheck-am installdirs \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
-	pdf pdf-am ps ps-am tags uninstall uninstall-am \
-	uninstall-mactestPROGRAMS
+	install-info-am install-man install-pdf install-pdf-am \
+	install-ps install-ps-am install-strip installcheck \
+	installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	tags uninstall uninstall-am
 
-
-@TESTS_TRUE@check-local: mactest
-@TESTS_TRUE@	@echo -e "\n\n"
-@TESTS_TRUE@	@echo -e "--------------------------------"
-@TESTS_TRUE@	@echo -e "Running mod_auth_cas testsuite.."
-@TESTS_TRUE@	@echo -e "\n\n"
-@TESTS_TRUE@	@./mactest
-@TESTS_TRUE@	@echo -e "\n\n"
-@TESTS_TRUE@	@echo -e "--------------------------------"
-@TESTS_TRUE@	@echo -e "\n\n"
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

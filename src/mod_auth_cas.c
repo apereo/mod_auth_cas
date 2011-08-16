@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2010 Phillip Ames / Matt Smith
+ * Copyright 2011 the mod_auth_cas team. 
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,8 @@
  * Apache CAS Authentication Module
  * Version 1.0.9.1
  *
- * Author:
- * Phil Ames       <modauthcas [at] gmail [dot] com>
- * Designers:
- * Phil Ames       <modauthcas [at] gmail [dot] com>
- * Matt Smith      <matt [dot] smith [at] uconn [dot] edu>
+ * Contact: mod-auth-cas-dev@lists.jasig.org
+ *
  */
 
 #include <sys/types.h>

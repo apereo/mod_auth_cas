@@ -83,12 +83,25 @@ START_TEST(cas_setURL_test) {
 }
 END_TEST
 
-START_TEST (isSSL_test) {
+START_TEST(isSSL_test) {
   /* stuff state into an arbitrary place in the pool */
   apr_pool_userdata_set("https", "scheme", NULL, request->pool);
   fail_unless(isSSL(request) == TRUE);
   apr_pool_userdata_set("http", "scheme", NULL, request->pool);
   fail_unless(isSSL(request) == FALSE);
+}
+END_TEST
+
+START_TEST(cas_char_to_env_test) {
+  int i;
+  for (i = 0; i < 255; i++) {
+    if (i >= 'a' && i <= 'z')
+      fail_unless(cas_char_to_env(i) == (i & 0xDF));
+    else if((i >= '0' && i <= '9') || (i >= 'A' && i <= 'Z'))
+      fail_unless(cas_char_to_env(i) == i);
+    else
+      fail_unless(cas_char_to_env(i) == (int) '_');
+  }
 }
 END_TEST
 
@@ -305,7 +318,7 @@ START_TEST(setCASCookie_test) {
 }
 END_TEST
 
-START_TEST (escapeString_test) {
+START_TEST(escapeString_test) {
   char *rv, *expected;
   rv = escapeString(request, "a+b c<d>e\"f%g{h}i|j\\k^l~m[n]o`p;q/r?s:t@u=v&"
                              "w#x");
@@ -620,6 +633,7 @@ Suite *mod_auth_cas_suite() {
   tcase_add_checked_fixture(tc_core, core_setup, core_teardown);
   tcase_add_test(tc_core, escapeString_test);
   tcase_add_test(tc_core, isSSL_test);
+  tcase_add_test(tc_core, cas_char_to_env_test);
   tcase_add_test(tc_core, cas_merge_server_config_test);
   tcase_add_test(tc_core, cas_merge_dir_config_test);
   tcase_add_test(tc_core, cas_setURL_test);

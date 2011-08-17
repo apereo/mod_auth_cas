@@ -105,6 +105,20 @@ START_TEST(cas_char_to_env_test) {
 }
 END_TEST
 
+START_TEST(cas_strnenvcmp_test) {
+  fail_unless(cas_strnenvcmp("AbC", "aBc", -1) == 0);
+  fail_unless(cas_strnenvcmp("012", "012", -1) == 0);
+  fail_unless(cas_strnenvcmp("X-Y", "X_Y", -1) == 0);
+  fail_unless(cas_strnenvcmp("XYZ", "ZYX", -1) != 0);
+
+  fail_unless(cas_strnenvcmp("XYZ", "ZYX", 2) != 0);
+  fail_unless(cas_strnenvcmp("XY", "XYZ123", 2) == 0);
+  fail_unless(cas_strnenvcmp("XY", "XYZ123", 3) != 0);
+  fail_unless(cas_strnenvcmp("XY", "XYZ123", 100) != 0);
+
+}
+END_TEST
+
 START_TEST(getCASPath_test) {
   char *path;
   apr_uri_parse(request->pool, "http://www.example.com/foo/bar/baz.html",
@@ -634,6 +648,7 @@ Suite *mod_auth_cas_suite() {
   tcase_add_test(tc_core, escapeString_test);
   tcase_add_test(tc_core, isSSL_test);
   tcase_add_test(tc_core, cas_char_to_env_test);
+  tcase_add_test(tc_core, cas_strnenvcmp_test);
   tcase_add_test(tc_core, cas_merge_server_config_test);
   tcase_add_test(tc_core, cas_merge_dir_config_test);
   tcase_add_test(tc_core, cas_setURL_test);

@@ -2069,8 +2069,8 @@ int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const 
 		/* Walk both strings until we get to the end of either or we
 		 * find a differing character */
 		while ((*attr_c) &&
-			   (*spec_c) &&
-			   (*attr_c) == (*spec_c)) {
+		       (*spec_c) &&
+		       (*attr_c) == (*spec_c)) {
 			attr_c++;
 			spec_c++;
 		}
@@ -2101,23 +2101,27 @@ int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const 
 /* CAS authorization module, code adopted from Nick Kew's Apache Modules Book, 2007, p. 190f */
 static int cas_authorize(request_rec *r)
 {
-	cas_saml_attr *attrs = ap_get_module_config(r, &auth_cas_module);
+	const cas_saml_attr *const attrs = ap_get_module_config(r, &auth_cas_module);
 
-	int m = r->method_number;
-	const apr_array_header_t *reqs_arr = ap_requires(r);
-	require_line *reqs = reqs_arr ? (require_line *) reqs_arr->elts : NULL;
-	const cas_cfg *c;
+	const int m = r->method_number;
+	const apr_array_header_t *const reqs_arr = ap_requires(r);
+	const require_line *const reqs =
+		reqs_arr ? (require_line *) reqs_arr->elts : NULL;
+	const cas_cfg *const c =
+		ap_get_module_config(r->server->module_config,
+				     &auth_cas_module);
 	const char *token;
 	const char *requirement;
 	int i;
 	int have_casattr = 0;
 
-	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Entering cas_authorize.");
+	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		      "Entering cas_authorize.");
 
 	if (!reqs_arr) {
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-		              "No require statements found, "
-		              "so declining to perform authorization.");
+			      "No require statements found, "
+			      "so declining to perform authorization.");
 		return DECLINED;
 	}
 
@@ -2158,42 +2162,45 @@ static int cas_authorize(request_rec *r)
 			token = ap_getword_conf(r->pool, &requirement);
 
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-				     "Evaluating attribute specification: %s", token);
+				     "Evaluating attribute specification: %s",
+				     token);
 
-			if (cas_match_attribute(token, attrs) == CAS_ATTR_MATCH) {
+			if (cas_match_attribute(token, attrs) ==
+			    CAS_ATTR_MATCH) {
 
-				/* If *any* attribute matches, then authorization has
-				 * succeeded and all of the others are ignored. */
+				/* If *any* attribute matches, then
+				 * authorization has succeeded and all
+				 * of the others are ignored. */
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-				              "Require cas-attribute '%s' matched", token);
+					      "Require cas-attribute "
+					      "'%s' matched", token);
 				return OK;
 			}
 		}
 	}
 
-	/* If there weren't any "Require cas-attribute" directives, we're
-	 * irrelevant. J3H: XXX: is this true if we are in an AuthType CAS
-	 * section?
+	/* If there weren't any "Require cas-attribute" directives,
+	 * we're irrelevant.
 	 */
 	if (!have_casattr) {
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-		              "No cas-attribute statements found. Not performing authZ.");
+			      "No cas-attribute statements found. "
+                              "Not performing authZ.");
 		return DECLINED;
 	}
-
-	c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 
 	/* If we're not authoritative, hand over to other authz modules */
 	if (!c->CASAuthoritative) {
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-		              "Authorization failed, but we are not authoritative, "
-		              "thus handing over to other module(s).");
+			      "Authorization failed, but we are not "
+			      "authoritative, thus handing over to other "
+			      "module(s).");
 		return DECLINED;
 	}
 
 	/* OK, our decision is final and binding */
 	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-	              "Authorization denied for client session");
+		      "Authorization denied for client session");
 
 	ap_note_auth_failure(r);
 

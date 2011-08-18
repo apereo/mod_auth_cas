@@ -171,20 +171,6 @@ START_TEST(cas_scrub_headers_test) {
 
 END_TEST
 
-START_TEST(cas_strnenvcmp_test) {
-  fail_unless(cas_strnenvcmp("AbC", "aBc", -1) == 0);
-  fail_unless(cas_strnenvcmp("012", "012", -1) == 0);
-  fail_unless(cas_strnenvcmp("X-Y", "X_Y", -1) == 0);
-  fail_unless(cas_strnenvcmp("XYZ", "ZYX", -1) != 0);
-
-  fail_unless(cas_strnenvcmp("XYZ", "ZYX", 2) != 0);
-  fail_unless(cas_strnenvcmp("XY", "XYZ123", 2) == 0);
-  fail_unless(cas_strnenvcmp("XY", "XYZ123", 3) != 0);
-  fail_unless(cas_strnenvcmp("XY", "XYZ123", 100) != 0);
-
-}
-END_TEST
-
 START_TEST(getCASPath_test) {
   char *path;
   apr_uri_parse(request->pool, "http://www.example.com/foo/bar/baz.html",
@@ -637,6 +623,131 @@ END_TEST
 
 START_TEST(cas_register_hooks_test) {
   fail();
+}
+END_TEST
+
+/* Generate a null-terminated string of random bytes between one and
+ * length_limit characters */
+char *rand_str(apr_pool_t *p, unsigned int length_limit) {
+    /* Generate a random length from one to length_limit, inclusive.
+     * This method for choosing a length is biased, but it should be
+     * fine for testing purposes. */
+    unsigned int len;
+    if (length_limit < 1) {
+        len = 1;
+    } else {
+        apr_generate_random_bytes((unsigned char*)(&len), sizeof(unsigned int));
+        len = abs(len) % length_limit;
+    }
+    /* Make room for the null terminator */
+    len++;
+
+    /* Generate a random, null-terminated sequence of bytes. The
+     * terminator may appear earlier than the end, but we guarantee
+     * that the string is terminated at or before length_limit
+     * bytes. */
+    char *ans = apr_palloc(p, len);
+    apr_generate_random_bytes(ans, len - 1);
+    ans[len - 1] = '\0';
+    return ans;
+}
+
+/* Macros for better output on cas_strnenvcmp test failures */
+#define assert_snecmp_Xn(m,op,a,b,l) fail_unless(cas_strnenvcmp(a, b, l) op 0, \
+                                                  apr_psprintf(p, "%s: <%s> <%s> %d", m, a, b, l))
+#define assert_snecmp_eqn(a,b,l) assert_snecmp_Xn("Equal",==,a,b,l)
+#define assert_snecmp_eq(a,b) assert_snecmp_eqn(a,b,-1)
+#define assert_snecmp_ltn(a,b,l) assert_snecmp_Xn("Less than",<,a,b,l)
+#define assert_snecmp_lt(a,b) assert_snecmp_ltn(a,b,-1)
+
+START_TEST(cas_strnenvcmp_test) {
+  /* Randomized tests: */
+  int test_num;
+  int num_tests = 100;
+  apr_pool_t *p = request->pool;
+
+  for (test_num = 0; test_num < num_tests; test_num++) {
+    char *rnd1 = rand_str(p, test_num);
+    char *rnd2 = rand_str(p, test_num);
+    int l1 = strlen(rnd1);
+    int l2 = strlen(rnd2);
+    int l = l1 > l2 ? l1 : l2;
+    int i;
+
+    /* Comparing zero characters yields equal, regardless of the other
+     * inputs. */
+    assert_snecmp_eqn(rnd1, rnd2, 0);
+
+    /* using length -1 is always the same as using the longer
+     * length (this implies that the tests in the loop over
+     * lengths don't need to explicitly test -1, since it's
+     * equivalent) */
+    fail_unless(cas_strnenvcmp(rnd1, rnd2, l) ==
+                cas_strnenvcmp(rnd1, rnd2, -1));
+
+    /* Strings of different length are ALWAYS unequal */
+    fail_unless((l1 == l2) || cas_strnenvcmp(rnd1, rnd2, -1) != 0);
+
+    /* For all lengths up to the length of the longer string */
+    for (i = 0; i <= l; i++) {
+
+      /* A string always compares equal to itself */
+      assert_snecmp_eqn(rnd1, rnd1, i);
+      assert_snecmp_eqn(rnd2, rnd2, i);
+
+      /* Swapping arguments flips the sign of the answer */
+      int a = cas_strnenvcmp(rnd1, rnd2, i);
+      int b = cas_strnenvcmp(rnd2, rnd1, i);
+      fail_unless(((a == 0) && (b == 0))
+                  || ((a < 0) && (b > 0))
+                  || ((a > 0) && (b < 0)));
+    }
+
+  }
+
+  /* Non-randomized tests */
+
+  /* Empty string compares equal */
+  assert_snecmp_eq("", "");
+
+  /* Case-insensitivity */
+  assert_snecmp_eq("AbC", "aBc");
+  assert_snecmp_eq("foo", "FOO");
+  assert_snecmp_eq("BaR", "bAR");
+
+  /* Non-alphanumeric characters */
+  assert_snecmp_eq("X-Y", "X_Y");
+  assert_snecmp_eq("Ba-R", "bA_R");
+  assert_snecmp_eq("Ba-R", "Ba-R");
+  assert_snecmp_eq("%Ba-R", "_bA_R");
+  assert_snecmp_eq("%Ba-R", "+bA_R");
+  assert_snecmp_eq("%Ba-R", "\1bA_R");
+  assert_snecmp_eq("%Ba-R", "\255bA_R");
+  assert_snecmp_eq("Ba-R%", "bA_R\255");
+  assert_snecmp_eq(" ", "-");
+  assert_snecmp_eq("   ", "-  ");
+
+  /* Simple sanity (sign of non-equal answer is correct). The other
+   * cases (b first, both inputs same) are taken care of by the
+   * randomized tests. */
+  assert_snecmp_lt("a", "b");
+  assert_snecmp_lt("A", "b");
+  assert_snecmp_lt("a", "B");
+  assert_snecmp_lt("A", "B");
+  assert_snecmp_lt("_A", "-B");
+  assert_snecmp_lt("a", "-");
+  assert_snecmp_lt("A", "-");
+  assert_snecmp_lt("A", "_");
+  assert_snecmp_lt("a", "_");
+  assert_snecmp_lt("a_", "b_");
+
+  /* Simple equality/inequality */
+  assert_snecmp_eq("012", "012");
+  assert_snecmp_lt("XYZ", "ZYX");
+  assert_snecmp_ltn("XYZ", "ZYX", 2);
+  assert_snecmp_eqn("XY", "XYZ123", 2);
+  assert_snecmp_ltn("XY", "XYZ123", 3);
+  assert_snecmp_ltn("XY", "XYZ123", 100);
 }
 END_TEST
 

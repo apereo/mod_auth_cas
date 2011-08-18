@@ -1999,9 +1999,7 @@ int cas_authenticate(request_rec *r)
 			remoteUser = NULL;
 		}
 
-		/* Store a reference to the attributes in the request
-		 * for later use by cas_authorize. */
-		ap_set_module_config(r, &auth_cas_module, attrs);
+		cas_set_attributes(r, attrs);
 
 		if(remoteUser) {
 			r->user = remoteUser;
@@ -2034,6 +2032,22 @@ int cas_authenticate(request_rec *r)
 	}
 
 	return HTTP_UNAUTHORIZED;
+}
+
+/* Store a reference to the request's attributes for later use.
+ * Subsequent calls to cas_get_attributes() with the same request
+ * object will return this same set of attributes. Note that the
+ * attributes are stored directly, and not copied. */
+void cas_set_attributes(request_rec *r, cas_saml_attr *const attrs) {
+	ap_set_module_config(r, &auth_cas_module, attrs);
+}
+
+/* Get a reference to the attributes that were previously stored for
+ * this request. If no attributes have been stored, this function will
+ * return NULL.
+ */
+const cas_saml_attr *cas_get_attributes(request_rec *r) {
+	return ap_get_module_config(r, &auth_cas_module);
 }
 
 /* Look for an attribute that matches the given attribute spec (e.g.
@@ -2101,7 +2115,7 @@ int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const 
 /* CAS authorization module, code adopted from Nick Kew's Apache Modules Book, 2007, p. 190f */
 static int cas_authorize(request_rec *r)
 {
-	const cas_saml_attr *const attrs = ap_get_module_config(r, &auth_cas_module);
+	const cas_saml_attr *const attrs = cas_get_attributes(r);
 
 	const int m = r->method_number;
 	const apr_array_header_t *const reqs_arr = ap_requires(r);

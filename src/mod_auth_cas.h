@@ -211,7 +211,6 @@ void cas_ssl_id_callback(CRYPTO_THREADID *id);
 int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec *s);
 void cas_register_hooks(apr_pool_t *p);
 
-
 char *getCASScope(request_rec *r);
 void expireCASST(request_rec *r, const char *ticketname);
 void cas_scrub_request_headers(request_rec *r, const cas_cfg *const c,
@@ -225,6 +224,9 @@ int merged_vhost_configs_exist(server_rec *s);
 #if (defined(OPENSSL_THREADS) && APR_HAS_THREADS)
 void cas_ssl_locking_callback(int mode, int type, const char *file, int line);
 #endif
+/* Access per-request CAS SAML attributes */
+void cas_set_attributes(request_rec *r, cas_saml_attr *const attrs);
+const cas_saml_attr *cas_get_attributes(request_rec *r);
 
 /* apr forward compatibility */
 #ifndef APR_FOPEN_READ

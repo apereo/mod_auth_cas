@@ -83,12 +83,105 @@ START_TEST(cas_setURL_test) {
 }
 END_TEST
 
-START_TEST (isSSL_test) {
+START_TEST(isSSL_test) {
   /* stuff state into an arbitrary place in the pool */
   apr_pool_userdata_set("https", "scheme", NULL, request->pool);
   fail_unless(isSSL(request) == TRUE);
   apr_pool_userdata_set("http", "scheme", NULL, request->pool);
   fail_unless(isSSL(request) == FALSE);
+}
+END_TEST
+
+START_TEST(cas_char_to_env_test) {
+  int i;
+  for (i = 0; i < 255; i++) {
+    if (i >= 'a' && i <= 'z')
+      fail_unless(cas_char_to_env(i) == (i & 0xDF));
+    else if((i >= '0' && i <= '9') || (i >= 'A' && i <= 'Z'))
+      fail_unless(cas_char_to_env(i) == i);
+    else
+      fail_unless(cas_char_to_env(i) == (int) '_');
+  }
+}
+END_TEST
+
+const char *invalid_headers[] = {
+  "CaS-Foo",
+  "cAs-Bar",
+  "CaS_Baz",
+  "cas:zot",
+  "CAS-Zuz",
+  CAS_DEFAULT_AUTHN_HEADER
+};
+
+const char *valid_headers[] = {
+  "User-Agent",
+  "Host",
+};
+
+struct header_info {
+  int num_headers;
+  const char **headers;
+};
+
+int find_entries_in_list(void *rec, const char *key, const char *val)
+{
+  int rv = 0, i;
+  struct header_info *hi = (struct header_info *) rec;
+
+  for (i = 0; i < hi->num_headers; i++) {
+    if (strcmp(hi->headers[i], key) == 0) {
+      rv++;
+      break;
+    }
+  }
+  return rv;
+}
+
+START_TEST(cas_scrub_headers_test) {
+  int i;
+  struct header_info hi;
+  apr_table_t *headers_in, *headers_out;
+  const apr_table_t *dirty_headers;
+
+  headers_in = apr_table_make(pool,
+                              sizeof(valid_headers)/sizeof(char *) +
+                              sizeof(invalid_headers)/sizeof(char *));
+
+  for (i = 0; i < sizeof(valid_headers)/sizeof(char *); i++)
+    apr_table_add(headers_in, valid_headers[i], "Value");
+
+  for (i = 0; i < sizeof(invalid_headers)/sizeof(char *); i++)
+    apr_table_add(headers_in, invalid_headers[i], "Value");
+
+  headers_out = cas_scrub_headers(pool,
+                                  CAS_DEFAULT_ATTRIBUTE_PREFIX,
+                                  CAS_DEFAULT_AUTHN_HEADER,
+                                  headers_in,
+                                  &dirty_headers);
+
+  hi.num_headers = sizeof(valid_headers)/sizeof(char *);
+  hi.headers = valid_headers;
+  fail_if(apr_table_do(find_entries_in_list, &hi, headers_out, NULL) == 0);
+
+  hi.num_headers = sizeof(invalid_headers)/sizeof(char *);
+  hi.headers = invalid_headers;
+  fail_if(apr_table_do(find_entries_in_list, &hi, dirty_headers, NULL) == 0);
+}
+
+END_TEST
+
+START_TEST(cas_strnenvcmp_test) {
+  fail_unless(cas_strnenvcmp("AbC", "aBc", -1) == 0);
+  fail_unless(cas_strnenvcmp("012", "012", -1) == 0);
+  fail_unless(cas_strnenvcmp("X-Y", "X_Y", -1) == 0);
+  fail_unless(cas_strnenvcmp("XYZ", "ZYX", -1) != 0);
+
+  fail_unless(cas_strnenvcmp("XYZ", "ZYX", 2) != 0);
+  fail_unless(cas_strnenvcmp("XY", "XYZ123", 2) == 0);
+  fail_unless(cas_strnenvcmp("XY", "XYZ123", 3) != 0);
+  fail_unless(cas_strnenvcmp("XY", "XYZ123", 100) != 0);
+
 }
 END_TEST
 
@@ -305,7 +398,7 @@ START_TEST(setCASCookie_test) {
 }
 END_TEST
 
-START_TEST (escapeString_test) {
+START_TEST(escapeString_test) {
   char *rv, *expected;
   rv = escapeString(request, "a+b c<d>e\"f%g{h}i|j\\k^l~m[n]o`p;q/r?s:t@u=v&"
                              "w#x");
@@ -620,6 +713,9 @@ Suite *mod_auth_cas_suite() {
   tcase_add_checked_fixture(tc_core, core_setup, core_teardown);
   tcase_add_test(tc_core, escapeString_test);
   tcase_add_test(tc_core, isSSL_test);
+  tcase_add_test(tc_core, cas_char_to_env_test);
+  tcase_add_test(tc_core, cas_scrub_headers_test);
+  tcase_add_test(tc_core, cas_strnenvcmp_test);
   tcase_add_test(tc_core, cas_merge_server_config_test);
   tcase_add_test(tc_core, cas_merge_dir_config_test);
   tcase_add_test(tc_core, cas_setURL_test);

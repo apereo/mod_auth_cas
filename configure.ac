@@ -179,6 +179,25 @@ AS_IF(
 
 AM_CONDITIONAL([CHECK],[test x$with_check = xyes])
 
+AC_ARG_ENABLE(
+	[test-coverage],
+	[AS_HELP_STRING([--enable-test-coverage],[Generate test coverage data @<:@default=no@:>@])],
+	[],
+	[enable_test_coverage=no])
+
+AS_IF(
+	[test "xenable_test_coverage" != xno],
+	[AS_IF(
+		[test "x$with_check" = xyes],
+		[TEST_COVERAGE_CFLAGS="-fprofile-arcs -ftest-coverage"],
+		[AC_MSG_WARN(
+			[Test coverage requested when not building tests (--with-check=no)]
+		)]
+	)]
+)
+
+AC_SUBST(TEST_COVERAGE_CFLAGS)
+
 #### Find OpenSSL
 AC_MSG_CHECKING([for --with-openssl])
 AC_ARG_WITH(

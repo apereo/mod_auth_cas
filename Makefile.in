@@ -191,6 +191,7 @@ SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
+TEST_COVERAGE_CFLAGS = @TEST_COVERAGE_CFLAGS@
 VERSION = @VERSION@
 _libcurl_config = @_libcurl_config@
 abs_builddir = @abs_builddir@

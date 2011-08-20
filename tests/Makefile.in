@@ -180,6 +180,7 @@ SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
+TEST_COVERAGE_CFLAGS = @TEST_COVERAGE_CFLAGS@
 VERSION = @VERSION@
 _libcurl_config = @_libcurl_config@
 abs_builddir = @abs_builddir@
@@ -241,6 +242,7 @@ AM_CFLAGS = @CPPFLAGS@ @CFLAGS@ @LIBCURL_CPPFLAGS@ \
 @APR_CPPFLAGS@ \
 @APR_INCLUDES@ \
 @APACHE_INCLUDES@ \
+@TEST_COVERAGE_CFLAGS@ \
 -D_LARGEFILE64_SOURCE @LIBS@ @LIBCURL@
 
 AM_LDFLAGS = @LDFLAGS@
@@ -623,9 +625,10 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
+@CHECK_FALSE@clean-local:
 clean: clean-am
 
-clean-am: clean-checkPROGRAMS clean-generic clean-libtool \
+clean-am: clean-checkPROGRAMS clean-generic clean-libtool clean-local \
 	mostlyclean-am
 
 distclean: distclean-am
@@ -697,8 +700,8 @@ uninstall-am:
 .MAKE: check-am install-am install-strip
 
 .PHONY: CTAGS GTAGS all all-am check check-TESTS check-am clean \
-	clean-checkPROGRAMS clean-generic clean-libtool ctags \
-	distclean distclean-compile distclean-generic \
+	clean-checkPROGRAMS clean-generic clean-libtool clean-local \
+	ctags distclean distclean-compile distclean-generic \
 	distclean-libtool distclean-tags distdir dvi dvi-am html \
 	html-am info info-am install install-am install-data \
 	install-data-am install-dvi install-dvi-am install-exec \
@@ -710,6 +713,9 @@ uninstall-am:
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
 	tags uninstall uninstall-am
 
+@CHECK_TRUE@clean-local: clean-local-coverage
+@CHECK_TRUE@clean-local-coverage:
+@CHECK_TRUE@	rm -f *.gcda *.gcno
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

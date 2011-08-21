@@ -1572,7 +1572,7 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
  * CURLE_WRITE_ERROR.
  */
 
-size_t cas_curl_write(void *ptr, size_t size, size_t nmemb, void *stream)
+size_t cas_curl_write(const void *ptr, size_t size, size_t nmemb, void *stream)
 {
 	cas_curl_buffer *curlBuffer = (cas_curl_buffer *) stream;
 
@@ -1825,7 +1825,7 @@ void cas_scrub_request_headers(
 
 	/* Write log messages for all of the dirty headers (if any) */
 	const char *const log_fmt =
-		"MOD_AUTH_CAS: Scrubbed suspicious request header (%s: %0.32s)";
+		"MOD_AUTH_CAS: Scrubbed suspicious request header (%s: %s)";
 	const apr_array_header_t *const h = apr_table_elts(dirty_headers);
 	const apr_table_entry_t *const e = (const apr_table_entry_t *)h->elts;
 	int i;

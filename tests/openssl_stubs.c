@@ -7,7 +7,7 @@ unsigned long (*CRYPTO_get_id_callback(void))(void) {
 
 void (*CRYPTO_get_locking_callback(void))(int mode,int type,const char *file,
                                           int line) {
-  return;
+  return NULL;
 }
 
 int CRYPTO_num_locks(void) {

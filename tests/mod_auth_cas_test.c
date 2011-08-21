@@ -28,6 +28,7 @@ START_TEST(cas_merge_server_config_test) {
   fail_if(base->merged == TRUE);
   fail_if(add->merged == TRUE);
 
+  memset(&uri, 0, sizeof(uri));
   uri.scheme = "http";
   uri.hostname = "example.com";
 
@@ -647,7 +648,7 @@ char *rand_str(apr_pool_t *p, unsigned int length_limit) {
      * that the string is terminated at or before length_limit
      * bytes. */
     char *ans = apr_palloc(p, len);
-    apr_generate_random_bytes(ans, len - 1);
+    apr_generate_random_bytes((unsigned char *) ans, len - 1);
     ans[len - 1] = '\0';
     return ans;
 }
@@ -788,6 +789,7 @@ void core_setup() {
   auth_cas_module.module_index = kIdx;
   cas_cfg *cfg = cas_create_server_config(request->pool, request->server);
   cfg->CASDebug = TRUE;
+  memset(&login, 0, sizeof(login));
   login.scheme = "https";
   login.hostname = "login.example.com";
   login.path = "/cas/login";

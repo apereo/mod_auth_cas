@@ -175,11 +175,20 @@ void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD);
 const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value);
 char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket);
 apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **user, cas_saml_attr **attrs);
+int cas_char_to_env(int c);
+int cas_strnenvcmp(const char *a, const char *b, int len);
+apr_table_t *cas_scrub_headers(apr_pool_t *p, const char *const attr_prefix,
+                const char *const authn_header,
+                const apr_table_t *const headers,
+                const apr_table_t **const dirty_headers_ptr);
 apr_byte_t isSSL(request_rec *r);
 apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_entry *cache);
 void CASCleanCache(request_rec *r, cas_cfg *c);
+apr_byte_t writeCASCacheEntry(request_rec *r, char *name,
+                cas_cache_entry *cache, apr_byte_t exists);
 char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ticket);
 apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **user, cas_saml_attr **attrs);
+size_t cas_curl_write(const void *ptr, size_t size, size_t nmemb, void *stream);
 char *getCASCookie(request_rec *r, char *cookieName);
 char *getCASPath(request_rec *r);
 void CASSAMLLogout(request_rec *r, char *body);

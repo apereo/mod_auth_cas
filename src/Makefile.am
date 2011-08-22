@@ -1,12 +1,14 @@
+
+AM_CPPFLAGS = @INCLTDL@ @LIBCURL_CPPFLAGS@ -D_LARGEFILE64_SOURCE
+AM_LIBS = @LIBCURL@
+AM_CFLAGS = @TEST_COVERAGE_CFLAGS@ 
+
 lib_LTLIBRARIES = mod_auth_cas.la
 
-AM_CFLAGS = @CPPFLAGS@ @CFLAGS@ @LIBCURL_CPPFLAGS@
-AM_LDFLAGS= -module @LDFLAGS@
-mod_auth_cas_la_LIBADD = @LIBS@ @LIBCURL@
-
+mod_auth_cas_la_LDFLAGS= -module ${AM_CFLAGS}
 
 mod_auth_cas.la: mod_auth_cas.c mod_auth_cas.h
-	@APXS@ -c ${LIBS} -Wc,"${CFLAGS} ${CPPFLAGS}" -Wl,"${LDFLAGS}" mod_auth_cas.c
+	@APXS@ -c ${LIBS} -Wc,"${CPPFLAGS} ${AM_CPPFLAGS} ${CFLAGS} ${AM_CFLAGS}" -Wl,"${AM_LDFLAGS} ${LDFLAGS} ${AM_LIBADD} ${LIBS}" mod_auth_cas.c
 
 install: mod_auth_cas.la
 	if test ! -d ${DESTDIR}${APXS_LIBEXECDIR}; then mkdir -p ${DESTDIR}${APXS_LIBEXECDIR}; fi

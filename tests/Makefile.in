@@ -42,7 +42,9 @@ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/curl.m4 \
 	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltoptions.m4 \
 	$(top_srcdir)/m4/ltsugar.m4 $(top_srcdir)/m4/ltversion.m4 \
-	$(top_srcdir)/m4/lt~obsolete.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/lt~obsolete.m4 \
+	$(top_srcdir)/m4/m4_ax_check_compile_flag.m4 \
+	$(top_srcdir)/m4/pkg.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
@@ -237,15 +239,13 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 with_apr_config = @with_apr_config@
 with_apxs = @with_apxs@
-AM_CFLAGS = @CPPFLAGS@ @CFLAGS@ @LIBCURL_CPPFLAGS@ \
-@APR_CPPFLAGS@ \
-@APR_CPPFLAGS@ \
-@APR_INCLUDES@ \
-@APACHE_INCLUDES@ \
-@TEST_COVERAGE_CFLAGS@ \
--D_LARGEFILE64_SOURCE @LIBS@ @LIBCURL@
+AM_CPPFLAGS = @INCLTDL@ @LIBCURL_CPPFLAGS@ -D_LARGEFILE64_SOURCE \
+ @APXS_CPPFLAGS@ @APXS_INCLUDES@ @APR_CPPFLAGS@ @APR_INCLUDES@ \
+ @APACHE_INCLUDES@
 
-AM_LDFLAGS = @LDFLAGS@
+AM_LIBS = @LIBCURL@ @APXS_LIBS@
+AM_CFLAGS = @TEST_COVERAGE_CFLAGS@ 
+AM_LDFLAGS = @APXS_LDFLAGS@
 @CHECK_TRUE@check_mac_SOURCES = ap_stubs.c curl_stubs.c openssl_stubs.c ../src/mod_auth_cas.c mod_auth_cas_test.c
 @CHECK_TRUE@check_mac_LDADD = -lcheck -lapr-1 -laprutil-1
 @CHECK_TRUE@check_mac_CFLAGS = @CHECK_CFLAGS@ ${AM_CFLAGS}

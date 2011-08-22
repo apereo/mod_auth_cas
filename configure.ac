@@ -12,16 +12,21 @@ AC_CANONICAL_BUILD
 AC_CANONICAL_HOST
 AC_GNU_SOURCE
 AC_ISC_POSIX
-AC_PROG_LIBTOOL
-AC_SUBST(INCLTDL)
-AC_SUBST(LIBLTDL)
 
 AM_INIT_AUTOMAKE([foreign 1.7])
+#Backward compatability, allows for silent-rules in AM<1.11
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES])
 
 # Checks for programs.
 AC_PROG_CC
 AM_PROG_CC_C_O
+
+#Automatically force -Wall and -Werror if compatible
+AX_CHECK_COMPILE_FLAG([-Wall -Werror],[CFLAGS="${CFLAGS} -Wall -Werror"])
+
+AC_PROG_LIBTOOL
+AC_SUBST(INCLTDL)
+AC_SUBST(LIBLTDL)
 
 #### Locate APXS
 ## First, check --with-apxs

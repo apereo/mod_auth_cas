@@ -1825,7 +1825,7 @@ void cas_scrub_request_headers(
 
 	/* Write log messages for all of the dirty headers (if any) */
 	const char *const log_fmt =
-		"MOD_AUTH_CAS: Scrubbed suspicious request header (%s: %0.32s)";
+		"MOD_AUTH_CAS: Scrubbed suspicious request header (%s: %.32s)";
 	const apr_array_header_t *const h = apr_table_elts(dirty_headers);
 	const apr_table_entry_t *const e = (const apr_table_entry_t *)h->elts;
 	int i;

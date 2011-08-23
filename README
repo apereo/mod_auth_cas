@@ -1,5 +1,5 @@
 ====================================================================
-MOD_AUTH_CAS 1.0.9.1 README
+MOD_AUTH_CAS 1.0.10 README
 ====================================================================
 Apache CAS Authentication Module
 
@@ -31,55 +31,17 @@ http://www.ja-sig.org/products/cas/overview/protocol/index.html
 ====================================================================
 NEW FEATURES AND FUNCTIONS IN THIS RELEASE 
 ====================================================================
-* mod_auth_cas 1.0.9 is now licensed under the Apache 2 License.
-  All future versions will be released under this license until
-  further notice.
+* Unit tests added for a significant portion of functionality.
 
-* mod_auth_cas 1.0.8 and prior should be considered as available
-  under the Apache 2 License or the GPLv3 license.
-
-* Support for SAML validation has been provided by David Hawes
-  of Virginia Tech.
-
-* Added dependency of libcurl for ticket validation
+* Improved automake suport.
 
 ====================================================================
 BUG FIXES 
 ====================================================================
-* Included a patch by Chris Adams of Yale University to prevent
-  segfaults when parsing a corrupted XML cache file.
+* Fixed security bug impacting users of CAS attributes in a CGI
+  environment (MAS-62) reported by Josh Hoyt.
 
-* Included a patch by Chris Adams to improve Win32 compiler
-  compatibility
-
-* Included a patch by Jason Long to properly handle usernames
-  containing "unsafe" XML characters
-
-* Assorted stability/REST compatibility fixes for issues
-  identified by David Ohsie
-
-* Included a patch by Ben Noordhuis to gracefully handle broken
-  file system permissions in CASCookiePath
-
-* Included a patch by Ben Noordhuis to improve performance
-  by re-using a cached username on subrequests
-
-* Included a patch by Ben Noordhuis to strip inbound 
-  HTTP headers that may have special meaning upstream.
-
-* Fixed issue where cas_merge_dir_config was allocating
-  more memory than necessary (reported by Ray Davison)
-
-* Fixed possible NULL pointer dereference in rare circumstances
-  where ap_is_initial_req() returns FALSE, but the value of
-  request_rec->main is NULL
-
-* Included patch by Jesse Weisner for CASRootProxiedAs directive.
-
-* Patch by Ben Noordhuis to improve VirtualHost configuration
-  support.
-
-* Fix erroneous service URL construction.
+* Assorted other stability fixes.
 
 ====================================================================
 KNOWN LIMITATIONS
@@ -201,7 +163,9 @@ Description:	The version of the CAS protocol to adhere to (1 or 2).
 
 Directive: 	CASDebug
 Default:	Off
-Description:	Enable or disable debugging mode for troubleshooting.
+Description:	Enable or disable debugging mode for troubleshooting.  Please
+              note that LogLevel must be set to Debug for the VirtualHost in
+              order for these logs to be visible.
 
 Directive: 	CASValidateServer
 Default:	On

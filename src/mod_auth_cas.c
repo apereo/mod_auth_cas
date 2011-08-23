@@ -1572,7 +1572,7 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
  * CURLE_WRITE_ERROR.
  */
 
-size_t cas_curl_write(void *ptr, size_t size, size_t nmemb, void *stream)
+size_t cas_curl_write(const void *ptr, size_t size, size_t nmemb, void *stream)
 {
 	cas_curl_buffer *curlBuffer = (cas_curl_buffer *) stream;
 

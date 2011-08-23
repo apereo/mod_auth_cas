@@ -16,7 +16,7 @@
  *
  * mod_auth_cas.h
  * Apache CAS Authentication Module
- * Version 1.0.9.1
+ * Version 1.0.10
  *
  * Contact: mod-auth-cas-dev@lists.jasig.org
  *

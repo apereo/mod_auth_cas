@@ -16,7 +16,7 @@
  *
  * mod_auth_cas.c
  * Apache CAS Authentication Module
- * Version 1.0.9.1
+ * Version 1.0.10
  *
  * Contact: mod-auth-cas-dev@lists.jasig.org
  *
@@ -1646,7 +1646,7 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 
 	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, (c->CASValidateServer != FALSE ? 2L : 0L));
 
-	curl_easy_setopt(curl, CURLOPT_USERAGENT, "mod_auth_cas 1.0.9.1");
+	curl_easy_setopt(curl, CURLOPT_USERAGENT, "mod_auth_cas 1.0.10");
 
 	if(c->CASValidateSAML == TRUE) {
 		curl_easy_setopt(curl, CURLOPT_POST, 1L);

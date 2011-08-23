@@ -201,7 +201,9 @@ Description:	The version of the CAS protocol to adhere to (1 or 2).
 
 Directive: 	CASDebug
 Default:	Off
-Description:	Enable or disable debugging mode for troubleshooting.
+Description:	Enable or disable debugging mode for troubleshooting.  Please
+              note that LogLevel must be set to Debug for the VirtualHost in
+              order for these logs to be visible.
 
 Directive: 	CASValidateServer
 Default:	On

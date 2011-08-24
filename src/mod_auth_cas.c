@@ -22,6 +22,7 @@
  *
  */
 
+#include <assert.h>
 #include <sys/types.h>
 
 #include <openssl/crypto.h>
@@ -48,6 +49,8 @@
 #include "apr_thread_mutex.h"
 #include "apr_strings.h"
 #include "apr_xml.h"
+
+#include "cas_saml_attr.h"
 
 /* Apache is NOT a well-behaved citizen. It unconditionally
  *	pollutes global defines with its own autoheaders.
@@ -899,33 +902,19 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 		else if (apr_strnatcasecmp(e->name, "ticket") == 0)
 			cache->ticket = apr_pstrndup(r->pool, val, strlen(val));
 		else if (apr_strnatcasecmp(e->name, "attributes") == 0) {
-			apr_xml_elem *attrs = e->first_child;
-			cas_saml_attr **attrtail = &cache->attrs;
-			while(attrs != NULL) {
-				cas_saml_attr *csa =
-					apr_pcalloc(r->pool, sizeof(cas_saml_attr));
-				apr_xml_attr *a = attrs->attr;
-				apr_xml_elem *v = attrs->first_child;
-				cas_saml_attr_val **valtail = &csa->values;
-				csa->attr = apr_pstrndup(r->pool, a->value, strlen(a->value));
-				csa->values = NULL;
-				csa->next = NULL;
-				while(v != NULL) {
-					const char *s = NULL;
-					cas_saml_attr_val *csav =
-						apr_pcalloc(r->pool, sizeof(cas_saml_attr_val));
+			cas_attr_builder *builder = cas_attr_builder_new(r->pool, &(cache->attrs));
+			apr_xml_elem *attrs;
+			apr_xml_elem *v;
+			const char *attr_value;
+			const char *attr_name;
+
+			for (attrs = e->first_child; attrs != NULL; attrs = attrs->next) {
+				attr_name = attrs->attr->value;
+				for (v = attrs->first_child; v != NULL; v = v->next) {
 					apr_xml_to_text(r->pool, v, APR_XML_X2T_INNER,
-					    NULL, NULL, &s, NULL);
-					csav->value =
-						apr_pstrndup(r->pool, s, strlen(s));
-					csav->next = NULL;
-					*valtail = csav;
-					valtail = &csav->next;
-					v = v->next;
+							NULL, NULL, &attr_value, NULL);
+					cas_attr_builder_add(builder, attr_name, attr_value);
 				}
-				*attrtail = csa;
-				attrtail = &csa->next;
-				attrs = attrs->next;
 			}
 		}
 		else
@@ -1397,32 +1386,22 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 										}
 									}
 									if(as != NULL) {
-										cas_saml_attr **attrtail = attrs;
+										cas_attr_builder *builder = cas_attr_builder_new(r->pool, attrs);
 										as = as->first_child;
 										while(as != NULL) {
 											if(apr_strnatcmp(as->name, "Attribute") == 0) {
 												apr_xml_attr *attr = as->attr;
 												while(attr != NULL) {
 													if(apr_strnatcmp(attr->name, "AttributeName") == 0) {
-														cas_saml_attr *csa = apr_pcalloc(r->pool, sizeof(cas_saml_attr));
-														cas_saml_attr_val **valtail = &csa->values;
-														apr_xml_elem *a =
-															as->first_child;
-														csa->attr = apr_pstrndup(r->pool, attr->value, strlen(attr->value));
-														csa->values = NULL;
-														csa->next = NULL;
-
+														const char *attr_name = attr->value;
+														apr_xml_elem *a = as->first_child;
 														while(a != NULL) {
-															cas_saml_attr_val *csav = apr_pcalloc(r->pool, sizeof(cas_saml_attr_val));
+															char *attr_value;
 															apr_xml_to_text(r->pool, a, APR_XML_X2T_INNER,
-																NULL, NULL, (const char **)&csav->value, NULL);
-															csav->next = NULL;
-															*valtail = csav;
-															valtail = &csav->next;
+																	NULL, NULL, (const char**)&attr_value, NULL);
+															cas_attr_builder_add(builder, attr_name, attr_value);
 															a = a->next;
 														}
-														*attrtail = csa;
-														attrtail = &csa->next;
 													}
 													attr = attr->next;
 												}
@@ -1527,30 +1506,7 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
 
 	/* set the user */
 	*user = apr_pstrndup(r->pool, cache.user, strlen(cache.user));
-
-	if(cache.attrs != NULL) {
-		cas_saml_attr *ca = cache.attrs;
-		cas_saml_attr **attrtail = attrs;
-		while(ca != NULL) {
-			cas_saml_attr *csa = apr_pcalloc(r->pool , sizeof(cas_saml_attr));
-			cas_saml_attr_val **valtail = &csa->values;
-			cas_saml_attr_val *vals = ca->values;
-			csa->attr = apr_pstrndup(r->pool, ca->attr, strlen(ca->attr));
-			csa->values = NULL;
-			csa->next = NULL;
-			while(vals != NULL) {
-				cas_saml_attr_val *csav = apr_pcalloc(r->pool, sizeof(cas_saml_attr_val));
-				csav->value = apr_pstrndup(r->pool, vals->value, strlen(vals->value));
-				csav->next = NULL;
-				*valtail = csav;
-				valtail = &csav->next;
-				vals = vals->next;
-			}
-			*attrtail = csa;
-			attrtail = &csa->next;
-			ca = ca->next;
-		}
-	}
+	*attrs = cas_saml_attr_pdup(r->pool, cache.attrs);
 
 	cache.lastactive = apr_time_now();
 	if(writeCASCacheEntry(r, cookie, &cache, TRUE) == FALSE && c->CASDebug)

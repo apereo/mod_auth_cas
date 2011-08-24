@@ -2151,9 +2151,9 @@ int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec
 			CRYPTO_set_id_callback(cas_ssl_id_callback);
 		}
 #else
-		if(CRYPTO_get_locking_callback() == NULL && CRYPTO_THREADID_get_id_callback() == NULL) {
+		if(CRYPTO_get_locking_callback() == NULL && CRYPTO_THREADID_get_callback() == NULL) {
 			CRYPTO_set_locking_callback(cas_ssl_locking_callback);
-			CRYPTO_THREADID_set_id_callback(cas_ssl_id_callback);
+			CRYPTO_THREADID_set_callback(cas_ssl_id_callback);
 		}
 #endif /* OPENSSL_NO_THREADID */
 #endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */

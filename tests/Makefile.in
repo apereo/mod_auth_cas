@@ -52,12 +52,15 @@ CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__check_mac_SOURCES_DIST = ap_stubs.c curl_stubs.c openssl_stubs.c \
-	../src/mod_auth_cas.c mod_auth_cas_test.c
+	../src/mod_auth_cas.c mod_auth_cas_test.c \
+	../src/cas_saml_attr.c cas_saml_attr_test.c
 @CHECK_TRUE@am_check_mac_OBJECTS = check_mac-ap_stubs.$(OBJEXT) \
 @CHECK_TRUE@	check_mac-curl_stubs.$(OBJEXT) \
 @CHECK_TRUE@	check_mac-openssl_stubs.$(OBJEXT) \
 @CHECK_TRUE@	check_mac-mod_auth_cas.$(OBJEXT) \
-@CHECK_TRUE@	check_mac-mod_auth_cas_test.$(OBJEXT)
+@CHECK_TRUE@	check_mac-mod_auth_cas_test.$(OBJEXT) \
+@CHECK_TRUE@	check_mac-cas_saml_attr.$(OBJEXT) \
+@CHECK_TRUE@	check_mac-cas_saml_attr_test.$(OBJEXT)
 check_mac_OBJECTS = $(am_check_mac_OBJECTS)
 check_mac_DEPENDENCIES =
 AM_V_lt = $(am__v_lt_$(V))
@@ -245,8 +248,8 @@ AM_CPPFLAGS = @INCLTDL@ @LIBCURL_CPPFLAGS@ -D_LARGEFILE64_SOURCE \
 
 AM_LIBS = @LIBCURL@ @APXS_LIBS@
 AM_CFLAGS = @TEST_COVERAGE_CFLAGS@ 
-AM_LDFLAGS = @APXS_LDFLAGS@
-@CHECK_TRUE@check_mac_SOURCES = ap_stubs.c curl_stubs.c openssl_stubs.c ../src/mod_auth_cas.c mod_auth_cas_test.c
+AM_LDFLAGS = @APXS_LDFLAGS@ @APR_LDFLAGS@
+@CHECK_TRUE@check_mac_SOURCES = ap_stubs.c curl_stubs.c openssl_stubs.c ../src/mod_auth_cas.c mod_auth_cas_test.c ../src/cas_saml_attr.c cas_saml_attr_test.c
 @CHECK_TRUE@check_mac_LDADD = -lcheck -lapr-1 -laprutil-1
 @CHECK_TRUE@check_mac_CFLAGS = @CHECK_CFLAGS@ ${AM_CFLAGS}
 @CHECK_TRUE@check_mac_LIBS = @CHECK_LIBS@ ${AM_LIBS}
@@ -305,6 +308,8 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/check_mac-ap_stubs.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/check_mac-cas_saml_attr.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/check_mac-cas_saml_attr_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/check_mac-curl_stubs.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/check_mac-mod_auth_cas.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/check_mac-mod_auth_cas_test.Po@am__quote@
@@ -413,6 +418,38 @@ check_mac-mod_auth_cas_test.obj: mod_auth_cas_test.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='mod_auth_cas_test.c' object='check_mac-mod_auth_cas_test.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -c -o check_mac-mod_auth_cas_test.obj `if test -f 'mod_auth_cas_test.c'; then $(CYGPATH_W) 'mod_auth_cas_test.c'; else $(CYGPATH_W) '$(srcdir)/mod_auth_cas_test.c'; fi`
+
+check_mac-cas_saml_attr.o: ../src/cas_saml_attr.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -MT check_mac-cas_saml_attr.o -MD -MP -MF $(DEPDIR)/check_mac-cas_saml_attr.Tpo -c -o check_mac-cas_saml_attr.o `test -f '../src/cas_saml_attr.c' || echo '$(srcdir)/'`../src/cas_saml_attr.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/check_mac-cas_saml_attr.Tpo $(DEPDIR)/check_mac-cas_saml_attr.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../src/cas_saml_attr.c' object='check_mac-cas_saml_attr.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -c -o check_mac-cas_saml_attr.o `test -f '../src/cas_saml_attr.c' || echo '$(srcdir)/'`../src/cas_saml_attr.c
+
+check_mac-cas_saml_attr.obj: ../src/cas_saml_attr.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -MT check_mac-cas_saml_attr.obj -MD -MP -MF $(DEPDIR)/check_mac-cas_saml_attr.Tpo -c -o check_mac-cas_saml_attr.obj `if test -f '../src/cas_saml_attr.c'; then $(CYGPATH_W) '../src/cas_saml_attr.c'; else $(CYGPATH_W) '$(srcdir)/../src/cas_saml_attr.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/check_mac-cas_saml_attr.Tpo $(DEPDIR)/check_mac-cas_saml_attr.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='../src/cas_saml_attr.c' object='check_mac-cas_saml_attr.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -c -o check_mac-cas_saml_attr.obj `if test -f '../src/cas_saml_attr.c'; then $(CYGPATH_W) '../src/cas_saml_attr.c'; else $(CYGPATH_W) '$(srcdir)/../src/cas_saml_attr.c'; fi`
+
+check_mac-cas_saml_attr_test.o: cas_saml_attr_test.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -MT check_mac-cas_saml_attr_test.o -MD -MP -MF $(DEPDIR)/check_mac-cas_saml_attr_test.Tpo -c -o check_mac-cas_saml_attr_test.o `test -f 'cas_saml_attr_test.c' || echo '$(srcdir)/'`cas_saml_attr_test.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/check_mac-cas_saml_attr_test.Tpo $(DEPDIR)/check_mac-cas_saml_attr_test.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cas_saml_attr_test.c' object='check_mac-cas_saml_attr_test.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -c -o check_mac-cas_saml_attr_test.o `test -f 'cas_saml_attr_test.c' || echo '$(srcdir)/'`cas_saml_attr_test.c
+
+check_mac-cas_saml_attr_test.obj: cas_saml_attr_test.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -MT check_mac-cas_saml_attr_test.obj -MD -MP -MF $(DEPDIR)/check_mac-cas_saml_attr_test.Tpo -c -o check_mac-cas_saml_attr_test.obj `if test -f 'cas_saml_attr_test.c'; then $(CYGPATH_W) 'cas_saml_attr_test.c'; else $(CYGPATH_W) '$(srcdir)/cas_saml_attr_test.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/check_mac-cas_saml_attr_test.Tpo $(DEPDIR)/check_mac-cas_saml_attr_test.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cas_saml_attr_test.c' object='check_mac-cas_saml_attr_test.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(check_mac_CFLAGS) $(CFLAGS) -c -o check_mac-cas_saml_attr_test.obj `if test -f 'cas_saml_attr_test.c'; then $(CYGPATH_W) 'cas_saml_attr_test.c'; else $(CYGPATH_W) '$(srcdir)/cas_saml_attr_test.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

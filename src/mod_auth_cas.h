@@ -181,7 +181,7 @@ apr_table_t *cas_scrub_headers(apr_pool_t *p, const char *const attr_prefix,
                 const char *const authn_header,
                 const apr_table_t *const headers,
                 const apr_table_t **const dirty_headers_ptr);
-apr_byte_t isSSL(request_rec *r);
+apr_byte_t isSSL(const request_rec *r);
 apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_entry *cache);
 void CASCleanCache(request_rec *r, cas_cfg *c);
 apr_byte_t writeCASCacheEntry(request_rec *r, char *name,
@@ -195,12 +195,13 @@ void CASSAMLLogout(request_rec *r, char *body);
 apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes);
 void deleteCASCacheFile(request_rec *r, char *cookieName);
 void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure);
-char *escapeString(request_rec *r, char *str);
-char *urlEncode(request_rec *r, char *str, char *charsToEncode);
+char *escapeString(const request_rec *r, const char *str);
+char *urlEncode(const request_rec *r, const char *str,
+                const char *charsToEncode);
 char *getCASGateway(request_rec *r);
 char *getCASRenew(request_rec *r);
 char *getCASLoginURL(request_rec *r, cas_cfg *c);
-char *getCASService(request_rec *r, cas_cfg *c);
+char *getCASService(const request_rec *r, const cas_cfg *c);
 void redirectRequest(request_rec *r, cas_cfg *c);
 char *getCASTicket(request_rec *r);
 apr_byte_t removeCASParams(request_rec *r);

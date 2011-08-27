@@ -115,7 +115,7 @@ const char *invalid_headers[] = {
   /* 
    * CAS_DEFAULT_AUTHN_HEADER is NULL, but we want to make sure that such a
    * header is removed (and we want it to start with something other than the
-   * CAS attribute prefix.
+   * CAS attribute prefix).
    */
   "MAC-User"
 };

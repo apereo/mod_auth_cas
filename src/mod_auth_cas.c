@@ -175,27 +175,43 @@ void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 	cas_dir_cfg *add = ADD;
 
 	/* inherit the previous directory's setting if applicable */
-	c->CASScope = (add->CASScope != CAS_DEFAULT_SCOPE ? add->CASScope : base->CASScope);
-	if(add->CASScope != NULL && strcasecmp(add->CASScope, "Off") == 0)
+	c->CASScope = (add->CASScope != CAS_DEFAULT_SCOPE ?
+                 add->CASScope : base->CASScope);
+	if(add->CASScope != NULL && apr_strnatcasecmp(add->CASScope, "Off") == 0)
 		c->CASScope = NULL;
 
-	c->CASRenew = (add->CASRenew != CAS_DEFAULT_RENEW ? add->CASRenew : base->CASRenew);
-	if(add->CASRenew != NULL && strcasecmp(add->CASRenew, "Off") == 0)
+	c->CASRenew = (add->CASRenew != CAS_DEFAULT_RENEW ?
+                 add->CASRenew : base->CASRenew);
+	if(add->CASRenew != NULL && apr_strnatcasecmp(add->CASRenew, "Off") == 0)
 		c->CASRenew = NULL;
 
-	c->CASGateway = (add->CASGateway != CAS_DEFAULT_GATEWAY ? add->CASGateway : base->CASGateway);
-	if(add->CASGateway != NULL && strcasecmp(add->CASGateway, "Off") == 0)
+	c->CASGateway = (add->CASGateway != CAS_DEFAULT_GATEWAY ? 
+                   add->CASGateway : base->CASGateway);
+	if(add->CASGateway != NULL && apr_strnatcasecmp(add->CASGateway, "Off") == 0)
 		c->CASGateway = NULL;
 
-	c->CASCookie = (apr_strnatcasecmp(add->CASCookie, CAS_DEFAULT_COOKIE) != 0 ? add->CASCookie : base->CASCookie);
-	c->CASSecureCookie = (apr_strnatcasecmp(add->CASSecureCookie, CAS_DEFAULT_SCOOKIE) != 0 ? add->CASSecureCookie : base->CASSecureCookie);
-	c->CASGatewayCookie = (apr_strnatcasecmp(add->CASGatewayCookie, CAS_DEFAULT_GATEWAY_COOKIE) != 0 ? add->CASGatewayCookie : base->CASGatewayCookie);
+	c->CASCookie = (apr_strnatcasecmp(add->CASCookie, CAS_DEFAULT_COOKIE) != 0 ?
+                  add->CASCookie : base->CASCookie);
+	c->CASSecureCookie = (apr_strnatcasecmp(add->CASSecureCookie, 
+                                          CAS_DEFAULT_SCOOKIE) != 0 ? 
+                        add->CASSecureCookie : base->CASSecureCookie);
+	c->CASGatewayCookie = (apr_strnatcasecmp(add->CASGatewayCookie,
+                                           CAS_DEFAULT_GATEWAY_COOKIE) != 0 ? 
+                         add->CASGatewayCookie : base->CASGatewayCookie);
 	
-	c->CASAuthNHeader = (apr_strnatcasecmp(add->CASAuthNHeader, CAS_DEFAULT_AUTHN_HEADER) != 0 ? add->CASAuthNHeader : base->CASAuthNHeader);
+  c->CASAuthNHeader = (add->CASAuthNHeader != CAS_DEFAULT_AUTHN_HEADER ?
+                       add->CASAuthNHeader : base->CASAuthNHeader);
+  if (add->CASAuthNHeader != NULL && apr_strnatcasecmp(add->CASAuthNHeader,
+                                                       "Off") == 0)
+    c->CASAuthNHeader = NULL;
 
-	c->CASScrubRequestHeaders = (add->CASScrubRequestHeaders != CAS_DEFAULT_SCRUB_REQUEST_HEADERS ? add->CASScrubRequestHeaders : base->CASScrubRequestHeaders);
-	if(add->CASScrubRequestHeaders != NULL && strcasecmp(add->CASScrubRequestHeaders, "Off") == 0)
-		c->CASScrubRequestHeaders = NULL;
+	c->CASScrubRequestHeaders = (add->CASScrubRequestHeaders != 
+                               CAS_DEFAULT_SCRUB_REQUEST_HEADERS ?
+                               add->CASScrubRequestHeaders :
+                               base->CASScrubRequestHeaders);
+	if(add->CASScrubRequestHeaders != NULL &&
+     apr_strnatcasecmp(add->CASScrubRequestHeaders, "Off") == 0)
+    c->CASScrubRequestHeaders = NULL;
 
 	return(c);
 }

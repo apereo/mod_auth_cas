@@ -112,7 +112,12 @@ const char *invalid_headers[] = {
   "CaS_Baz",
   "cas:zot",
   "CAS-Zuz",
-  CAS_DEFAULT_AUTHN_HEADER
+  /* 
+   * CAS_DEFAULT_AUTHN_HEADER is NULL, but we want to make sure that such a
+   * header is removed (and we want it to start with something other than the
+   * CAS attribute prefix).
+   */
+  "MAC-User"
 };
 
 const char *valid_headers[] = {
@@ -157,7 +162,7 @@ START_TEST(cas_scrub_headers_test) {
 
   headers_out = cas_scrub_headers(pool,
                                   CAS_DEFAULT_ATTRIBUTE_PREFIX,
-                                  CAS_DEFAULT_AUTHN_HEADER,
+                                  "MAC-User",
                                   headers_in,
                                   &dirty_headers);
 

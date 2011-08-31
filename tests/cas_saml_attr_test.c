@@ -138,30 +138,37 @@ static int cas_saml_attr_len(cas_saml_attr *attrs) {
 }
 
 START_TEST(cas_attr_builder_test) {
+    const char *foo = "foo";
+    struct test_data {
+        const char *const k;
+        const char *const v;
+        const int len;
+    } test_data_list[] = {
+        {"foo", "bar", 1},
+        {"foo", "bar", 1},
+        {"foo", "baz", 1},
+        {"quux", "blitz", 2},
+        {"foo", "bar", 3},
+        {foo, "1", 3},
+        {foo, "2", 3},
+        {0} /* NULL terminator */
+    };
+
+    int i = 0;
     cas_saml_attr *attrs;
     cas_attr_builder *builder = cas_attr_builder_new(pool, &attrs);
-    cas_attr_builder_check_invariants(builder, &attrs);
     fail_unless(cas_saml_attr_len(attrs) == 0);
 
-    cas_attr_builder_add(builder, "foo", "bar");
-    cas_attr_builder_check_invariants(builder, &attrs);
-    fail_unless(cas_saml_attr_len(attrs) == 1);
+    while (1) {
+        cas_attr_builder_check_invariants(builder, &attrs);
 
-    cas_attr_builder_add(builder, "foo", "bar");
-    cas_attr_builder_check_invariants(builder, &attrs);
-    fail_unless(cas_saml_attr_len(attrs) == 1);
+        struct test_data d = test_data_list[i];
+        if (d.v == NULL) break;
 
-    cas_attr_builder_add(builder, "foo", "baz");
-    cas_attr_builder_check_invariants(builder, &attrs);
-    fail_unless(cas_saml_attr_len(attrs) == 1);
-
-    cas_attr_builder_add(builder, "quux", "blitz");
-    cas_attr_builder_check_invariants(builder, &attrs);
-    fail_unless(cas_saml_attr_len(attrs) == 2);
-
-    cas_attr_builder_add(builder, "foo", "bar");
-    cas_attr_builder_check_invariants(builder, &attrs);
-    fail_unless(cas_saml_attr_len(attrs) == 3);
+        cas_attr_builder_add(builder, d.k, d.v);
+        fail_unless(cas_saml_attr_len(attrs) == d.len);
+        i++;
+    }
 }
 END_TEST
 

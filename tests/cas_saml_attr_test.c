@@ -176,12 +176,22 @@ START_TEST(cas_attr_cmp_test) {
     cas_saml_attr *attrs1, *attrs2;
     cas_attr_builder *builder1 = cas_attr_builder_new(pool, &attrs1);
     cas_attr_builder *builder2 = cas_attr_builder_new(pool, &attrs2);
+
+    /* Newly created, empty attribute lists compare equal. */
     fail_unless(cas_saml_attr_cmp(attrs1, attrs2) == 0);
+
+    /* Adding equal pairs to each lists still compares equal. */
     cas_attr_builder_add(builder1, "foo", "bar");
     cas_attr_builder_add(builder2, "foo", "bar");
     fail_unless(cas_saml_attr_cmp(attrs1, attrs2) == 0);
-    fail_unless(cas_saml_attr_cmp(0, attrs2) < 0);
-    fail_unless(cas_saml_attr_cmp(cas_saml_attr_pdup(pool, attrs1), attrs2) == 0);
+
+    /* An explicitly empty (NULL) list compares less than a list that
+       we have added a value to. */
+    fail_unless(cas_saml_attr_cmp(NULL, attrs2) < 0);
+
+    /* A duplicated list behaves the same as the original list. */
+    fail_unless(cas_saml_attr_cmp(cas_saml_attr_pdup(pool, attrs1),
+                                  attrs2) == 0);
 }
 END_TEST
 

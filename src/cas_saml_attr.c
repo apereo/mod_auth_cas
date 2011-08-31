@@ -76,10 +76,11 @@ struct cas_attr_builder
  * NULL-terminated, linked list of attributes containing the
  * attributes in the order that they were added to the builder.
  */
-cas_attr_builder *cas_attr_builder_new(apr_pool_t *p, cas_saml_attr **result)
+cas_attr_builder *cas_attr_builder_new(apr_pool_t *pool,
+                                       cas_saml_attr **result)
 {
-    cas_attr_builder *builder = apr_palloc(p, sizeof(cas_attr_builder));
-    builder->pool = p;
+    cas_attr_builder *builder = apr_palloc(pool, sizeof(cas_attr_builder));
+    builder->pool = pool;
     builder->next_attr = result;
     builder->next_val = NULL;
     builder->last_attr = NULL;

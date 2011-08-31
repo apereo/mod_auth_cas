@@ -53,7 +53,8 @@ typedef struct cas_saml_attr {
  */
 typedef struct cas_attr_builder cas_attr_builder;
 cas_attr_builder *cas_attr_builder_new(apr_pool_t *p, cas_saml_attr **result);
-void cas_attr_builder_add(cas_attr_builder *builder, const char *const name, const char *const value);
+void cas_attr_builder_add(cas_attr_builder *builder, const char *const name,
+                          const char *const value);
 void cas_saml_attr_cat(cas_attr_builder *builder, cas_saml_attr *attrs);
 
 cas_saml_attr *cas_saml_attr_pdup(apr_pool_t *pool, cas_saml_attr *attrs);

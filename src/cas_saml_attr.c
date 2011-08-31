@@ -51,7 +51,8 @@ struct cas_attr_builder
      *
      * Invariants:
      *
-     *  * If there is at least one attribute in the list, then next_val is not NULL.
+     *  * If there is at least one attribute in the list, then next_val
+     *    is not NULL.
      *  * If the list is empty, then next_val is NULL.
      *  * If next_val is not NULL, then (*next_val) is NULL.
      */

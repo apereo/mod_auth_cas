@@ -187,8 +187,10 @@ static void cas_saml_attr_teardown() {
 }
 
 TCase *cas_saml_attr_tcase() {
-  TCase *tc_builder = tcase_create("builder");
-  tcase_add_checked_fixture(tc_builder, cas_saml_attr_setup, cas_saml_attr_teardown);
+  TCase *tc_builder = tcase_create("cas_saml_attr_builder");
+  tcase_add_checked_fixture(tc_builder,
+                            cas_saml_attr_setup,
+                            cas_saml_attr_teardown);
   tcase_add_test(tc_builder, cas_attr_builder_test);
   tcase_add_test(tc_builder, cas_attr_cmp_test);
   return tc_builder;

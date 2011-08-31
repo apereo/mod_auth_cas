@@ -22,7 +22,6 @@
  *
  */
 
-#include <assert.h>
 #include <sys/types.h>
 
 #include <openssl/crypto.h>

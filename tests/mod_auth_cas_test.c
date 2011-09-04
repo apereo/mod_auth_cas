@@ -14,10 +14,10 @@
 #include <mod_include.h>
 
 #include "../src/mod_auth_cas.h"
+#include "cas_saml_attr_test.h"
 
 request_rec *request;
 apr_pool_t *pool;
-
 
 START_TEST(cas_merge_server_config_test) {
   cas_cfg *base = cas_create_server_config(request->pool, NULL);
@@ -877,6 +877,7 @@ Suite *mod_auth_cas_suite() {
   tcase_add_test(tc_core, cas_in_filter_test);
   tcase_add_test(tc_core, cas_register_hooks_test);
   suite_add_tcase(s, tc_core);
+  suite_add_tcase(s, cas_saml_attr_tcase());
 
   return s;
 }

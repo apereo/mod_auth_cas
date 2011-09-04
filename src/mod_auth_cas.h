@@ -41,7 +41,7 @@
 #define LIBCURL_NO_CURLPROTO
 #endif
 
-
+#include "cas_saml_attr.h"
 
 #ifndef AP_SERVER_MAJORVERSION_NUMBER
 	#ifndef AP_SERVER_MINORVERSION_NUMBER
@@ -131,17 +131,6 @@ typedef struct cas_dir_cfg {
 	char *CASAuthNHeader;
 	char *CASScrubRequestHeaders;
 } cas_dir_cfg;
-
-typedef struct cas_saml_attr_val {
-	char *value;
-	struct cas_saml_attr_val *next;
-} cas_saml_attr_val;
-
-typedef struct cas_saml_attr {
-	char *attr;
-	cas_saml_attr_val *values;
-	struct cas_saml_attr *next;
-} cas_saml_attr;
 
 typedef struct cas_cache_entry {
 	char *user;

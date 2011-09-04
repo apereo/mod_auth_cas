@@ -407,7 +407,7 @@ apr_byte_t cas_setURL(apr_pool_t *pool, apr_uri_t *uri, const char *url)
 	return TRUE;
 }
 
-apr_byte_t isSSL(request_rec *r)
+apr_byte_t isSSL(const request_rec *r)
 {
 
 #ifdef APACHE2_0
@@ -520,51 +520,51 @@ char *getCASLoginURL(request_rec *r, cas_cfg *c)
 }
 
 /*
- * Create the 'service=...' parameter
- * The reason this is not an apr_uri_t based on r->parsed_uri is that Apache does not fill out several things
- * in the apr_uri_t structure...  unimportant things, like 'hostname', and 'scheme', and 'port'...  so we must
- * implement a trimmed down version of apr_uri_unparse
+ * Responsible for creating the 'service=' parameter.  Constructs this
+ * based on the contents of the request_rec because r->parsed_uri lacks
+ * information like hostname, scheme, and port. 
  */
-char *getCASService(request_rec *r, cas_cfg *c)
+char *getCASService(const request_rec *r, const cas_cfg *c)
 {
-	char *scheme, *service, *unparsedPath = NULL, *queryString = strchr(r->unparsed_uri, '?');
-	int len;
-	apr_port_t port = r->connection->local_addr->port;
-	apr_byte_t printPort = TRUE;
+	const apr_port_t port = r->connection->local_addr->port;
+  const apr_byte_t ssl = isSSL(r);
+  const apr_uri_t *root_proxy = &c->CASRootProxiedAs;
+  char *scheme, *port_str = "", *service;
+  apr_byte_t print_port = TRUE;
 
-	if(queryString != NULL) { 
-		len = strlen(r->unparsed_uri) - strlen(queryString);
-		unparsedPath = apr_pcalloc(r->pool, len+1);
-		strncpy(unparsedPath, r->unparsed_uri, len);
-		unparsedPath[len] = '\0';
-	} else {
-		unparsedPath = r->unparsed_uri;
-	}
-
-	if(c->CASDebug)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getCASService()");
-
-	if(c->CASRootProxiedAs.is_initialized) {
-		service = apr_psprintf(r->pool, "%s%s%s%s", escapeString(r, apr_uri_unparse(r->pool, &c->CASRootProxiedAs, 0)), escapeString(r, unparsedPath), (r->args != NULL ? "%3f" : ""), escapeString(r, r->args));
-	} else {
-		if(isSSL(r) && port == 443)
-			printPort = FALSE;
-		else if(!isSSL(r) && port == 80)
-			printPort = FALSE;
 #ifdef APACHE2_0
-		scheme = (char *) ap_http_method(r);
+  scheme = (char *) ap_http_method(r);
 #else
-		scheme = (char *) ap_http_scheme(r);
+  scheme = (char *) ap_http_scheme(r);
 #endif
-		if(printPort == TRUE)
-			service = apr_psprintf(r->pool, "%s%%3a%%2f%%2f%s%%3a%u%s%s%s", scheme, r->server->server_hostname, port, escapeString(r, unparsedPath), (r->args != NULL ? "%3f" : ""), escapeString(r, r->args));
-		else
-			service = apr_psprintf(r->pool, "%s%%3a%%2f%%2f%s%s%s%s", scheme, r->server->server_hostname, escapeString(r, unparsedPath), (r->args != NULL ? "%3f" : ""), escapeString(r, r->args));
-
-		if(c->CASDebug)
-			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "CAS Service '%s'", service);
-	}
-	return(service);
+  
+  if (root_proxy->is_initialized) {
+		service = apr_psprintf(r->pool, "%s%s%s%s", 
+                           escapeString(r,
+                                        apr_uri_unparse(r->pool,
+                                                        root_proxy, 0)),
+                           escapeString(r, r->uri),
+                           (r->args != NULL ? "%3f" : ""),
+                           escapeString(r, r->args));
+  } else {
+    if (ssl && port == 443)
+      print_port = FALSE;
+    else if (!ssl && port == 80)
+      print_port = FALSE;
+    
+    if (print_port)
+      port_str = apr_psprintf(r->pool, "%%3a%u", port);
+    service = apr_pstrcat(r->pool, scheme, "%3a%2f%2f",
+                          r->server->server_hostname,
+                          port_str, escapeString(r, r->uri),
+                          (r->args != NULL && *r->args != '\0' ?
+                           "%3f" : ""),
+                          escapeString(r, r->args), NULL);
+  }
+  if (c->CASDebug)
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "CAS Service '%s'",
+                  service);
+	return service;
 }
 
 
@@ -745,7 +745,7 @@ void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_
  * 7/25/2009 - add '+' to list of characters to escape
  */
 
-char *escapeString(request_rec *r, char *str)
+char *escapeString(const request_rec *r, const char *str)
 {
 	char *rfc1738 = "+ <>\"%{}|\\^~[]`;/?:@=&#";
 
@@ -753,9 +753,11 @@ char *escapeString(request_rec *r, char *str)
 
 }
 
-char *urlEncode(request_rec *r, char *str, char *charsToEncode)
+char *urlEncode(const request_rec *r, const char *str,
+                const char *charsToEncode)
 {
-	char *rv, *p, *q;
+	char *rv, *p;
+  const char *q;
 	size_t i, j, size;
 	char escaped = FALSE;
 

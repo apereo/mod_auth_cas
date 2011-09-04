@@ -328,6 +328,22 @@ START_TEST(getCASService_root_proxied_test) {
 }
 END_TEST
 
+START_TEST(getCASService_empty_qs_test) {
+  cas_cfg *c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+  char *service;
+  const char *expected_service =
+      "http%3a%2f%2ffoo.example.com%2f";
+
+  apr_pool_userdata_set("http", "scheme", NULL, request->pool);
+  request->uri = "/";
+  request->args = "";
+  request->unparsed_uri = "/?";
+
+  service = getCASService(request, c);
+  fail_unless(strcmp(service, expected_service) == 0);
+}
+END_TEST
 
 START_TEST(redirectRequest_test) {
   cas_cfg *c = ap_get_module_config(request->server->module_config,
@@ -786,6 +802,7 @@ void core_setup() {
   request->server->server_hostname = "foo.example.com";
   request->connection->local_addr->port = 80;
   request->unparsed_uri = "/foo?bar=baz&zot=qux";
+  request->uri = "/foo";
   request->args = "bar=baz&zot=qux";
   apr_uri_parse(request->pool, "http://foo.example.com/foo?bar=baz&zot=qux",
                 &request->parsed_uri);
@@ -848,6 +865,7 @@ Suite *mod_auth_cas_suite() {
   tcase_add_test(tc_core, getCASService_http_port_test);
   tcase_add_test(tc_core, getCASService_https_port_test);
   tcase_add_test(tc_core, getCASService_root_proxied_test);
+  tcase_add_test(tc_core, getCASService_empty_qs_test);
   tcase_add_test(tc_core, redirectRequest_test);
   tcase_add_test(tc_core, removeCASParams_test);
   tcase_add_test(tc_core, getCASTicket_test);

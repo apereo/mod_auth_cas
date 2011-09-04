@@ -342,6 +342,11 @@ START_TEST(getCASService_empty_qs_test) {
 
   service = getCASService(request, c);
   fail_unless(strcmp(service, expected_service) == 0);
+
+  request->args = NULL;
+  request->unparsed_uri = "/";
+  service = getCASService(request, c);
+  fail_unless(strcmp(service, expected_service) == 0);
 }
 END_TEST
 

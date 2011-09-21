@@ -1994,17 +1994,31 @@ int cas_authenticate(request_rec *r)
 /* Store a reference to the request's attributes for later use.
  * Subsequent calls to cas_get_attributes() with the same request
  * object will return this same set of attributes. Note that the
- * attributes are stored directly, and not copied. */
+ * attributes are stored directly, and not copied. In particular,
+ * beware that the attributes must live at least as long as the
+ * specified request. */
 void cas_set_attributes(request_rec *r, cas_saml_attr *const attrs) {
-	ap_set_module_config(r, &auth_cas_module, attrs);
+	/* Always set the attributes in the current request, even if
+	 * it is a subrequest, because we always allocate memory in
+	 * the current request, so we run the risk of accessing freed
+	 * memory if we were to set it in the main request. */
+	ap_set_module_config(r->request_config, &auth_cas_module, attrs);
 }
 
 /* Get a reference to the attributes that were previously stored for
- * this request. If no attributes have been stored, this function will
- * return NULL.
+ * this request (or its main request). If no attributes have been
+ * stored, this function will return NULL.
  */
 const cas_saml_attr *cas_get_attributes(request_rec *r) {
-	return ap_get_module_config(r, &auth_cas_module);
+	/* If we have attribute stored in this request, then use them. If
+	 * not, then check the main request (if any). */
+	const cas_saml_attr *attrs = ap_get_module_config(r->request_config,
+							  &auth_cas_module);
+	if (attrs == NULL && r->main != NULL) {
+		return cas_get_attributes(r->main);
+	} else {
+		return attrs;
+	}
 }
 
 /* Look for an attribute that matches the given attribute spec (e.g.

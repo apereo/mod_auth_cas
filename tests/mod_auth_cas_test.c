@@ -177,6 +177,14 @@ START_TEST(cas_scrub_headers_test) {
 
 END_TEST
 
+START_TEST(normalizeHeaderName_test) {
+  fail_unless(strcmp(normalizeHeaderName(request, "foobar"), "foobar") == 0);
+  fail_unless(strcmp(normalizeHeaderName(request, "FooBar"), "FooBar") == 0);
+  fail_unless(strcmp(normalizeHeaderName(request, "Foo Bar"), "Foo-Bar") == 0);
+  fail_unless(strcmp(normalizeHeaderName(request, "Foo:Bar"), "Foo-Bar") == 0);
+}
+END_TEST
+
 START_TEST(getCASPath_test) {
   char *path;
   apr_uri_parse(request->pool, "http://www.example.com/foo/bar/baz.html",
@@ -856,6 +864,7 @@ Suite *mod_auth_cas_suite() {
   tcase_add_test(tc_core, cas_char_to_env_test);
   tcase_add_test(tc_core, cas_scrub_headers_test);
   tcase_add_test(tc_core, cas_strnenvcmp_test);
+  tcase_add_test(tc_core, normalizeHeaderName_test);
   tcase_add_test(tc_core, cas_merge_server_config_test);
   tcase_add_test(tc_core, cas_merge_dir_config_test);
   tcase_add_test(tc_core, cas_setURL_test);

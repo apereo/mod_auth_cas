@@ -170,6 +170,7 @@ apr_table_t *cas_scrub_headers(apr_pool_t *p, const char *const attr_prefix,
                 const char *const authn_header,
                 const apr_table_t *const headers,
                 const apr_table_t **const dirty_headers_ptr);
+char *normalizeHeaderName(const request_rec *r, const char *str);
 apr_byte_t isSSL(const request_rec *r);
 apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_entry *cache);
 void CASCleanCache(request_rec *r, cas_cfg *c);

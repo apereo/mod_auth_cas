@@ -1808,6 +1808,30 @@ void cas_scrub_request_headers(
 	}
 }
 
+/* Normalize a string for use as an HTTP Header Name.  Any invalid
+ * characters (per http://tools.ietf.org/html/rfc2616#section-4.2 and
+ * http://tools.ietf.org/html/rfc2616#section-2.2) are replaced with
+ * a dash ('-') character. */
+char *normalizeHeaderName(const request_rec *r, const char *str)
+{
+	/* token = 1*<any CHAR except CTLs or separators>
+	 * CTL = <any US-ASCII control character
+	 *	  (octets 0 - 31) and DEL (127)>
+	 * separators = "(" | ")" | "<" | ">" | "@"
+	 *	      | "," | ";" | ":" | "\" | <">
+	 *	      | "/" | "[" | "]" | "?" | "="
+	 *	      | "{" | "}" | SP | HT */
+	const char *separators = "()<>@,;:\\\"/[]?={} \t";
+
+	char *ns = apr_pstrdup(r->pool, str);
+	size_t i;
+	for (i = 0; i < strlen(ns); i++) {
+		if (ns[i] < 32 || ns[i] == 127) ns[i] = '-';
+		else if (strchr(separators, ns[i]) != NULL) ns[i] = '-';
+	}
+	return ns;
+}
+
 /* basic CAS module logic */
 int cas_authenticate(request_rec *r)
 {
@@ -1963,7 +1987,7 @@ int cas_authenticate(request_rec *r)
  							}
  							av = av->next;
  						}
- 						apr_table_set(r->headers_in, apr_psprintf(r->pool, "%s%s", c->CASAttributePrefix, a->attr), csvs);
+ 						apr_table_set(r->headers_in, apr_psprintf(r->pool, "%s%s", c->CASAttributePrefix, normalizeHeaderName(r, a->attr)), csvs);
  						a = a->next;
  					}
  				}

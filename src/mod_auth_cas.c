@@ -1391,7 +1391,7 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 								aNode = aNode->next;
 								// AttributeStatement
 								if(aNode != NULL) {
-									apr_xml_elem *as = aNode;
+									apr_xml_elem *bNode = aNode;
 									aNode = aNode->first_child;
 									// Subject
 									if(aNode != NULL) {
@@ -1402,9 +1402,9 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 												NULL, NULL, (const char **)user, NULL);
 										}
 									}
-									if(as != NULL) {
+									if(bNode != NULL) {
 										cas_attr_builder *builder = cas_attr_builder_new(r->pool, attrs);
-										as = as->first_child;
+										apr_xml_elem *as = bNode->first_child;
 										while(as != NULL) {
 											if(apr_strnatcmp(as->name, "Attribute") == 0) {
 												apr_xml_attr *attr = as->attr;
@@ -1424,6 +1424,20 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 												}
 											}
 											as = as->next;
+										}
+										bNode = bNode->next;
+										while(bNode != NULL) {
+											if(apr_strnatcmp(bNode->name, "AuthenticationStatement") == 0) {
+												apr_xml_attr *attr = bNode->attr;
+												while(attr != NULL) {
+													if(apr_strnatcmp(attr->name, "AuthenticationMethod") == 0) {
+														const char *attr_value = attr->value;
+														cas_attr_builder_add(builder, "AuthenticationMethod", attr_value);
+													}
+													attr = attr->next;
+												}
+											}
+											bNode = bNode->next;
 										}
 									}
 								}

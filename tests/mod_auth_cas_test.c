@@ -15,6 +15,7 @@
 
 #include "../src/mod_auth_cas.h"
 #include "cas_saml_attr_test.h"
+#include "curl_stubs.h"
 
 request_rec *request;
 apr_pool_t *pool;
@@ -555,8 +556,53 @@ START_TEST(deleteCASCacheFile_test) {
 }
 END_TEST
 
+char *get_attr(const cas_saml_attr *attrs, const char *attr) {
+  char *csvs = NULL;
+  cas_saml_attr *a;
+  for (a = attrs; a != NULL; a = a->next) {
+    if (strcmp(a->attr, attr) != 0) continue;
+    cas_saml_attr_val *av = a->values;
+    while (av != NULL) {
+      if (csvs != NULL) {
+        csvs = apr_psprintf(r->pool, "%s%s%s", csvs, c->CASAttributeDelimiter, av->value);
+      } else {
+        csvs = apr_psprintf(r->pool, "%s", av->value);
+      }
+      av = av->next;
+    }
+    break;
+  }
+  return csvs;
+}
+
 START_TEST(isValidCASTicket_test) {
-  fail();
+  const char *expected = "<cas:serviceResponse xmlns:cas="
+      "'http://www.yale.edu/tp/cas'>"
+      "<cas:authenticationSuccess>"
+      "<cas:user>username</cas:user>"
+      "</cas:authenticationSuccess>"
+      "</cas:serviceResponse>";
+  char *remoteUser = NULL;
+  cas_saml_attr *attrs = NULL;
+  char *attr;
+  apr_byte_t rv;
+  cas_cfg *c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+  set_curl_response(expected);
+  rv = isValidCASTicket(request, c, "ST-1234");
+#ifndef DARWIN
+  // apr_stat behaves oddly while the tests are running (but works
+  // just fine on a standalone test program).  It almost looks
+  // like it doesn't get called at all, which results in NULL
+  // being returned from getResponseFromServer.  In any case, the
+  // code in getResponseFromServer needs to be refactored anyway,
+  // so improving the test quality and getting it to work on OS X
+  // can be saved for that date.
+  fail_if(rv == FALSE);
+  attr = get_attr("AuthenticationMethod");
+  fail_if(attr == NULL);
+  fail_unless(strcmp(attr, "urn:") == 0);
+#endif
 }
 END_TEST
 
@@ -591,6 +637,7 @@ START_TEST(getResponseFromServer_test) {
   char *rv;
   cas_cfg *c = ap_get_module_config(request->server->module_config,
                                     &auth_cas_module);
+  set_curl_response(expected);
   rv = getResponseFromServer(request, c, "ST-1234");
 #ifndef DARWIN
   // apr_stat behaves oddly while the tests are running (but works
@@ -893,11 +940,11 @@ Suite *mod_auth_cas_suite() {
   tcase_add_test(tc_core, expireCASST_test);
   tcase_add_test(tc_core, CASSAMLLogout_test);
   tcase_add_test(tc_core, deleteCASCacheFile_test);
+  tcase_add_test(tc_core, getResponseFromServer_test);
   tcase_add_test(tc_core, isValidCASTicket_test);
   tcase_add_test(tc_core, isValidCASCookie_test);
   tcase_add_test(tc_core, cas_curl_write_test);
   tcase_add_test(tc_core, cas_curl_ssl_ctx_test);
-  tcase_add_test(tc_core, getResponseFromServer_test);
   tcase_add_test(tc_core, cas_authenticate_test);
   tcase_add_test(tc_core, cas_ssl_locking_callback_test);
   tcase_add_test(tc_core, cas_ssl_id_callback_test);

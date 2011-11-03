@@ -37,7 +37,7 @@
 #endif
 
 #include "curl/curlver.h"
-#if (LIBCURL_VERSION_NUM < 0x00071904)
+#if (LIBCURL_VERSION_NUM < 0x071304)
 #define LIBCURL_NO_CURLPROTO
 #endif
 

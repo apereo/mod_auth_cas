@@ -8,6 +8,12 @@ typedef struct curl_stub {
   size_t (*writefunc)(void *, size_t, size_t, void*);
 } curl_stub;
 
+static const char *curl_response = NULL;
+
+void set_curl_response(const char *response) {
+  curl_response = response;
+}
+
 CURL_EXTERN CURL *curl_easy_init(void) {
   CURL *rv = (CURL *) malloc(sizeof(curl_stub));
   return rv;
@@ -19,14 +25,8 @@ CURL_EXTERN void curl_easy_cleanup(CURL *curl)
 }
 
 CURL_EXTERN CURLcode curl_easy_perform(CURL *curl) {
-  const char *response = "<cas:serviceResponse xmlns:cas="
-      "'http://www.yale.edu/tp/cas'>"
-      "<cas:authenticationSuccess>"
-      "<cas:user>username</cas:user>"
-      "</cas:authenticationSuccess>"
-      "</cas:serviceResponse>";
   curl_stub *c = (curl_stub *) curl;
-  c->writefunc((void *)response, sizeof(char), strlen(response), c->data);
+  c->writefunc((void *)curl_response, sizeof(char), strlen(curl_response), c->data);
 
   return CURLE_OK;
 }

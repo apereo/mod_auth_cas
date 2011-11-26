@@ -527,10 +527,10 @@ char *getCASLoginURL(request_rec *r, cas_cfg *c)
 char *getCASService(const request_rec *r, const cas_cfg *c)
 {
 	const apr_port_t port = r->connection->local_addr->port;
-  const apr_byte_t ssl = isSSL(r);
-  const apr_uri_t *root_proxy = &c->CASRootProxiedAs;
-  char *scheme, *port_str = "", *service;
-  apr_byte_t print_port = TRUE;
+	const apr_byte_t ssl = isSSL(r);
+	const apr_uri_t *root_proxy = &c->CASRootProxiedAs;
+	char *scheme, *port_str = "", *service;
+	apr_byte_t print_port = TRUE;
 
 #ifdef APACHE2_0
   scheme = (char *) ap_http_method(r);
@@ -757,7 +757,7 @@ char *urlEncode(const request_rec *r, const char *str,
                 const char *charsToEncode)
 {
 	char *rv, *p;
-  const char *q;
+	const char *q;
 	size_t i, j, size;
 	char escaped = FALSE;
 
@@ -1576,11 +1576,13 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	apr_uri_t validateURL;
 	cas_curl_buffer curlBuffer;
 	struct curl_slist *headers = NULL;
+	char *samlPayload;
+	CURL *curl;
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getResponseFromServer()");
 
-	CURL *curl = curl_easy_init();
+	curl = curl_easy_init();
 
 	curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L); 
 	curl_easy_setopt(curl, CURLOPT_HEADER, 0L); 
@@ -1623,7 +1625,7 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 
 	if(c->CASValidateSAML == TRUE) {
 		curl_easy_setopt(curl, CURLOPT_POST, 1L);
-		char *samlPayload = apr_psprintf(r->pool, "<?xml version=\"1.0\" encoding=\"utf-8\"?><SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\"><SOAP-ENV:Header/><SOAP-ENV:Body><samlp:Request xmlns:samlp=\"urn:oasis:names:tc:SAML:1.0:protocol\"  MajorVersion=\"1\" MinorVersion=\"1\"><samlp:AssertionArtifact>%s%s</samlp:AssertionArtifact></samlp:Request></SOAP-ENV:Body></SOAP-ENV:Envelope>",ticket, getCASRenew(r));
+		samlPayload = apr_psprintf(r->pool, "<?xml version=\"1.0\" encoding=\"utf-8\"?><SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\"><SOAP-ENV:Header/><SOAP-ENV:Body><samlp:Request xmlns:samlp=\"urn:oasis:names:tc:SAML:1.0:protocol\"  MajorVersion=\"1\" MinorVersion=\"1\"><samlp:AssertionArtifact>%s%s</samlp:AssertionArtifact></samlp:Request></SOAP-ENV:Body></SOAP-ENV:Envelope>",ticket, getCASRenew(r));
 		headers = curl_slist_append(headers, "soapaction: http://www.oasis-open.org/committees/security");
 		headers = curl_slist_append(headers, "cache-control: no-cache"); 
 		headers = curl_slist_append(headers, "pragma: no-cache");
@@ -1674,7 +1676,7 @@ int cas_char_to_env(int c) {
  * first argument's conversion to an environment variable is less
  * than, equal to, or greater than the second. */
 int cas_strnenvcmp(const char *a, const char *b, int len) {
-	int i = 0;
+	int d, i = 0;
 	while (1) {
 		/* If len < 0 then we don't stop based on length */
 		if (len >= 0 && i >= len) return 0;
@@ -1690,7 +1692,7 @@ int cas_strnenvcmp(const char *a, const char *b, int len) {
 
 		/* Normalize the characters as for conversion to an
 		 * environment variable. */
-		int d = cas_char_to_env(*a) - cas_char_to_env(*b);
+		d = cas_char_to_env(*a) - cas_char_to_env(*b);
 		if (d) return d;
 
 		a++;
@@ -1785,6 +1787,10 @@ void cas_scrub_request_headers(
 		const cas_dir_cfg *const d)
 {
 	const apr_table_t *dirty_headers;
+	const char *log_fmt;
+	const apr_array_header_t *h;
+	const apr_table_entry_t *e;
+	int i;
 
 	/* Partition the headers into clean and dirty, assigning the clean
 	 * headers to the request. */
@@ -1797,11 +1803,10 @@ void cas_scrub_request_headers(
 			&dirty_headers);
 
 	/* Write log messages for all of the dirty headers (if any) */
-	const char *const log_fmt =
+	log_fmt =
 		"MOD_AUTH_CAS: Scrubbed suspicious request header (%s: %.32s)";
-	const apr_array_header_t *const h = apr_table_elts(dirty_headers);
-	const apr_table_entry_t *const e = (const apr_table_entry_t *)h->elts;
-	int i;
+	h = apr_table_elts(dirty_headers);
+	e = (const apr_table_entry_t *)h->elts;
 
 	for (i = 0; i < h->nelts; i++) {
 		ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, log_fmt, e[i].key, e[i].val);

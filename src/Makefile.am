@@ -15,7 +15,7 @@ install: mod_auth_cas.la
 	@APXS@ -i -S LIBEXECDIR=${DESTDIR}${APXS_LIBEXECDIR} mod_auth_cas.la
 
 clean:
-	rm -rf mod_auth_cas.slo mod_auth_cas.la mod_auth_cas.lo .libs
+	rm -rf mod_auth_cas.slo mod_auth_cas.la mod_auth_cas.lo cas_saml_attr.lo cas_saml_attr.slo .libs
 
 distclean: clean
 	rm Makefile

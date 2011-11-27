@@ -21,8 +21,15 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES])
 AC_PROG_CC
 AM_PROG_CC_C_O
 
-#Automatically force -Wall and -Werror if compatible
-AX_CHECK_COMPILE_FLAG([-Wall -Werror],[CFLAGS="${CFLAGS} -Wall -Werror"])
+AX_CHECK_COMPILE_FLAG([-Wall],[CFLAGS="${CFLAGS} -Wall"])
+AX_CHECK_COMPILE_FLAG([-Wextra],[CFLAGS="${CFLAGS} -Wextra"])
+AX_CHECK_COMPILE_FLAG([-Wdeclaration-after-statement],[CFLAGS="${CFLAGS} -Wdeclaration-after-statement"])
+AX_CHECK_COMPILE_FLAG([-Wformat],[CFLAGS="${CFLAGS} -Wformat"])
+AX_CHECK_COMPILE_FLAG([-Wformat-security],[CFLAGS="${CFLAGS} -Wformat-security"])
+AX_CHECK_COMPILE_FLAG([-Wmissing-declarations],[CFLAGS="${CFLAGS} -Wmissing-declarations"])
+AX_CHECK_COMPILE_FLAG([-Wno-unused-parameter],[CFLAGS="${CFLAGS} -Wno-unused-parameter"])
+AX_CHECK_COMPILE_FLAG([-Wpointer-arith],[CFLAGS="${CFLAGS} -Wpointer-arith"])
+AX_CHECK_COMPILE_FLAG([-Wstrict-prototypes],[CFLAGS="${CFLAGS} -Wstrict-prototypes"])
 
 AC_PROG_LIBTOOL
 AC_SUBST(INCLTDL)

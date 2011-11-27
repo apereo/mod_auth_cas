@@ -36,6 +36,7 @@
 #define OPENSSL_NO_THREADID
 #endif
 
+#include "curl/curl.h"
 #include "curl/curlver.h"
 #if (LIBCURL_VERSION_NUM < 0x071304)
 #define LIBCURL_NO_CURLPROTO

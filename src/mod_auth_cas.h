@@ -168,15 +168,13 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 int cas_char_to_env(int c);
 int cas_strnenvcmp(const char *a, const char *b, int len);
 apr_table_t *cas_scrub_headers(apr_pool_t *p, const char *const attr_prefix,
-                const char *const authn_header,
-                const apr_table_t *const headers,
-                const apr_table_t **const dirty_headers_ptr);
+	const char *const authn_header, const apr_table_t *const headers,
+	const apr_table_t **const dirty_headers_ptr);
 char *normalizeHeaderName(const request_rec *r, const char *str);
 apr_byte_t isSSL(const request_rec *r);
 apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_entry *cache);
 void CASCleanCache(request_rec *r, cas_cfg *c);
-apr_byte_t writeCASCacheEntry(request_rec *r, char *name,
-                cas_cache_entry *cache, apr_byte_t exists);
+apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache, apr_byte_t exists);
 char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ticket);
 apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **user, cas_saml_attr **attrs);
 size_t cas_curl_write(const void *ptr, size_t size, size_t nmemb, void *stream);
@@ -187,8 +185,7 @@ apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode
 void deleteCASCacheFile(request_rec *r, char *cookieName);
 void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure);
 char *escapeString(const request_rec *r, const char *str);
-char *urlEncode(const request_rec *r, const char *str,
-                const char *charsToEncode);
+char *urlEncode(const request_rec *r, const char *str, const char *charsToEncode);
 char *getCASGateway(request_rec *r);
 char *getCASRenew(request_rec *r);
 char *getCASLoginURL(request_rec *r, cas_cfg *c);
@@ -208,8 +205,7 @@ void cas_register_hooks(apr_pool_t *p);
 
 char *getCASScope(request_rec *r);
 void expireCASST(request_rec *r, const char *ticketname);
-void cas_scrub_request_headers(request_rec *r, const cas_cfg *const c,
-    const cas_dir_cfg *const d);
+void cas_scrub_request_headers(request_rec *r, const cas_cfg *const c, const cas_dir_cfg *const d);
 CURLcode cas_curl_ssl_ctx(CURL *curl, void *sslctx, void *parm);
 apr_status_t cas_cleanup(void *data);
 int check_merged_vhost_configs(apr_pool_t *pool, server_rec *s);

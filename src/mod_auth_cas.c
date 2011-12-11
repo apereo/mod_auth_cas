@@ -178,42 +178,37 @@ void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 
 	/* inherit the previous directory's setting if applicable */
 	c->CASScope = (add->CASScope != CAS_DEFAULT_SCOPE ?
-                 add->CASScope : base->CASScope);
+		add->CASScope : base->CASScope);
 	if(add->CASScope != NULL && apr_strnatcasecmp(add->CASScope, "Off") == 0)
 		c->CASScope = NULL;
 
 	c->CASRenew = (add->CASRenew != CAS_DEFAULT_RENEW ?
-                 add->CASRenew : base->CASRenew);
+		add->CASRenew : base->CASRenew);
 	if(add->CASRenew != NULL && apr_strnatcasecmp(add->CASRenew, "Off") == 0)
 		c->CASRenew = NULL;
 
 	c->CASGateway = (add->CASGateway != CAS_DEFAULT_GATEWAY ?
-                   add->CASGateway : base->CASGateway);
+		add->CASGateway : base->CASGateway);
 	if(add->CASGateway != NULL && apr_strnatcasecmp(add->CASGateway, "Off") == 0)
 		c->CASGateway = NULL;
 
 	c->CASCookie = (apr_strnatcasecmp(add->CASCookie, CAS_DEFAULT_COOKIE) != 0 ?
-                  add->CASCookie : base->CASCookie);
-	c->CASSecureCookie = (apr_strnatcasecmp(add->CASSecureCookie,
-                                          CAS_DEFAULT_SCOOKIE) != 0 ?
-                        add->CASSecureCookie : base->CASSecureCookie);
-	c->CASGatewayCookie = (apr_strnatcasecmp(add->CASGatewayCookie,
-                                           CAS_DEFAULT_GATEWAY_COOKIE) != 0 ?
-                         add->CASGatewayCookie : base->CASGatewayCookie);
+		add->CASCookie : base->CASCookie);
+	c->CASSecureCookie = (apr_strnatcasecmp(add->CASSecureCookie, CAS_DEFAULT_SCOOKIE) != 0 ?
+		add->CASSecureCookie : base->CASSecureCookie);
+	c->CASGatewayCookie = (apr_strnatcasecmp(add->CASGatewayCookie, CAS_DEFAULT_GATEWAY_COOKIE) != 0 ?
+		add->CASGatewayCookie : base->CASGatewayCookie);
 
-  c->CASAuthNHeader = (add->CASAuthNHeader != CAS_DEFAULT_AUTHN_HEADER ?
-                       add->CASAuthNHeader : base->CASAuthNHeader);
-  if (add->CASAuthNHeader != NULL && apr_strnatcasecmp(add->CASAuthNHeader,
-                                                       "Off") == 0)
-    c->CASAuthNHeader = NULL;
+	c->CASAuthNHeader = (add->CASAuthNHeader != CAS_DEFAULT_AUTHN_HEADER ?
+		add->CASAuthNHeader : base->CASAuthNHeader);
+	if (add->CASAuthNHeader != NULL && apr_strnatcasecmp(add->CASAuthNHeader, "Off") == 0)
+		c->CASAuthNHeader = NULL;
 
-	c->CASScrubRequestHeaders = (add->CASScrubRequestHeaders !=
-                               CAS_DEFAULT_SCRUB_REQUEST_HEADERS ?
-                               add->CASScrubRequestHeaders :
-                               base->CASScrubRequestHeaders);
-	if(add->CASScrubRequestHeaders != NULL &&
-     apr_strnatcasecmp(add->CASScrubRequestHeaders, "Off") == 0)
-    c->CASScrubRequestHeaders = NULL;
+	c->CASScrubRequestHeaders = (add->CASScrubRequestHeaders != CAS_DEFAULT_SCRUB_REQUEST_HEADERS ?
+		 add->CASScrubRequestHeaders :
+		 base->CASScrubRequestHeaders);
+	if(add->CASScrubRequestHeaders != NULL && apr_strnatcasecmp(add->CASScrubRequestHeaders, "Off") == 0)
+		c->CASScrubRequestHeaders = NULL;
 
 	return(c);
 }
@@ -429,7 +424,7 @@ char *getCASPath(request_rec *r)
 		if(p[i] == '/')
 			l = i;
 	}
-        rv = apr_pstrndup(r->pool, p, (l+1));
+	rv = apr_pstrndup(r->pool, p, (l+1));
 	return(rv);
 }
 
@@ -533,37 +528,34 @@ char *getCASService(const request_rec *r, const cas_cfg *c)
 	apr_byte_t print_port = TRUE;
 
 #ifdef APACHE2_0
-  scheme = (char *) ap_http_method(r);
+	scheme = (char *) ap_http_method(r);
 #else
-  scheme = (char *) ap_http_scheme(r);
+	scheme = (char *) ap_http_scheme(r);
 #endif
 
-  if (root_proxy->is_initialized) {
+	if (root_proxy->is_initialized) {
 		service = apr_psprintf(r->pool, "%s%s%s%s",
-                           escapeString(r,
-                                        apr_uri_unparse(r->pool,
-                                                        root_proxy, 0)),
-                           escapeString(r, r->uri),
-                           (r->args != NULL ? "%3f" : ""),
-                           escapeString(r, r->args));
-  } else {
-    if (ssl && port == 443)
-      print_port = FALSE;
-    else if (!ssl && port == 80)
-      print_port = FALSE;
+			escapeString(r, apr_uri_unparse(r->pool, root_proxy, 0)),
+			escapeString(r, r->uri),
+			(r->args != NULL ? "%3f" : ""),
+			escapeString(r, r->args));
+	} else {
+		if (ssl && port == 443)
+			print_port = FALSE;
+		else if (!ssl && port == 80)
+			print_port = FALSE;
 
-    if (print_port)
-      port_str = apr_psprintf(r->pool, "%%3a%u", port);
-    service = apr_pstrcat(r->pool, scheme, "%3a%2f%2f",
-                          r->server->server_hostname,
-                          port_str, escapeString(r, r->uri),
-                          (r->args != NULL && *r->args != '\0' ?
-                           "%3f" : ""),
-                          escapeString(r, r->args), NULL);
-  }
-  if (c->CASDebug)
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "CAS Service '%s'",
-                  service);
+		if (print_port)
+			port_str = apr_psprintf(r->pool, "%%3a%u", port);
+
+		service = apr_pstrcat(r->pool, scheme, "%3a%2f%2f",
+			r->server->server_hostname,
+			port_str, escapeString(r, r->uri),
+			(r->args != NULL && *r->args != '\0' ? "%3f" : ""),
+			escapeString(r, r->args), NULL);
+	}
+	if (c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "CAS Service '%s'", service);
 	return service;
 }
 
@@ -754,7 +746,7 @@ char *escapeString(const request_rec *r, const char *str)
 }
 
 char *urlEncode(const request_rec *r, const char *str,
-                const char *charsToEncode)
+								const char *charsToEncode)
 {
 	char *rv, *p;
 	const char *q;
@@ -2288,11 +2280,11 @@ const command_rec cas_cmds [] = {
 
 /* Dispatch list for API hooks */
 module AP_MODULE_DECLARE_DATA auth_cas_module = {
-    STANDARD20_MODULE_STUFF,
-    cas_create_dir_config,                  /* create per-dir    config structures */
-    cas_merge_dir_config,                  /* merge  per-dir    config structures */
-    cas_create_server_config,                  /* create per-server config structures */
-    cas_merge_server_config,                  /* merge  per-server config structures */
-    cas_cmds,                  /* table of config file commands       */
-    cas_register_hooks  /* register hooks                      */
+	STANDARD20_MODULE_STUFF,
+	cas_create_dir_config,                  /* create per-dir    config structures */
+	cas_merge_dir_config,                  /* merge  per-dir    config structures */
+	cas_create_server_config,                  /* create per-server config structures */
+	cas_merge_server_config,                  /* merge  per-server config structures */
+	cas_cmds,                  /* table of config file commands       */
+	cas_register_hooks  /* register hooks                      */
 };

@@ -15,6 +15,7 @@
 
 #include "../src/mod_auth_cas.h"
 #include "cas_saml_attr_test.h"
+#include "curl_stubs.h"
 
 request_rec *request;
 apr_pool_t *pool;
@@ -175,6 +176,14 @@ START_TEST(cas_scrub_headers_test) {
   fail_if(apr_table_do(find_entries_in_list, &hi, dirty_headers, NULL) == 0);
 }
 
+END_TEST
+
+START_TEST(normalizeHeaderName_test) {
+  fail_unless(strcmp(normalizeHeaderName(request, "foobar"), "foobar") == 0);
+  fail_unless(strcmp(normalizeHeaderName(request, "FooBar"), "FooBar") == 0);
+  fail_unless(strcmp(normalizeHeaderName(request, "Foo Bar"), "Foo-Bar") == 0);
+  fail_unless(strcmp(normalizeHeaderName(request, "Foo:Bar"), "Foo-Bar") == 0);
+}
 END_TEST
 
 START_TEST(getCASPath_test) {
@@ -547,8 +556,85 @@ START_TEST(deleteCASCacheFile_test) {
 }
 END_TEST
 
+char *get_attr(cas_cfg *c, cas_saml_attr *attrs, const char *attr) {
+  char *csvs = NULL;
+  cas_saml_attr *a;
+  for (a = attrs; a != NULL; a = a->next) {
+    if (strcmp(a->attr, attr) != 0) continue;
+    cas_saml_attr_val *av = a->values;
+    while (av != NULL) {
+      if (csvs != NULL) {
+        csvs = apr_psprintf(request->pool, "%s%s%s", csvs, c->CASAttributeDelimiter, av->value);
+      } else {
+        csvs = apr_psprintf(request->pool, "%s", av->value);
+      }
+      av = av->next;
+    }
+    break;
+  }
+  return csvs;
+}
+
 START_TEST(isValidCASTicket_test) {
-  fail();
+  const char *response =
+      "<?xml version='1.0' encoding='UTF-8'?>"
+      "<SOAP-ENV:Envelope xmlns:SOAP-ENV='http://schemas.xmlsoap.org/soap/envelope/'>"
+      "<SOAP-ENV:Header/>"
+      "<SOAP-ENV:Body>"
+      "<Response xmlns='urn:oasis:names:tc:SAML:1.0:protocol'"
+      " xmlns:saml='urn:oasis:names:tc:SAML:1.0:assertion'"
+      " xmlns:samlp='urn:oasis:names:tc:SAML:1.0:protocol'"
+      " xmlns:xsd='http://www.w3.org/2001/XMLSchema'"
+      " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+      " MajorVersion='1' MinorVersion='1'>"
+      "<Status><StatusCode Value='samlp:Success'></StatusCode></Status>"
+      "<Assertion xmlns='urn:oasis:names:tc:SAML:1.0:assertion' MajorVersion='1' MinorVersion='1'>"
+      "<Conditions NotBefore='2011-01-01T12:00:00.000Z' NotOnOrAfter='2011-01-01T12:01:00.000Z'/>"
+      "<AttributeStatement>"
+      "<Subject><NameIdentifier>username</NameIdentifier></Subject>"
+      "<Attribute AttributeName='FirstName'"
+      " AttributeNamespace='http://www.ja-sig.org/products/cas/'>"
+      "<AttributeValue>Joe</AttributeValue>"
+      "</Attribute>"
+      "<Attribute AttributeName='Last Name'"
+      " AttributeNamespace='http://www.ja-sig.org/products/cas/'>"
+      "<AttributeValue>Test</AttributeValue>"
+      "</Attribute>"
+      "<Attribute AttributeName='GroupList'"
+      " AttributeNamespace='http://www.ja-sig.org/products/cas/'>"
+      "<AttributeValue>A,B</AttributeValue>"
+      "<AttributeValue>C</AttributeValue>"
+      "</Attribute>"
+      "</AttributeStatement>"
+      "<AuthenticationStatement AuthenticationMethod='urn:oasis:names:tc:SAML:1.0:am:password'>"
+      "<Subject><NameIdentifier>username</NameIdentifier></Subject>"
+      "</AuthenticationStatement>"
+      "</Assertion>"
+      "</Response>"
+      "</SOAP-ENV:Body>"
+      "</SOAP-ENV:Envelope>";
+  char *remoteUser = NULL;
+  cas_saml_attr *attrs = NULL;
+  char *attr;
+  apr_byte_t rv;
+  cas_cfg *c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+  set_curl_response(response);
+  c->CASValidateSAML = TRUE;
+  rv = isValidCASTicket(request, c, "ST-1234", &remoteUser, &attrs);
+  fail_if(rv == FALSE);
+  attr = get_attr(c, attrs, "FirstName");
+  fail_if(attr == NULL);
+  fail_unless(strcmp(attr, "Joe") == 0);
+  attr = get_attr(c, attrs, "Last Name");
+  fail_if(attr == NULL);
+  fail_unless(strcmp(attr, "Test") == 0);
+  attr = get_attr(c, attrs, "GroupList");
+  fail_if(attr == NULL);
+  fail_unless(strcmp(attr, "A,B" CAS_DEFAULT_ATTRIBUTE_DELIMITER "C") == 0);
+  attr = get_attr(c, attrs, "AuthenticationMethod");
+  fail_if(attr == NULL);
+  fail_unless(strcmp(attr, "urn:oasis:names:tc:SAML:1.0:am:password") == 0);
 }
 END_TEST
 
@@ -574,7 +660,7 @@ START_TEST(cas_curl_ssl_ctx_test) {
 END_TEST
 
 START_TEST(getResponseFromServer_test) {
-  const char *expected = "<cas:serviceResponse xmlns:cas="
+  const char *response = "<cas:serviceResponse xmlns:cas="
       "'http://www.yale.edu/tp/cas'>"
       "<cas:authenticationSuccess>"
       "<cas:user>username</cas:user>"
@@ -583,6 +669,7 @@ START_TEST(getResponseFromServer_test) {
   char *rv;
   cas_cfg *c = ap_get_module_config(request->server->module_config,
                                     &auth_cas_module);
+  set_curl_response(response);
   rv = getResponseFromServer(request, c, "ST-1234");
 #ifndef DARWIN
   // apr_stat behaves oddly while the tests are running (but works
@@ -592,8 +679,11 @@ START_TEST(getResponseFromServer_test) {
   // code in getResponseFromServer needs to be refactored anyway,
   // so improving the test quality and getting it to work on OS X
   // can be saved for that date.
-  fail_if(rv == NULL);
-  fail_unless(strcmp(rv, expected) == 0);
+  fail_if(rv == NULL, apr_psprintf(request->pool,
+      "getResponseFromServer() returned NULL\n"
+      "  (Does %s (CAS_DEFAULT_CA_PATH in mod_auth_cas.h) exist?)",
+      c->CASCertificatePath));
+  fail_unless(strcmp(rv, response) == 0);
 #endif
 }
 END_TEST
@@ -861,6 +951,7 @@ Suite *mod_auth_cas_suite() {
   tcase_add_test(tc_core, cas_char_to_env_test);
   tcase_add_test(tc_core, cas_scrub_headers_test);
   tcase_add_test(tc_core, cas_strnenvcmp_test);
+  tcase_add_test(tc_core, normalizeHeaderName_test);
   tcase_add_test(tc_core, cas_merge_server_config_test);
   tcase_add_test(tc_core, cas_merge_dir_config_test);
   tcase_add_test(tc_core, cas_setURL_test);
@@ -889,11 +980,11 @@ Suite *mod_auth_cas_suite() {
   tcase_add_test(tc_core, expireCASST_test);
   tcase_add_test(tc_core, CASSAMLLogout_test);
   tcase_add_test(tc_core, deleteCASCacheFile_test);
+  tcase_add_test(tc_core, getResponseFromServer_test);
   tcase_add_test(tc_core, isValidCASTicket_test);
   tcase_add_test(tc_core, isValidCASCookie_test);
   tcase_add_test(tc_core, cas_curl_write_test);
   tcase_add_test(tc_core, cas_curl_ssl_ctx_test);
-  tcase_add_test(tc_core, getResponseFromServer_test);
   tcase_add_test(tc_core, cas_authenticate_test);
   tcase_add_test(tc_core, cas_ssl_locking_callback_test);
   tcase_add_test(tc_core, cas_ssl_id_callback_test);

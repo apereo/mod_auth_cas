@@ -2042,7 +2042,7 @@ const cas_saml_attr *cas_get_attributes(request_rec *r) {
  * representations. See the documentation of apr_strnatcmp for
  * details.
  */
-int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const attributes) {
+int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const attributes, struct request_rec *r) {
 	const cas_saml_attr *attr = attributes;
 
 	/* Loop over all of the user attributes */
@@ -2050,6 +2050,8 @@ int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const 
 
 		const char *attr_c = attr->attr;
 		const char *spec_c = attr_spec;
+
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "cas_match_attribute checking %s, %s.", attr_c, spec_c);
 
 		/* Walk both strings until we get to the end of either or we
 		 * find a differing character */
@@ -2099,6 +2101,7 @@ static int cas_authorize(request_rec *r)
 	const char *requirement;
 	int i;
 	int have_casattr = 0;
+	int count_casattr = 0;
 
 	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
 		      "Entering cas_authorize.");
@@ -2145,12 +2148,13 @@ static int cas_authorize(request_rec *r)
 		 * matches one of the attributes. */
 		while (*requirement) {
 			token = ap_getword_conf(r->pool, &requirement);
+			count_casattr++;
 
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
 				     "Evaluating attribute specification: %s",
 				     token);
 
-			if (cas_match_attribute(token, attrs) ==
+			if (cas_match_attribute(token, attrs, r) ==
 			    CAS_ATTR_MATCH) {
 
 				/* If *any* attribute matches, then
@@ -2160,7 +2164,7 @@ static int cas_authorize(request_rec *r)
 					      "Require cas-attribute "
 					      "'%s' matched", token);
 				return OK;
-			}
+			} 
 		}
 	}
 
@@ -2171,6 +2175,11 @@ static int cas_authorize(request_rec *r)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
 			      "No cas-attribute statements found. "
                               "Not performing authZ.");
+		return DECLINED;
+	}
+	if (count_casattr == 0) {
+		ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+			      "'Require cas-attribute' missing specification(s) in configuration. Declining.");
 		return DECLINED;
 	}
 

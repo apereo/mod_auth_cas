@@ -29,6 +29,7 @@
 #include "ap_release.h"
 
 #define OPENSSL_THREAD_DEFINES
+#include <openssl/crypto.h>
 #include <openssl/opensslconf.h>
 
 #include <openssl/opensslv.h>

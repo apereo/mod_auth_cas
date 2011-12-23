@@ -653,6 +653,11 @@ START_TEST(cas_register_hooks_test) {
 }
 END_TEST
 
+START_TEST(cas_attribute_authz_test) {
+  fail();
+}
+END_TEST
+
 /* Generate a null-terminated string of random bytes between one and
  * length_limit characters */
 char *rand_str(apr_pool_t *p, unsigned int length_limit) {
@@ -899,6 +904,7 @@ Suite *mod_auth_cas_suite() {
   tcase_add_test(tc_core, cas_post_config_test);
   tcase_add_test(tc_core, cas_in_filter_test);
   tcase_add_test(tc_core, cas_register_hooks_test);
+  tcase_add_test(tc_core, cas_attribute_authz_test);
   suite_add_tcase(s, tc_core);
   suite_add_tcase(s, cas_saml_attr_tcase());
 

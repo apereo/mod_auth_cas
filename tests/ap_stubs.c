@@ -87,3 +87,28 @@ AP_DECLARE(int) ap_unescape_url(char *url) {
 
   return 0;
 }
+
+AP_DECLARE(int) ap_hook_auth_checker (request_rec *r) {
+
+  return 0;
+}
+
+AP_DECLARE(char *) ap_getword_white(apr_pool_t *p, const char **line) {
+
+  return "";
+}
+
+AP_DECLARE(char *) ap_getword_conf(apr_pool_t *p, const char **line) {
+
+  return "";
+}
+
+AP_DECLARE(void) ap_note_auth_failure(request_rec *r) {
+
+  return;
+}
+
+AP_DECLARE(const apr_array_header_t *) ap_requires(request_rec *r) {
+
+  return NULL;
+}

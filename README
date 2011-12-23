@@ -374,7 +374,8 @@ Directive:	Require cas-attribute <attribute>:<value>
 Default:	NULL
 Description:	Use this directive to authorize based on SAML cas attributes
 		returned via the session validation call. Multiple directives
-		are OR-ed.
+		are OR-ed. If directive is present with no attributes defined,
+		the request is declined. If value has spaces, wrap the pair in quotes.
 		See also CASAuthoritative.
 
 ====================================================================

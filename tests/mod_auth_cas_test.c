@@ -767,6 +767,7 @@ START_TEST(cas_attribute_authz_test) {
   cas_cfg *c;
   // cas_dir_cfg *d;
   int i;
+  require_line *r;
 
   // Shamelessly stolen from cas_saml_attr_test.c
   struct test_data {
@@ -793,8 +794,6 @@ START_TEST(cas_attribute_authz_test) {
   c = ap_get_module_config(request->server->module_config,
                                     &auth_cas_module);
 
-  require_line *r;
-
   r = &(require_line_array[0]);
   r->method_mask = AP_METHOD_BIT;
   r->requirement = apr_pstrdup(pool, "cas-attribute hopefully:fail");
@@ -814,8 +813,6 @@ START_TEST(cas_attribute_authz_test) {
 		}
 	}
   }
-// Now check well-formedness of Requirements
-  int req_count = 2;
 
   c->CASAuthoritative = 1;
   should_fail = cas_authorize_worker(request, attrs, &(require_line_array[0]), 1, c);

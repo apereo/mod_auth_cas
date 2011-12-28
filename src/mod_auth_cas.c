@@ -2158,8 +2158,8 @@ int cas_authorize(request_rec *r)
 int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const require_line *const reqs, int nelts, const cas_cfg *const c)
 {
 	const int m = r->method_number;
-	char *token;
-	char *requirement;
+	const char *token;
+	const char *requirement;
 	int i;
 	int have_casattr = 0;
 	int count_casattr = 0;

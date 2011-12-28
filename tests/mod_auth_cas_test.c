@@ -811,8 +811,6 @@ START_TEST(cas_attribute_authz_test) {
   should_decline = cas_authorize_worker(request, attrs, NULL, 0, c);
   should_succeed = cas_authorize_worker(request, attrs, &(require_line_array[0]), 2, c);
 
-printf("should fail %d =? %d, should_decline %d =? %d, should_succeed %d =? %d\n", should_fail, HTTP_UNAUTHORIZED, should_decline, DECLINED, should_succeed, OK);
-
   fail_unless((should_fail == HTTP_UNAUTHORIZED) &&
               (should_succeed == OK) &&
               (should_decline == DECLINED));

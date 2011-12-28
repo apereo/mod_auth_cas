@@ -769,7 +769,9 @@ START_TEST(cas_attribute_authz_test) {
   int i;
   require_line *r;
 
-  // Shamelessly stolen from cas_saml_attr_test.c
+  /* Manually create some SAML attributes
+   * Shamelessly stolen from cas_saml_attr_test.c
+   */
   struct test_data {
       const char *const k;
       const char *const v;
@@ -794,6 +796,7 @@ START_TEST(cas_attribute_authz_test) {
   c = ap_get_module_config(request->server->module_config,
                                     &auth_cas_module);
 
+  /* manually create two require lines */
   r = &(require_line_array[0]);
   r->method_mask = AP_METHOD_BIT;
   r->requirement = apr_pstrdup(pool, "cas-attribute hopefully:fail");
@@ -802,18 +805,6 @@ START_TEST(cas_attribute_authz_test) {
   r->method_mask = AP_METHOD_BIT;
   r->requirement = apr_pstrdup(pool, "cas-attribute should:succeed");
   
-  if (attrs != NULL) {
-        cas_saml_attr *attrsi = attrs;
-        for (; attrsi != NULL; attrsi = attrsi->next) {
-		if (attrsi->values) {
-		    cas_saml_attr_val *vals;
-		    for (vals = attrsi->values; vals != NULL; vals = vals->next){
-			if (vals != NULL) printf("cas_authz test: SAML attr: %s/%s\n", attrsi->attr, vals->value);
-		    }
-		}
-	}
-  }
-
   c->CASAuthoritative = 1;
   should_fail = cas_authorize_worker(request, attrs, &(require_line_array[0]), 1, c);
   c->CASAuthoritative = 0;

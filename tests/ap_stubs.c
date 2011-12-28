@@ -2,6 +2,7 @@
 #include "httpd.h"
 #include "http_config.h"
 #include "util_filter.h"
+#include <ctype.h>
 
 
 AP_DECLARE(ap_filter_t *) ap_add_input_filter(const char *name, void *ctx,
@@ -94,7 +95,7 @@ AP_DECLARE(int) ap_hook_auth_checker (request_rec *r) {
 }
 
 /* Perhaps this is the top of a slippery slope, but pulling these in
- * allowed us to test most of the authz functions fairly deeply.
+ * allowed us to test most of the authz functions fairly thoroughly.
  */
 #define apr_isspace(c) (isspace(((unsigned char)(c))))
 

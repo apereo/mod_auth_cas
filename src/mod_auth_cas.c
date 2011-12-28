@@ -352,7 +352,7 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid CASCacheCleanInterval (%s) specified - must be numeric", value));
 		break;
 		case cmd_cookie_domain:
-			for(i = 0; i < strlen(value); i++) {
+			for(i = 0; i < (int)strlen(value); i++) {
 				d = value[i];
 				if( (d < '0' || d > '9') && 
 					(d < 'a' || d > 'z') &&
@@ -2106,12 +2106,13 @@ int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const 
 		/* The match is a success if we walked the whole attribute
 		 * name and the attr_spec is at a colon. */
 		if (!(*attr_c) && (*spec_c) == ':') {
+			const cas_saml_attr_val *val;
 
 			/* Skip the colon */
 			spec_c++;
 
 			/* Compare the attribute values */
-			const cas_saml_attr_val *val = attr->values;
+			val = attr->values;
 			for ( ; val; val = val->next ) {
 
 				/* Approximately compare the attribute value (ignoring
@@ -2126,23 +2127,18 @@ int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const 
 	return CAS_ATTR_NO_MATCH;
 }
 
+
 /* CAS authorization module, code adopted from Nick Kew's Apache Modules Book, 2007, p. 190f */
-static int cas_authorize(request_rec *r)
+int cas_authorize(request_rec *r)
 {
 	const cas_saml_attr *const attrs = cas_get_attributes(r);
 
-	const int m = r->method_number;
 	const apr_array_header_t *const reqs_arr = ap_requires(r);
 	const require_line *const reqs =
 		reqs_arr ? (require_line *) reqs_arr->elts : NULL;
 	const cas_cfg *const c =
 		ap_get_module_config(r->server->module_config,
 				     &auth_cas_module);
-	const char *token;
-	const char *requirement;
-	int i;
-	int have_casattr = 0;
-	int count_casattr = 0;
 
 	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
 		      "Entering cas_authorize.");
@@ -2154,12 +2150,28 @@ static int cas_authorize(request_rec *r)
 		return DECLINED;
 	}
 
-	/* Go through applicable Require directives */
-	for (i = 0; i < reqs_arr->nelts; ++i) {
+	return (cas_authorize_worker(r, attrs, reqs, reqs_arr->nelts, c));
+}
 
+/* Pulled out from cas_authorize to enable unit-testing */
+
+int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const require_line *const reqs, int nelts, const cas_cfg *const c)
+{
+	const int m = r->method_number;
+	char *token;
+	char *requirement;
+	int i;
+	int have_casattr = 0;
+	int count_casattr = 0;
+
+	// Q: why don't we use ap_some_auth_required here?? performance?
+
+	/* Go through applicable Require directives */
+	for (i = 0; i < nelts; ++i) {
 		/* Ignore this Require if it's in a <Limit> section
 		 * that exclude this method
 		 */
+
 		if (!(reqs[i].method_mask & (AP_METHOD_BIT << m))) {
 			continue;
 		}
@@ -2168,6 +2180,7 @@ static int cas_authorize(request_rec *r)
 		requirement = reqs[i].requirement;
 
 		token = ap_getword_white(r->pool, &requirement);
+
 		if (strcasecmp(token, "cas-attribute")) {
 			continue;
 		}

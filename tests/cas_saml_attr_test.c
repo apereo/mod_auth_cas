@@ -195,15 +195,15 @@ START_TEST(cas_attr_cmp_test) {
 }
 END_TEST
 
-static void cas_saml_attr_setup() {
+static void cas_saml_attr_setup(void) {
   apr_pool_create(&pool, NULL);
 }
 
-static void cas_saml_attr_teardown() {
+static void cas_saml_attr_teardown(void) {
   apr_pool_destroy(pool);
 }
 
-TCase *cas_saml_attr_tcase() {
+TCase *cas_saml_attr_tcase(void) {
   TCase *tc_builder = tcase_create("cas_saml_attr_builder");
   tcase_add_checked_fixture(tc_builder,
                             cas_saml_attr_setup,

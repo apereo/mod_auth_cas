@@ -20,6 +20,16 @@
 request_rec *request;
 apr_pool_t *pool;
 
+/* Function prototypes to make gcc happy */
+int find_entries_in_list(void *rec, const char *key, const char *val);
+char *get_attr(cas_cfg *c, cas_saml_attr *attrs, const char *attr);
+char *rand_str(apr_pool_t *p, unsigned int length_limit);
+void core_setup(void);
+void core_teardown(void);
+Suite *mod_auth_cas_suite(void);
+
+
+/* The tests */
 START_TEST(cas_merge_server_config_test) {
   cas_cfg *base = cas_create_server_config(request->pool, NULL);
   cas_cfg *add = cas_create_server_config(request->pool, NULL);
@@ -55,13 +65,16 @@ START_TEST(cas_merge_server_config_test) {
 END_TEST
 
 START_TEST(cas_merge_dir_config_test) {
-  cas_dir_cfg *base = cas_create_dir_config(request->pool, NULL);
-  cas_dir_cfg *add = cas_create_dir_config(request->pool, NULL);
+  cas_dir_cfg *base;
+  cas_dir_cfg *add;
+  cas_dir_cfg *merged;
   
+  base = cas_create_dir_config(request->pool, NULL);
+  add = cas_create_dir_config(request->pool, NULL);
   add->CASCookie = "XYZ";
-  cas_dir_cfg *merged = (cas_dir_cfg *) cas_merge_dir_config(request->pool,
-                                                             (void *)base,
-                                                             (void *)add);
+  merged = (cas_dir_cfg *) cas_merge_dir_config(request->pool,
+						     (void *)base,
+						     (void *)add);
   fail_unless(strcmp(merged->CASCookie, "XYZ") == 0);
 }
 END_TEST
@@ -155,10 +168,10 @@ START_TEST(cas_scrub_headers_test) {
                               sizeof(valid_headers)/sizeof(char *) +
                               sizeof(invalid_headers)/sizeof(char *));
 
-  for (i = 0; i < sizeof(valid_headers)/sizeof(char *); i++)
+  for (i = 0; i < (int)(sizeof(valid_headers)/sizeof(char *)); i++)
     apr_table_add(headers_in, valid_headers[i], "Value");
 
-  for (i = 0; i < sizeof(invalid_headers)/sizeof(char *); i++)
+  for (i = 0; i < (int)(sizeof(invalid_headers)/sizeof(char *)); i++)
     apr_table_add(headers_in, invalid_headers[i], "Value");
 
   headers_out = cas_scrub_headers(pool,
@@ -559,9 +572,10 @@ END_TEST
 char *get_attr(cas_cfg *c, cas_saml_attr *attrs, const char *attr) {
   char *csvs = NULL;
   cas_saml_attr *a;
+  cas_saml_attr_val *av;
   for (a = attrs; a != NULL; a = a->next) {
     if (strcmp(a->attr, attr) != 0) continue;
-    cas_saml_attr_val *av = a->values;
+    av = a->values;
     while (av != NULL) {
       if (csvs != NULL) {
         csvs = apr_psprintf(request->pool, "%s%s%s", csvs, c->CASAttributeDelimiter, av->value);
@@ -644,9 +658,11 @@ START_TEST(isValidCASCookie_test) {
 END_TEST
 
 START_TEST(cas_curl_write_test) {
+  const char *data;
   cas_curl_buffer cb;
+
   memset(&cb, 0, sizeof(cb));
-  const char *data = "This is some test data.";
+  data = "This is some test data.";
   cas_curl_write(data, sizeof(char), sizeof(char)*strlen(data), &cb);
 
   fail_unless(strcmp(cb.buf, data) == 0);
@@ -744,7 +760,74 @@ START_TEST(cas_register_hooks_test) {
 END_TEST
 
 START_TEST(cas_attribute_authz_test) {
-  fail();
+  int should_fail, should_succeed, should_decline;
+  cas_saml_attr *attrs = NULL;
+  cas_attr_builder *builder;
+  require_line require_line_array[2];
+  cas_cfg *c;
+  // cas_dir_cfg *d;
+  int i;
+
+  // Shamelessly stolen from cas_saml_attr_test.c
+  struct test_data {
+      const char *const k;
+      const char *const v;
+  } test_data_list[] = {
+      {"key1", "val1"},
+      {"key1", "val2"},
+      {"key2", "val3"},
+      {"should", "succeed"},
+      {0} /* NULL terminator */
+  };
+
+  builder = cas_attr_builder_new(pool, &attrs);
+  i = 0;
+  while (1) {
+      struct test_data d = test_data_list[i];
+      if (d.v == NULL) break;
+
+      cas_attr_builder_add(builder, d.k, d.v);
+      i++;
+  }
+
+  c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+
+  require_line *r;
+
+  r = &(require_line_array[0]);
+  r->method_mask = AP_METHOD_BIT;
+  r->requirement = apr_pstrdup(pool, "cas-attribute hopefully:fail");
+
+  r = &(require_line_array[1]);
+  r->method_mask = AP_METHOD_BIT;
+  r->requirement = apr_pstrdup(pool, "cas-attribute should:succeed");
+  
+  if (attrs != NULL) {
+        cas_saml_attr *attrsi = attrs;
+        for (; attrsi != NULL; attrsi = attrsi->next) {
+		if (attrsi->values) {
+		    cas_saml_attr_val *vals;
+		    for (vals = attrsi->values; vals != NULL; vals = vals->next){
+			if (vals != NULL) printf("cas_authz test: SAML attr: %s/%s\n", attrsi->attr, vals->value);
+		    }
+		}
+	}
+  }
+// Now check well-formedness of Requirements
+  int req_count = 2;
+
+  c->CASAuthoritative = 1;
+  should_fail = cas_authorize_worker(request, attrs, &(require_line_array[0]), 1, c);
+  c->CASAuthoritative = 0;
+  should_decline = cas_authorize_worker(request, attrs, NULL, 0, c);
+  should_succeed = cas_authorize_worker(request, attrs, &(require_line_array[0]), 2, c);
+
+printf("should fail %d =? %d, should_decline %d =? %d, should_succeed %d =? %d\n", should_fail, HTTP_UNAUTHORIZED, should_decline, DECLINED, should_succeed, OK);
+
+  fail_unless((should_fail == HTTP_UNAUTHORIZED) &&
+              (should_succeed == OK) &&
+              (should_decline == DECLINED));
 }
 END_TEST
 
@@ -755,6 +838,8 @@ char *rand_str(apr_pool_t *p, unsigned int length_limit) {
      * This method for choosing a length is biased, but it should be
      * fine for testing purposes. */
     unsigned int len;
+    char *ans;
+
     if (length_limit < 1) {
         len = 1;
     } else {
@@ -768,7 +853,7 @@ char *rand_str(apr_pool_t *p, unsigned int length_limit) {
      * terminator may appear earlier than the end, but we guarantee
      * that the string is terminated at or before length_limit
      * bytes. */
-    char *ans = apr_palloc(p, len);
+    ans = apr_palloc(p, len);
     apr_generate_random_bytes((unsigned char *) ans, len - 1);
     ans[len - 1] = '\0';
     return ans;
@@ -812,14 +897,15 @@ START_TEST(cas_strnenvcmp_test) {
 
     /* For all lengths up to the length of the longer string */
     for (i = 0; i <= l; i++) {
+      int a, b;
 
       /* A string always compares equal to itself */
       assert_snecmp_eqn(rnd1, rnd1, i);
       assert_snecmp_eqn(rnd2, rnd2, i);
 
       /* Swapping arguments flips the sign of the answer */
-      int a = cas_strnenvcmp(rnd1, rnd2, i);
-      int b = cas_strnenvcmp(rnd2, rnd1, i);
+      a = cas_strnenvcmp(rnd1, rnd2, i);
+      b = cas_strnenvcmp(rnd2, rnd1, i);
       fail_unless(((a == 0) && (b == 0))
                   || ((a < 0) && (b > 0))
                   || ((a > 0) && (b < 0)));
@@ -873,10 +959,13 @@ START_TEST(cas_strnenvcmp_test) {
 }
 END_TEST
 
-void core_setup() {
+void core_setup(void) {
   const unsigned int kIdx = 0;
   const unsigned int kEls = kIdx + 1;
   apr_uri_t login;
+  cas_cfg *cfg;
+  cas_dir_cfg *d_cfg;
+
   request = (request_rec *) malloc(sizeof(request_rec));
 
   apr_pool_create(&pool, NULL);
@@ -909,7 +998,7 @@ void core_setup() {
  
   /* set up the per server, and per directory configs */
   auth_cas_module.module_index = kIdx;
-  cas_cfg *cfg = cas_create_server_config(request->pool, request->server);
+  cfg = cas_create_server_config(request->pool, request->server);
   cfg->CASDebug = TRUE;
   memset(&login, 0, sizeof(login));
   login.scheme = "https";
@@ -918,7 +1007,7 @@ void core_setup() {
   login.port = 0;
   memcpy(&cfg->CASLoginURL, &login, sizeof(apr_uri_t));
 
-  cas_dir_cfg *d_cfg = cas_create_dir_config(request->pool, NULL);
+  d_cfg = cas_create_dir_config(request->pool, NULL);
 
   request->server->module_config = apr_pcalloc(request->pool,
                                                sizeof(ap_conf_vector_t *)*kEls);
@@ -928,7 +1017,7 @@ void core_setup() {
   ap_set_module_config(request->per_dir_config, &auth_cas_module, d_cfg);
 }
 
-void core_teardown() {
+void core_teardown(void) {
   // created by various cookie test functions above
   apr_file_remove("/tmp/.metadata", request->pool);
   apr_file_remove("/tmp/.md5", request->pool);
@@ -941,7 +1030,7 @@ void core_teardown() {
   free(request);
 }
 
-Suite *mod_auth_cas_suite() {
+Suite *mod_auth_cas_suite(void) {
   Suite *s = suite_create("mod_auth_cas");
 
   TCase *tc_core = tcase_create("core");
@@ -1004,11 +1093,13 @@ Suite *mod_auth_cas_suite() {
 
 int main (int argc, char *argv[]) {
   unsigned int number_failed;
+  Suite *s;
+  SRunner *sr;
 
   apr_app_initialize(&argc, (const char * const **) &argv, NULL);
 
-  Suite *s = mod_auth_cas_suite();
-  SRunner *sr = srunner_create(s);
+  s = mod_auth_cas_suite();
+  sr = srunner_create(s);
   srunner_run_all(sr, CK_NORMAL);
   number_failed = srunner_ntests_failed(sr);
   srunner_free(sr);

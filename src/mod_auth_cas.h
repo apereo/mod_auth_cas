@@ -26,6 +26,7 @@
 #define MOD_AUTH_CAS_H
 
 #include <stddef.h>
+#include <http_core.h>
 #include "ap_release.h"
 
 #define OPENSSL_THREAD_DEFINES
@@ -228,6 +229,12 @@ void cas_ssl_locking_callback(int mode, int type, const char *file, int line);
 /* Access per-request CAS SAML attributes */
 void cas_set_attributes(request_rec *r, cas_saml_attr *const attrs);
 const cas_saml_attr *cas_get_attributes(request_rec *r);
+int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const attributes, struct request_rec *r);
+
+/* Authorization check */
+int cas_authorize(request_rec *r);
+int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const require_line *const reqs, int nelts, const cas_cfg *const c);
+
 
 /* apr forward compatibility */
 #ifndef APR_FOPEN_READ

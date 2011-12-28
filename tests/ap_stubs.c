@@ -93,14 +93,96 @@ AP_DECLARE(int) ap_hook_auth_checker (request_rec *r) {
   return 0;
 }
 
+/* Perhaps this is the top of a slippery slope, but pulling these in
+ * allowed us to test most of the authz functions fairly deeply.
+ */
+#define apr_isspace(c) (isspace(((unsigned char)(c))))
+
 AP_DECLARE(char *) ap_getword_white(apr_pool_t *p, const char **line) {
 
-  return "";
+    const char *pos = *line;
+    int len;
+    char *res;
+
+    while (!apr_isspace(*pos) && *pos) {
+        ++pos;
+    }
+
+    len = pos - *line;
+    res = (char *)calloc(sizeof(char), len + 1);
+    memcpy(res, *line, len);
+    res[len] = 0;
+
+    while (apr_isspace(*pos)) {
+        ++pos;
+    }
+
+    *line = pos;
+
+    return res;
+}
+
+static char *substring_conf(apr_pool_t *p, const char *start, int len,                                 
+                            char quote)
+{
+    char *result = calloc(sizeof(char), len + 2);
+    char *resp = result;
+    int i;
+
+    for (i = 0; i < len; ++i) {
+        if (start[i] == '\\' && (start[i + 1] == '\\'
+                                 || (quote && start[i + 1] == quote)))
+            *resp++ = start[++i];
+        else
+            *resp++ = start[i];
+    }
+
+    *resp++ = '\0';
+    return result;
 }
 
 AP_DECLARE(char *) ap_getword_conf(apr_pool_t *p, const char **line) {
 
-  return "";
+    const char *str = *line, *strend;
+    char *res;
+    char quote;
+
+    while (*str && apr_isspace(*str))
+        ++str;
+
+    if (!*str) {
+        *line = str;
+        return "";
+    }
+
+    if ((quote = *str) == '"' || quote == '\'') {
+        strend = str + 1;
+        while (*strend && *strend != quote) {
+            if (*strend == '\\' && strend[1] &&
+                (strend[1] == quote || strend[1] == '\\')) {
+                strend += 2;
+            }
+            else {
+                ++strend;
+            }
+        }
+        res = substring_conf(p, str + 1, strend - str - 1, quote);
+
+        if (*strend == quote)
+            ++strend;
+    }
+    else {
+        strend = str;
+        while (*strend && !apr_isspace(*strend))
+            ++strend;
+
+        res = substring_conf(p, str, strend - str, 0);
+    }
+
+    while (*strend && apr_isspace(*strend))
+        ++strend;
+    *line = strend;
+    return res;
 }
 
 AP_DECLARE(void) ap_note_auth_failure(request_rec *r) {

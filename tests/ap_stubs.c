@@ -1,8 +1,20 @@
 
 #include "httpd.h"
 #include "http_config.h"
+#include "http_core.h"
+#include "http_log.h"
+#include "http_request.h"
 #include "util_filter.h"
+#include "util_md5.h"
 
+
+/* there seems to be no function protoype for this */
+const char *ap_run_http_scheme(const request_rec *r);
+/* ridiculous prototype for AP_DECLARE_HOOK entries */
+void ap_hook_check_user_id(int (*)(request_rec *),
+				const char * const *,
+				const char * const *,
+				int);
 
 AP_DECLARE(ap_filter_t *) ap_add_input_filter(const char *name, void *ctx,
                                               request_rec *r, conn_rec *c) {
@@ -27,9 +39,12 @@ AP_DECLARE(char *) ap_getword(apr_pool_t *p, const char **line, char stop) {
   return "";
 }
 
-AP_DECLARE(int) ap_hook_check_user_id(request_rec *r) {
 
-  return 0;
+void ap_hook_check_user_id(int (*pf)(request_rec *),
+				const char * const *c1,
+				const char * const *c2,
+				int nOrder) {
+	return;
 }
 
 AP_DECLARE(int) ap_is_initial_req(request_rec *r) {

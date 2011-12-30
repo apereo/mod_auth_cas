@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "curl_stubs.h"
+
 typedef struct curl_stub {
   void *data;
   size_t (*writefunc)(void *, size_t, size_t, void*);

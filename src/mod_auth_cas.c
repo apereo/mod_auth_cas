@@ -222,6 +222,7 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 {
 	cas_cfg *c = (cas_cfg *) ap_get_module_config(cmd->server->module_config, &auth_cas_module);
 	apr_finfo_t f;
+	size_t sz;
 	int i;
 	char d;
 
@@ -350,8 +351,8 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid CASCacheCleanInterval (%s) specified - must be numeric", value));
 		break;
 		case cmd_cookie_domain:
-			for(i = 0; i < strlen(value); i++) {
-				d = value[i];
+			for(sz = 0; sz < strlen(value); sz++) {
+				d = value[sz];
 				if( (d < '0' || d > '9') &&
 					(d < 'a' || d > 'z') &&
 					(d < 'A' || d > 'Z') &&
@@ -2283,7 +2284,7 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASCacheCleanInterval", cfg_readCASParameter, (void *) cmd_cache_interval, RSRC_CONF, "Amount of time (in seconds) between cache cleanups.  This value is checked when a new local ticket is issued or when a ticket expires."),
 	AP_INIT_TAKE1("CASRootProxiedAs", cfg_readCASParameter, (void *) cmd_root_proxied_as, RSRC_CONF, "URL used to access the root of the virtual server (only needed when the server is proxied)"),
  	AP_INIT_TAKE1("CASScrubRequestHeaders", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASScrubRequestHeaders), ACCESS_CONF, "Scrub CAS user name and SAML attribute headers from the user's request."),
-	{NULL}
+	AP_INIT_TAKE1(0, 0, 0, 0, 0)
 };
 
 /* Dispatch list for API hooks */

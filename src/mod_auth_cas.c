@@ -873,7 +873,7 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 			apr_xml_parser_geterror(parser, errbuf, sizeof(errbuf));
 		}
 
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Error parsing XML content for '%s' (%s)", name, errbuf);
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Error parsing XML content (%s)", errbuf);
 		return FALSE;
 	}
 
@@ -1020,7 +1020,7 @@ void CASCleanCache(request_rec *r, cas_cfg *c)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Processing cache file '%s'", fi.name);
 
 			if(apr_file_open(&cacheFile, path, APR_FOPEN_READ, APR_OS_DEFAULT, r->pool) != APR_SUCCESS) {
-				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Unable to clean cache entry '%s'", path);
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Unable to clean cache entry '%s'", path);
 				continue;
 			}
 			if(readCASCacheFile(r, c, (char *) fi.name, &cache) == TRUE) {
@@ -1079,7 +1079,7 @@ apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache
 
 		/* update the file with a new idle time if a write lock can be obtained */
 		if(apr_file_lock(f, APR_FLOCK_EXCLUSIVE) != APR_SUCCESS) {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: could not obtain an exclusive lock on %s", path);
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: could not obtain an exclusive lock on %s", path);
 			apr_file_close(f);
 			return FALSE;
 		} else
@@ -1167,7 +1167,7 @@ char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ti
 	path = apr_psprintf(r->pool, "%s.%s", c->CASCookiePath, buf);
 
 	if((i = apr_file_open(&f, path, APR_FOPEN_CREATE|APR_FOPEN_WRITE|APR_EXCL, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool)) != APR_SUCCESS) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket to Cookie map file '%s' could not be created: %s", path, apr_strerror(i, buf, strlen(buf)));
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket to Cookie map file could not be created: %s", apr_strerror(i, buf, strlen(buf)));
 		return FALSE;
 	} else {
 		apr_file_printf(f, "%s", rv);
@@ -1197,17 +1197,17 @@ void expireCASST(request_rec *r, const char *ticketname)
 	path = apr_psprintf(r->pool, "%s.%s", c->CASCookiePath, ticket);
 
 	if(apr_file_open(&f, path, APR_FOPEN_READ, APR_OS_DEFAULT, r->pool) != APR_SUCCESS) {
-		ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' could not be opened (ticket %s - expired already?)", path, ticketname);
+		ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry could not be opened (ticket %s - expired already?)", ticketname);
 		return;
 	}
 
 	if(apr_file_read(f, &line, &bytes) != APR_SUCCESS) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' could not be read (ticket %s)", path, ticketname);
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry could not be read (ticket %s)", ticketname);
 		return;
 	}
 
 	if(bytes != APR_MD5_DIGESTSIZE*2) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' incomplete (read %" APR_SIZE_T_FMT ", expected %d, ticket %s)", path, bytes, APR_MD5_DIGESTSIZE*2, ticketname);
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry incomplete (read %" APR_SIZE_T_FMT ", expected %d, ticket %s)", bytes, APR_MD5_DIGESTSIZE*2, ticketname);
 		return;
 	}
 

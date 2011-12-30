@@ -764,7 +764,7 @@ char *urlEncode(const request_rec *r, const char *str,
 	if(str == NULL)
 		return "";
 
-	size = strlen(str) + 1; /* add 1 for terminating NULL */
+	size = strlen(str);
 
 	for(i = 0; i < size; i++) {
 		for(j = 0; j < strlen(charsToEncode); j++) {
@@ -776,7 +776,7 @@ char *urlEncode(const request_rec *r, const char *str,
 		}
 	}
 	/* allocate new memory to return the encoded URL */
-	p = rv = apr_pcalloc(r->pool, size);
+	p = rv = apr_pcalloc(r->pool, size + 1); /* +1 for terminating NULL */
 	q = str;
 
 	do {

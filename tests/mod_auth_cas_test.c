@@ -57,7 +57,7 @@ END_TEST
 START_TEST(cas_merge_dir_config_test) {
   cas_dir_cfg *base = cas_create_dir_config(request->pool, NULL);
   cas_dir_cfg *add = cas_create_dir_config(request->pool, NULL);
-  
+
   add->CASCookie = "XYZ";
   cas_dir_cfg *merged = (cas_dir_cfg *) cas_merge_dir_config(request->pool,
                                                              (void *)base,
@@ -113,7 +113,7 @@ const char *invalid_headers[] = {
   "CaS_Baz",
   "cas:zot",
   "CAS-Zuz",
-  /* 
+  /*
    * CAS_DEFAULT_AUTHN_HEADER is NULL, but we want to make sure that such a
    * header is removed (and we want it to start with something other than the
    * CAS attribute prefix).
@@ -278,12 +278,12 @@ START_TEST(getCASService_https_test) {
   cas_cfg *c = ap_get_module_config(request->server->module_config,
                                     &auth_cas_module);
   char *service;
-  const char *expected_service = 
+  const char *expected_service =
       "https%3a%2f%2ffoo.example.com%2ffoo%3fbar%3dbaz%26zot%3dqux";
 
   apr_pool_userdata_set("https", "scheme", NULL, request->pool);
   request->connection->local_addr->port = 443;
- 
+
   service = getCASService(request, c);
   fail_unless(strcmp(service, expected_service) == 0);
 }
@@ -293,7 +293,7 @@ START_TEST(getCASService_http_port_test) {
   cas_cfg *c = ap_get_module_config(request->server->module_config,
                                     &auth_cas_module);
   char *service;
-  const char *expected_service = 
+  const char *expected_service =
       "http%3a%2f%2ffoo.example.com%3a8080%2ffoo%3fbar%3dbaz%26zot%3dqux";
 
   apr_pool_userdata_set("http", "scheme", NULL, request->pool);
@@ -308,7 +308,7 @@ START_TEST(getCASService_https_port_test) {
   cas_cfg *c = ap_get_module_config(request->server->module_config,
                                     &auth_cas_module);
   char *service;
-  const char *expected_service = 
+  const char *expected_service =
       "https%3a%2f%2ffoo.example.com%3a8443%2ffoo%3fbar%3dbaz%26zot%3dqux";
 
   apr_pool_userdata_set("https", "scheme", NULL, request->pool);
@@ -323,7 +323,7 @@ START_TEST(getCASService_root_proxied_test) {
   cas_cfg *c = ap_get_module_config(request->server->module_config,
                                     &auth_cas_module);
   char *service;
-  const char *expected_service = 
+  const char *expected_service =
       "http%3a%2f%2frev-proxy.example.com%2fapp%2ffoo%3fbar%3dbaz%26zot%3dqux";
   const char *root = "http://rev-proxy.example.com/app";
   apr_uri_t parsed_url;
@@ -495,7 +495,7 @@ START_TEST(writeCASCacheEntry_test) {
   cas_cfg *c = ap_get_module_config(request->server->module_config,
                                     &auth_cas_module);
   c->CASCookiePath = "/tmp/";
- 
+
   cache.user = "foo";
   cache.issued = 86400;
   cache.lastactive = 87000;
@@ -535,7 +535,7 @@ START_TEST(createCASCookie_test) {
       fail();
     }
   }
-  
+
   if (i != APR_MD5_DIGESTSIZE*2)
     fail();
 }
@@ -901,7 +901,7 @@ void core_setup() {
   request->args = "bar=baz&zot=qux";
   apr_uri_parse(request->pool, "http://foo.example.com/foo?bar=baz&zot=qux",
                 &request->parsed_uri);
- 
+
   /* set up the per server, and per directory configs */
   auth_cas_module.module_index = kIdx;
   cas_cfg *cfg = cas_create_server_config(request->pool, request->server);
@@ -927,10 +927,10 @@ void core_teardown() {
   // created by various cookie test functions above
   apr_file_remove("/tmp/.metadata", request->pool);
   apr_file_remove("/tmp/.md5", request->pool);
-  /* 
+  /*
    * TODO(pames): figure out why one of these cookie/file-related tests creates
    * a /tmp/.md5 file in addition to the /tmp/.metadata file. and do the cleanup
-   * there? 
+   * there?
    */
   apr_pool_destroy(request->pool);
   free(request);

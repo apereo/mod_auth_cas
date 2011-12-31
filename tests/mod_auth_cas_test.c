@@ -159,14 +159,13 @@ START_TEST(cas_scrub_headers_test) {
   const apr_table_t *dirty_headers;
   size_t sz;
 
-  headers_in = apr_table_make(pool,
-                              sizeof(valid_headers)/sizeof(char *) +
-                              sizeof(invalid_headers)/sizeof(char *));
+  headers_in = apr_table_make(pool, ARRAY_SIZE(valid_headers) +
+                                    ARRAY_SIZE(invalid_headers));
 
-  for (sz = 0; sz < sizeof(valid_headers)/sizeof(char *); sz++)
+  for (sz = 0; sz < ARRAY_SIZE(valid_headers); sz++)
     apr_table_add(headers_in, valid_headers[sz], "Value");
 
-  for (sz = 0; sz < sizeof(invalid_headers)/sizeof(char *); sz++)
+  for (sz = 0; sz < ARRAY_SIZE(invalid_headers); sz++)
     apr_table_add(headers_in, invalid_headers[sz], "Value");
 
   headers_out = cas_scrub_headers(pool,
@@ -175,11 +174,11 @@ START_TEST(cas_scrub_headers_test) {
                                   headers_in,
                                   &dirty_headers);
 
-  hi.num_headers = sizeof(valid_headers)/sizeof(char *);
+  hi.num_headers = ARRAY_SIZE(valid_headers);
   hi.headers = valid_headers;
   fail_if(apr_table_do(find_entries_in_list, &hi, headers_out, NULL) == 0);
 
-  hi.num_headers = sizeof(invalid_headers)/sizeof(char *);
+  hi.num_headers = ARRAY_SIZE(invalid_headers);
   hi.headers = invalid_headers;
   fail_if(apr_table_do(find_entries_in_list, &hi, dirty_headers, NULL) == 0);
 }

@@ -27,6 +27,6 @@
 #ifndef CAS_SAML_ATTR_TEST_H
 #define CAS_SAML_ATTR_TEST_H
 
-TCase *cas_saml_attr_tcase();
+TCase *cas_saml_attr_tcase(void);
 
 #endif /* def CAS_SAML_ATTR_TEST_H */

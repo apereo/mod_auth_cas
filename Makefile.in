@@ -770,7 +770,7 @@ clean:
 distclean: clean
 	cd src && $(MAKE) $@
 	cd tests && $(MAKE) $@
-	rm -rf config.h config.h.in~ config.log config.status autom4te.cache Makefile 
+	rm -rf config.h config.h.in~ config.log config.status autom4te.cache Makefile stamp-h1
 
 baseclean: distclean
 	rm -rf configure

@@ -1,8 +1,20 @@
 
 #include "httpd.h"
 #include "http_config.h"
+#include "http_core.h"
+#include "http_log.h"
+#include "http_request.h"
 #include "util_filter.h"
+#include "util_md5.h"
 
+
+/* there seems to be no function protoype for this */
+const char *ap_run_http_scheme(const request_rec *r);
+/* ridiculous prototype for AP_DECLARE_HOOK entries */
+void ap_hook_check_user_id(int (*)(request_rec *),
+				const char * const *,
+				const char * const *,
+				int);
 
 AP_DECLARE(ap_filter_t *) ap_add_input_filter(const char *name, void *ctx,
                                               request_rec *r, conn_rec *c) {
@@ -15,9 +27,9 @@ AP_DECLARE(const char *) ap_auth_type(request_rec *r) {
 }
 
 AP_DECLARE(apr_status_t) ap_get_brigade(ap_filter_t *filter,
-                                        apr_bucket_brigade *bucket, 
+                                        apr_bucket_brigade *bucket,
                                         ap_input_mode_t mode,
-                                        apr_read_type_e block, 
+                                        apr_read_type_e block,
                                         apr_off_t readbytes) {
   return APR_EGENERAL;
 }
@@ -27,22 +39,25 @@ AP_DECLARE(char *) ap_getword(apr_pool_t *p, const char **line, char stop) {
   return "";
 }
 
-AP_DECLARE(int) ap_hook_check_user_id(request_rec *r) {
 
-  return 0;
+void ap_hook_check_user_id(int (*pf)(request_rec *),
+				const char * const *c1,
+				const char * const *c2,
+				int nOrder) {
+	return;
 }
 
 AP_DECLARE(int) ap_is_initial_req(request_rec *r) {
   return 0;
 }
 
-AP_DECLARE(void) ap_log_error(const char *file, int line, int level, 
+AP_DECLARE(void) ap_log_error(const char *file, int line, int level,
                               apr_status_t status, const server_rec *s,
                               const char *fmt, ...) {
 
 }
 
-AP_DECLARE(void) ap_log_rerror(const char *file, int line, int level, 
+AP_DECLARE(void) ap_log_rerror(const char *file, int line, int level,
                               apr_status_t status, const request_rec *s,
                               const char *fmt, ...) {
 
@@ -72,7 +87,7 @@ AP_DECLARE(ap_filter_rec_t *) ap_register_input_filter(const char *name,
 
 const char *ap_run_http_scheme(const request_rec *r) {
   char *rv;
-  apr_pool_userdata_get((void **) &rv, "scheme", r->pool); 
+  apr_pool_userdata_get((void **) &rv, "scheme", r->pool);
   return (const char *) rv;
 }
 

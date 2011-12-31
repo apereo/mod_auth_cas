@@ -217,6 +217,7 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 {
 	cas_cfg *c = (cas_cfg *) ap_get_module_config(cmd->server->module_config, &auth_cas_module);
 	apr_finfo_t f;
+	size_t sz;
 	int i;
 	char d;
 
@@ -345,8 +346,8 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid CASCacheCleanInterval (%s) specified - must be numeric", value));
 		break;
 		case cmd_cookie_domain:
-			for(i = 0; i < strlen(value); i++) {
-				d = value[i];
+			for(sz = 0; sz < strlen(value); sz++) {
+				d = value[sz];
 				if( (d < '0' || d > '9') &&
 					(d < 'a' || d > 'z') &&
 					(d < 'A' || d > 'Z') &&
@@ -756,7 +757,7 @@ char *urlEncode(const request_rec *r, const char *str,
 	if(str == NULL)
 		return "";
 
-	size = strlen(str) + 1; /* add 1 for terminating NULL */
+	size = strlen(str);
 
 	for(i = 0; i < size; i++) {
 		for(j = 0; j < strlen(charsToEncode); j++) {
@@ -768,7 +769,7 @@ char *urlEncode(const request_rec *r, const char *str,
 		}
 	}
 	/* allocate new memory to return the encoded URL */
-	p = rv = apr_pcalloc(r->pool, size);
+	p = rv = apr_pcalloc(r->pool, size + 1); /* +1 for terminating NULL */
 	q = str;
 
 	do {
@@ -865,7 +866,7 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 			apr_xml_parser_geterror(parser, errbuf, sizeof(errbuf));
 		}
 
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Error parsing XML content for '%s' (%s)", name, errbuf);
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Error parsing XML content (%s)", errbuf);
 		return FALSE;
 	}
 
@@ -1012,7 +1013,7 @@ void CASCleanCache(request_rec *r, cas_cfg *c)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Processing cache file '%s'", fi.name);
 
 			if(apr_file_open(&cacheFile, path, APR_FOPEN_READ, APR_OS_DEFAULT, r->pool) != APR_SUCCESS) {
-				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Unable to clean cache entry '%s'", path);
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Unable to clean cache entry '%s'", path);
 				continue;
 			}
 			if(readCASCacheFile(r, c, (char *) fi.name, &cache) == TRUE) {
@@ -1071,7 +1072,7 @@ apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache
 
 		/* update the file with a new idle time if a write lock can be obtained */
 		if(apr_file_lock(f, APR_FLOCK_EXCLUSIVE) != APR_SUCCESS) {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: could not obtain an exclusive lock on %s", path);
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: could not obtain an exclusive lock on %s", path);
 			apr_file_close(f);
 			return FALSE;
 		} else
@@ -1159,7 +1160,7 @@ char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ti
 	path = apr_psprintf(r->pool, "%s.%s", c->CASCookiePath, buf);
 
 	if((i = apr_file_open(&f, path, APR_FOPEN_CREATE|APR_FOPEN_WRITE|APR_EXCL, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool)) != APR_SUCCESS) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket to Cookie map file '%s' could not be created: %s", path, apr_strerror(i, buf, strlen(buf)));
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket to Cookie map file could not be created: %s", apr_strerror(i, buf, strlen(buf)));
 		return FALSE;
 	} else {
 		apr_file_printf(f, "%s", rv);
@@ -1189,17 +1190,17 @@ void expireCASST(request_rec *r, const char *ticketname)
 	path = apr_psprintf(r->pool, "%s.%s", c->CASCookiePath, ticket);
 
 	if(apr_file_open(&f, path, APR_FOPEN_READ, APR_OS_DEFAULT, r->pool) != APR_SUCCESS) {
-		ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' could not be opened (ticket %s - expired already?)", path, ticketname);
+		ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry could not be opened (ticket %s - expired already?)", ticketname);
 		return;
 	}
 
 	if(apr_file_read(f, &line, &bytes) != APR_SUCCESS) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' could not be read (ticket %s)", path, ticketname);
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry could not be read (ticket %s)", ticketname);
 		return;
 	}
 
 	if(bytes != APR_MD5_DIGESTSIZE*2) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' incomplete (read %" APR_SIZE_T_FMT ", expected %d, ticket %s)", path, bytes, APR_MD5_DIGESTSIZE*2, ticketname);
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry incomplete (read %" APR_SIZE_T_FMT ", expected %d, ticket %s)", bytes, APR_MD5_DIGESTSIZE*2, ticketname);
 		return;
 	}
 
@@ -2275,7 +2276,7 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASCacheCleanInterval", cfg_readCASParameter, (void *) cmd_cache_interval, RSRC_CONF, "Amount of time (in seconds) between cache cleanups.  This value is checked when a new local ticket is issued or when a ticket expires."),
 	AP_INIT_TAKE1("CASRootProxiedAs", cfg_readCASParameter, (void *) cmd_root_proxied_as, RSRC_CONF, "URL used to access the root of the virtual server (only needed when the server is proxied)"),
  	AP_INIT_TAKE1("CASScrubRequestHeaders", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASScrubRequestHeaders), ACCESS_CONF, "Scrub CAS user name and SAML attribute headers from the user's request."),
-	{NULL}
+	AP_INIT_TAKE1(0, 0, 0, 0, 0)
 };
 
 /* Dispatch list for API hooks */

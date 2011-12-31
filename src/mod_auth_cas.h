@@ -96,6 +96,8 @@
 #define CAS_MAX_ERROR_SIZE 1024
 #define CAS_MAX_XML_SIZE 1024
 
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+
 typedef struct cas_cfg {
 	/* non-zero if this is a merged vhost config */
 	unsigned int merged;

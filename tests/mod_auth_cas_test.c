@@ -17,6 +17,13 @@
 #include "cas_saml_attr_test.h"
 #include "curl_stubs.h"
 
+int find_entries_in_list(void *, const char *, const char *);
+char *get_attr(cas_cfg *, cas_saml_attr *, const char *);
+char *rand_str(apr_pool_t *, unsigned int);
+void core_setup(void);
+void core_teardown(void);
+Suite *mod_auth_cas_suite(void);
+
 request_rec *request;
 apr_pool_t *pool;
 
@@ -55,11 +62,12 @@ START_TEST(cas_merge_server_config_test) {
 END_TEST
 
 START_TEST(cas_merge_dir_config_test) {
+  cas_dir_cfg *merged;
   cas_dir_cfg *base = cas_create_dir_config(request->pool, NULL);
   cas_dir_cfg *add = cas_create_dir_config(request->pool, NULL);
-  
+
   add->CASCookie = "XYZ";
-  cas_dir_cfg *merged = (cas_dir_cfg *) cas_merge_dir_config(request->pool,
+  merged = (cas_dir_cfg *) cas_merge_dir_config(request->pool,
                                                              (void *)base,
                                                              (void *)add);
   fail_unless(strcmp(merged->CASCookie, "XYZ") == 0);
@@ -113,7 +121,7 @@ const char *invalid_headers[] = {
   "CaS_Baz",
   "cas:zot",
   "CAS-Zuz",
-  /* 
+  /*
    * CAS_DEFAULT_AUTHN_HEADER is NULL, but we want to make sure that such a
    * header is removed (and we want it to start with something other than the
    * CAS attribute prefix).
@@ -146,20 +154,19 @@ int find_entries_in_list(void *rec, const char *key, const char *val)
 }
 
 START_TEST(cas_scrub_headers_test) {
-  int i;
   struct header_info hi;
   apr_table_t *headers_in, *headers_out;
   const apr_table_t *dirty_headers;
+  size_t sz;
 
-  headers_in = apr_table_make(pool,
-                              sizeof(valid_headers)/sizeof(char *) +
-                              sizeof(invalid_headers)/sizeof(char *));
+  headers_in = apr_table_make(pool, ARRAY_SIZE(valid_headers) +
+                                    ARRAY_SIZE(invalid_headers));
 
-  for (i = 0; i < sizeof(valid_headers)/sizeof(char *); i++)
-    apr_table_add(headers_in, valid_headers[i], "Value");
+  for (sz = 0; sz < ARRAY_SIZE(valid_headers); sz++)
+    apr_table_add(headers_in, valid_headers[sz], "Value");
 
-  for (i = 0; i < sizeof(invalid_headers)/sizeof(char *); i++)
-    apr_table_add(headers_in, invalid_headers[i], "Value");
+  for (sz = 0; sz < ARRAY_SIZE(invalid_headers); sz++)
+    apr_table_add(headers_in, invalid_headers[sz], "Value");
 
   headers_out = cas_scrub_headers(pool,
                                   CAS_DEFAULT_ATTRIBUTE_PREFIX,
@@ -167,11 +174,11 @@ START_TEST(cas_scrub_headers_test) {
                                   headers_in,
                                   &dirty_headers);
 
-  hi.num_headers = sizeof(valid_headers)/sizeof(char *);
+  hi.num_headers = ARRAY_SIZE(valid_headers);
   hi.headers = valid_headers;
   fail_if(apr_table_do(find_entries_in_list, &hi, headers_out, NULL) == 0);
 
-  hi.num_headers = sizeof(invalid_headers)/sizeof(char *);
+  hi.num_headers = ARRAY_SIZE(invalid_headers);
   hi.headers = invalid_headers;
   fail_if(apr_table_do(find_entries_in_list, &hi, dirty_headers, NULL) == 0);
 }
@@ -278,12 +285,12 @@ START_TEST(getCASService_https_test) {
   cas_cfg *c = ap_get_module_config(request->server->module_config,
                                     &auth_cas_module);
   char *service;
-  const char *expected_service = 
+  const char *expected_service =
       "https%3a%2f%2ffoo.example.com%2ffoo%3fbar%3dbaz%26zot%3dqux";
 
   apr_pool_userdata_set("https", "scheme", NULL, request->pool);
   request->connection->local_addr->port = 443;
- 
+
   service = getCASService(request, c);
   fail_unless(strcmp(service, expected_service) == 0);
 }
@@ -293,7 +300,7 @@ START_TEST(getCASService_http_port_test) {
   cas_cfg *c = ap_get_module_config(request->server->module_config,
                                     &auth_cas_module);
   char *service;
-  const char *expected_service = 
+  const char *expected_service =
       "http%3a%2f%2ffoo.example.com%3a8080%2ffoo%3fbar%3dbaz%26zot%3dqux";
 
   apr_pool_userdata_set("http", "scheme", NULL, request->pool);
@@ -308,7 +315,7 @@ START_TEST(getCASService_https_port_test) {
   cas_cfg *c = ap_get_module_config(request->server->module_config,
                                     &auth_cas_module);
   char *service;
-  const char *expected_service = 
+  const char *expected_service =
       "https%3a%2f%2ffoo.example.com%3a8443%2ffoo%3fbar%3dbaz%26zot%3dqux";
 
   apr_pool_userdata_set("https", "scheme", NULL, request->pool);
@@ -323,7 +330,7 @@ START_TEST(getCASService_root_proxied_test) {
   cas_cfg *c = ap_get_module_config(request->server->module_config,
                                     &auth_cas_module);
   char *service;
-  const char *expected_service = 
+  const char *expected_service =
       "http%3a%2f%2frev-proxy.example.com%2fapp%2ffoo%3fbar%3dbaz%26zot%3dqux";
   const char *root = "http://rev-proxy.example.com/app";
   apr_uri_t parsed_url;
@@ -495,7 +502,7 @@ START_TEST(writeCASCacheEntry_test) {
   cas_cfg *c = ap_get_module_config(request->server->module_config,
                                     &auth_cas_module);
   c->CASCookiePath = "/tmp/";
- 
+
   cache.user = "foo";
   cache.issued = 86400;
   cache.lastactive = 87000;
@@ -535,7 +542,7 @@ START_TEST(createCASCookie_test) {
       fail();
     }
   }
-  
+
   if (i != APR_MD5_DIGESTSIZE*2)
     fail();
 }
@@ -558,10 +565,11 @@ END_TEST
 
 char *get_attr(cas_cfg *c, cas_saml_attr *attrs, const char *attr) {
   char *csvs = NULL;
+  cas_saml_attr_val *av;
   cas_saml_attr *a;
   for (a = attrs; a != NULL; a = a->next) {
     if (strcmp(a->attr, attr) != 0) continue;
-    cas_saml_attr_val *av = a->values;
+    av = a->values;
     while (av != NULL) {
       if (csvs != NULL) {
         csvs = apr_psprintf(request->pool, "%s%s%s", csvs, c->CASAttributeDelimiter, av->value);
@@ -645,8 +653,8 @@ END_TEST
 
 START_TEST(cas_curl_write_test) {
   cas_curl_buffer cb;
-  memset(&cb, 0, sizeof(cb));
   const char *data = "This is some test data.";
+  memset(&cb, 0, sizeof(cb));
   cas_curl_write(data, sizeof(char), sizeof(char)*strlen(data), &cb);
 
   fail_unless(strcmp(cb.buf, data) == 0);
@@ -749,6 +757,7 @@ char *rand_str(apr_pool_t *p, unsigned int length_limit) {
     /* Generate a random length from one to length_limit, inclusive.
      * This method for choosing a length is biased, but it should be
      * fine for testing purposes. */
+    char *ans;
     unsigned int len;
     if (length_limit < 1) {
         len = 1;
@@ -763,7 +772,7 @@ char *rand_str(apr_pool_t *p, unsigned int length_limit) {
      * terminator may appear earlier than the end, but we guarantee
      * that the string is terminated at or before length_limit
      * bytes. */
-    char *ans = apr_palloc(p, len);
+    ans = apr_palloc(p, len);
     apr_generate_random_bytes((unsigned char *) ans, len - 1);
     ans[len - 1] = '\0';
     return ans;
@@ -789,7 +798,7 @@ START_TEST(cas_strnenvcmp_test) {
     int l1 = strlen(rnd1);
     int l2 = strlen(rnd2);
     int l = l1 > l2 ? l1 : l2;
-    int i;
+    int i, a, b;
 
     /* Comparing zero characters yields equal, regardless of the other
      * inputs. */
@@ -813,8 +822,8 @@ START_TEST(cas_strnenvcmp_test) {
       assert_snecmp_eqn(rnd2, rnd2, i);
 
       /* Swapping arguments flips the sign of the answer */
-      int a = cas_strnenvcmp(rnd1, rnd2, i);
-      int b = cas_strnenvcmp(rnd2, rnd1, i);
+      a = cas_strnenvcmp(rnd1, rnd2, i);
+      b = cas_strnenvcmp(rnd2, rnd1, i);
       fail_unless(((a == 0) && (b == 0))
                   || ((a < 0) && (b > 0))
                   || ((a > 0) && (b < 0)));
@@ -872,6 +881,8 @@ void core_setup() {
   const unsigned int kIdx = 0;
   const unsigned int kEls = kIdx + 1;
   apr_uri_t login;
+  cas_dir_cfg *d_cfg;
+  cas_cfg *cfg;
   request = (request_rec *) malloc(sizeof(request_rec));
 
   apr_pool_create(&pool, NULL);
@@ -901,10 +912,10 @@ void core_setup() {
   request->args = "bar=baz&zot=qux";
   apr_uri_parse(request->pool, "http://foo.example.com/foo?bar=baz&zot=qux",
                 &request->parsed_uri);
- 
+
   /* set up the per server, and per directory configs */
   auth_cas_module.module_index = kIdx;
-  cas_cfg *cfg = cas_create_server_config(request->pool, request->server);
+  cfg = cas_create_server_config(request->pool, request->server);
   cfg->CASDebug = TRUE;
   memset(&login, 0, sizeof(login));
   login.scheme = "https";
@@ -913,7 +924,7 @@ void core_setup() {
   login.port = 0;
   memcpy(&cfg->CASLoginURL, &login, sizeof(apr_uri_t));
 
-  cas_dir_cfg *d_cfg = cas_create_dir_config(request->pool, NULL);
+  d_cfg = cas_create_dir_config(request->pool, NULL);
 
   request->server->module_config = apr_pcalloc(request->pool,
                                                sizeof(ap_conf_vector_t *)*kEls);
@@ -927,10 +938,10 @@ void core_teardown() {
   // created by various cookie test functions above
   apr_file_remove("/tmp/.metadata", request->pool);
   apr_file_remove("/tmp/.md5", request->pool);
-  /* 
+  /*
    * TODO(pames): figure out why one of these cookie/file-related tests creates
    * a /tmp/.md5 file in addition to the /tmp/.metadata file. and do the cleanup
-   * there? 
+   * there?
    */
   apr_pool_destroy(request->pool);
   free(request);
@@ -998,11 +1009,13 @@ Suite *mod_auth_cas_suite() {
 
 int main (int argc, char *argv[]) {
   unsigned int number_failed;
+  Suite *s;
+  SRunner *sr;
 
   apr_app_initialize(&argc, (const char * const **) &argv, NULL);
 
-  Suite *s = mod_auth_cas_suite();
-  SRunner *sr = srunner_create(s);
+  s = mod_auth_cas_suite();
+  sr = srunner_create(s);
   srunner_run_all(sr, CK_NORMAL);
   number_failed = srunner_ntests_failed(sr);
   srunner_free(sr);

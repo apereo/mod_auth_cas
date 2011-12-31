@@ -217,7 +217,7 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 {
 	cas_cfg *c = (cas_cfg *) ap_get_module_config(cmd->server->module_config, &auth_cas_module);
 	apr_finfo_t f;
-	size_t sz;
+	size_t sz, limit;
 	int i;
 	char d;
 
@@ -346,7 +346,8 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid CASCacheCleanInterval (%s) specified - must be numeric", value));
 		break;
 		case cmd_cookie_domain:
-			for(sz = 0; sz < strlen(value); sz++) {
+			limit = strlen(value);
+			for(sz = 0; sz < limit; sz++) {
 				d = value[sz];
 				if( (d < '0' || d > '9') &&
 					(d < 'a' || d > 'z') &&
@@ -751,30 +752,31 @@ char *urlEncode(const request_rec *r, const char *str,
 {
 	char *rv, *p;
 	const char *q;
-	size_t i, j, size;
+	size_t i, j, size, limit, newsz;
 	char escaped = FALSE;
 
 	if(str == NULL)
 		return "";
 
-	size = strlen(str);
+	size = newsz = strlen(str);
+	limit = strlen(charsToEncode);
 
 	for(i = 0; i < size; i++) {
-		for(j = 0; j < strlen(charsToEncode); j++) {
+		for(j = 0; j < limit; j++) {
 			if(str[i] == charsToEncode[j]) {
 				/* allocate 2 extra bytes for the escape sequence (' ' -> '%20') */
-				size += 2;
+				newsz += 2;
 				break;
 			}
 		}
 	}
 	/* allocate new memory to return the encoded URL */
-	p = rv = apr_pcalloc(r->pool, size + 1); /* +1 for terminating NULL */
+	p = rv = apr_pcalloc(r->pool, newsz + 1); /* +1 for terminating NULL */
 	q = str;
 
 	do {
 		escaped = FALSE;
-		for(i = 0; i < strlen(charsToEncode); i++) {
+		for(i = 0; i < limit; i++) {
 			if(*q == charsToEncode[i]) {
 				sprintf(p, "%%%x", charsToEncode[i]);
 				p+= 3;
@@ -1120,6 +1122,7 @@ apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache
 char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ticket)
 {
 	char *path, *buf, *rv;
+	char errbuf[CAS_MAX_ERROR_SIZE];
 	apr_file_t *f;
 	cas_cache_entry e;
 	int i;
@@ -1160,7 +1163,7 @@ char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ti
 	path = apr_psprintf(r->pool, "%s.%s", c->CASCookiePath, buf);
 
 	if((i = apr_file_open(&f, path, APR_FOPEN_CREATE|APR_FOPEN_WRITE|APR_EXCL, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool)) != APR_SUCCESS) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket to Cookie map file could not be created: %s", apr_strerror(i, buf, strlen(buf)));
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket to Cookie map file could not be created: %s", apr_strerror(i, errbuf, sizeof(errbuf)));
 		return FALSE;
 	} else {
 		apr_file_printf(f, "%s", rv);

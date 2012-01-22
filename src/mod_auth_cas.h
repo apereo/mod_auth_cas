@@ -30,6 +30,7 @@
 
 #define OPENSSL_THREAD_DEFINES
 #include <openssl/opensslconf.h>
+#include <openssl/crypto.h>
 
 #include <openssl/opensslv.h>
 #if (OPENSSL_VERSION_NUMBER < 0x01000000)

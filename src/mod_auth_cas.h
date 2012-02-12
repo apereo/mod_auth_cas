@@ -115,14 +115,9 @@ typedef struct cas_cfg {
 	unsigned int CASSSOEnabled;
 	unsigned int CASValidateSAML;
 	char *CASCertificatePath;
-	char *CASCookiePath;
 	char *CASCookieDomain;
 	char *CASAttributeDelimiter;
 	char *CASAttributePrefix;
-	apr_uri_t CASLoginURL;
-	apr_uri_t CASValidateURL;
-	apr_uri_t CASProxyValidateURL;
-	apr_uri_t CASRootProxiedAs;
 } cas_cfg;
 
 typedef struct cas_dir_cfg {
@@ -134,6 +129,11 @@ typedef struct cas_dir_cfg {
 	char *CASGatewayCookie;
 	char *CASAuthNHeader;
 	char *CASScrubRequestHeaders;
+	char *CASCookiePath;
+	apr_uri_t *CASLoginURL;
+	apr_uri_t *CASValidateURL;
+	apr_uri_t *CASProxyValidateURL;
+	apr_uri_t *CASRootProxiedAs;
 } cas_dir_cfg;
 
 typedef struct cas_cache_entry {
@@ -160,7 +160,7 @@ typedef enum {
 } valid_cmds;
 
 module AP_MODULE_DECLARE_DATA auth_cas_module;
-apr_byte_t cas_setURL(apr_pool_t *pool, apr_uri_t *uri, const char *url);
+apr_uri_t *cas_setURL(apr_pool_t *pool, const char *url);
 void *cas_create_server_config(apr_pool_t *pool, server_rec *svr);
 void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD);
 void *cas_create_dir_config(apr_pool_t *pool, char *path);
@@ -192,8 +192,8 @@ char *escapeString(const request_rec *r, const char *str);
 char *urlEncode(const request_rec *r, const char *str, const char *charsToEncode);
 char *getCASGateway(request_rec *r);
 char *getCASRenew(request_rec *r);
-char *getCASLoginURL(request_rec *r, cas_cfg *c);
-char *getCASService(const request_rec *r, const cas_cfg *c);
+char *getCASLoginURL(request_rec *r);
+char *getCASService(const request_rec *r);
 void redirectRequest(request_rec *r, cas_cfg *c);
 char *getCASTicket(request_rec *r);
 apr_byte_t removeCASParams(request_rec *r);

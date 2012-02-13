@@ -2237,7 +2237,16 @@ apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode
 void cas_register_hooks(apr_pool_t *p)
 {
 	ap_hook_post_config(cas_post_config, NULL, NULL, APR_HOOK_LAST);
+#if MODULE_MAGIC_NUMBER_MAJOR >= 20100714
+	ap_hook_check_access_ex(
+		cas_authenticate,
+		NULL,
+		NULL,
+		APR_HOOK_MIDDLE,
+		AP_AUTH_INTERNAL_PER_URI);
+#else
 	ap_hook_check_user_id(cas_authenticate, NULL, NULL, APR_HOOK_MIDDLE);
+#endif
 	ap_register_input_filter("CAS", cas_in_filter, NULL, AP_FTYPE_RESOURCE);
 }
 

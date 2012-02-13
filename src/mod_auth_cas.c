@@ -91,7 +91,6 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASCookieDomain = CAS_DEFAULT_COOKIE_DOMAIN;
 	c->CASCookieHttpOnly = CAS_DEFAULT_COOKIE_HTTPONLY;
 	c->CASSSOEnabled = CAS_DEFAULT_SSO_ENABLED;
-	c->CASValidateSAML = CAS_DEFAULT_VALIDATE_SAML;
 	c->CASAttributeDelimiter = CAS_DEFAULT_ATTRIBUTE_DELIMITER;
 	c->CASAttributePrefix = CAS_DEFAULT_ATTRIBUTE_PREFIX;
 
@@ -118,7 +117,6 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASCookieDomain = (add->CASCookieDomain != CAS_DEFAULT_COOKIE_DOMAIN ? add->CASCookieDomain : base->CASCookieDomain);
 	c->CASCookieHttpOnly = (add->CASCookieHttpOnly != CAS_DEFAULT_COOKIE_HTTPONLY ? add->CASCookieHttpOnly : base->CASCookieHttpOnly);
 	c->CASSSOEnabled = (add->CASSSOEnabled != CAS_DEFAULT_SSO_ENABLED ? add->CASSSOEnabled : base->CASSSOEnabled);
-	c->CASValidateSAML = (add->CASValidateSAML != CAS_DEFAULT_VALIDATE_SAML ? add->CASValidateSAML : base->CASValidateSAML);
 	c->CASAttributeDelimiter = (apr_strnatcasecmp(add->CASAttributeDelimiter, CAS_DEFAULT_ATTRIBUTE_DELIMITER) != 0 ? add->CASAttributeDelimiter : base->CASAttributeDelimiter);
 	c->CASAttributePrefix = (apr_strnatcasecmp(add->CASAttributePrefix, CAS_DEFAULT_ATTRIBUTE_PREFIX) != 0 ? add->CASAttributePrefix : base->CASAttributePrefix);
 
@@ -136,6 +134,7 @@ void *cas_create_dir_config(apr_pool_t *pool, char *path)
 	c->CASGatewayCookie = CAS_DEFAULT_GATEWAY_COOKIE;
 	c->CASAuthNHeader = CAS_DEFAULT_AUTHN_HEADER;
 	c->CASScrubRequestHeaders = CAS_DEFAULT_SCRUB_REQUEST_HEADERS;
+	c->CASValidateSAML = CAS_DEFAULT_VALIDATE_SAML;
 	c->CASCookiePath = CAS_DEFAULT_COOKIE_PATH;
 	c->CASLoginURL = NULL;
 	c->CASValidateURL = NULL;
@@ -189,6 +188,7 @@ void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASValidateURL = add->CASValidateURL ? add->CASValidateURL : base->CASValidateURL;
 	c->CASProxyValidateURL = add->CASProxyValidateURL ? add->CASProxyValidateURL : base->CASProxyValidateURL;
 	c->CASRootProxiedAs = add->CASRootProxiedAs ? add->CASRootProxiedAs : base->CASRootProxiedAs;
+	c->CASValidateSAML = (add->CASValidateSAML != CAS_DEFAULT_VALIDATE_SAML ? add->CASValidateSAML : base->CASValidateSAML);
 
 	return(c);
 }
@@ -249,9 +249,9 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 		break;
 		case cmd_validate_saml:
 			if(apr_strnatcasecmp(value, "On") == 0)
-				c->CASValidateSAML = TRUE;
+				d->CASValidateSAML = TRUE;
 			else if(apr_strnatcasecmp(value, "Off") == 0)
-				c->CASValidateSAML = FALSE;
+				d->CASValidateSAML = FALSE;
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASValidateSAML - must be 'On' or 'Off'"));
 		break;
@@ -1367,12 +1367,15 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 	apr_xml_parser *parser = apr_xml_parser_create(r->pool);
 	const char *response = getResponseFromServer(r, c, ticket);
 	const char *value = NULL;
+	cas_dir_cfg *d;
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering isValidCASTicket()");
 
 	if(response == NULL)
 		return FALSE;
+
+	d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
 
 	if(c->CASDebug) {
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: response = %s", response);
@@ -1417,7 +1420,7 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: error retrieving XML document for CASv2 response: %s", line);
 			return FALSE;
 		}
-		if(c->CASValidateSAML == TRUE) {
+		if(d->CASValidateSAML == TRUE) {
 			int success = 0;
 			node = doc->root->first_child;
 			// Header
@@ -1705,7 +1708,7 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 
 	curl_easy_setopt(curl, CURLOPT_USERAGENT, "mod_auth_cas 1.0.10");
 
-	if(c->CASValidateSAML == TRUE) {
+	if(d->CASValidateSAML == TRUE) {
 		curl_easy_setopt(curl, CURLOPT_POST, 1L);
 		samlPayload = apr_psprintf(r->pool, "<?xml version=\"1.0\" encoding=\"utf-8\"?><SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\"><SOAP-ENV:Header/><SOAP-ENV:Body><samlp:Request xmlns:samlp=\"urn:oasis:names:tc:SAML:1.0:protocol\"  MajorVersion=\"1\" MinorVersion=\"1\"><samlp:AssertionArtifact>%s%s</samlp:AssertionArtifact></samlp:Request></SOAP-ENV:Body></SOAP-ENV:Envelope>",ticket, getCASRenew(r));
 		headers = curl_slist_append(headers, "soapaction: http://www.oasis-open.org/committees/security");
@@ -1719,7 +1722,7 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 		curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
 
 	memcpy(&validateURL, d->CASValidateURL, sizeof(validateURL));
-	if(c->CASValidateSAML == FALSE)
+	if(d->CASValidateSAML == FALSE)
 		validateURL.query = apr_psprintf(r->pool, "service=%s&ticket=%s%s", getCASService(r), ticket, getCASRenew(r));
 	else
 		validateURL.query = apr_psprintf(r->pool, "TARGET=%s%s", getCASService(r), getCASRenew(r));
@@ -1879,7 +1882,7 @@ void cas_scrub_request_headers(
 	r->headers_in =
 		cas_scrub_headers(
 			r->pool,
-			c->CASValidateSAML ? c->CASAttributePrefix : NULL,
+			d->CASValidateSAML ? c->CASAttributePrefix : NULL,
 			d->CASAuthNHeader,
 			r->headers_in,
 			&dirty_headers);
@@ -2033,7 +2036,7 @@ int cas_authenticate(request_rec *r)
 		redirectRequest(r, c);
 		return HTTP_MOVED_TEMPORARILY;
 	} else {
-		if(!ap_is_initial_req(r) && c->CASValidateSAML == FALSE) {
+		if(!ap_is_initial_req(r) && d->CASValidateSAML == FALSE) {
 			/*
 			 * MAS-27 fix:  copy the user from the initial request to prevent a hit on the backing
 			 * store.  the 'gotcha' here is that we should preserve the SAML attributes, too.

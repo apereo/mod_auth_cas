@@ -114,7 +114,6 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASCacheCleanInterval = CAS_DEFAULT_CACHE_CLEAN_INTERVAL;
 	c->CASCookieDomain = CAS_DEFAULT_COOKIE_DOMAIN;
 	c->CASCookieHttpOnly = CAS_DEFAULT_COOKIE_HTTPONLY;
-	c->CASSSOEnabled = CAS_DEFAULT_SSO_ENABLED;
 	c->CASAttributeDelimiter = CAS_DEFAULT_ATTRIBUTE_DELIMITER;
 	c->CASAttributePrefix = CAS_DEFAULT_ATTRIBUTE_PREFIX;
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
@@ -141,7 +140,6 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASCacheCleanInterval = (add->CASCacheCleanInterval != CAS_DEFAULT_CACHE_CLEAN_INTERVAL ? add->CASCacheCleanInterval : base->CASCacheCleanInterval);
 	c->CASCookieDomain = (add->CASCookieDomain != CAS_DEFAULT_COOKIE_DOMAIN ? add->CASCookieDomain : base->CASCookieDomain);
 	c->CASCookieHttpOnly = (add->CASCookieHttpOnly != CAS_DEFAULT_COOKIE_HTTPONLY ? add->CASCookieHttpOnly : base->CASCookieHttpOnly);
-	c->CASSSOEnabled = (add->CASSSOEnabled != CAS_DEFAULT_SSO_ENABLED ? add->CASSSOEnabled : base->CASSSOEnabled);
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	c->CASAuthoritative = (add->CASAuthoritative != CAS_DEFAULT_AUTHORITATIVE ? add->CASAuthoritative : base->CASAuthoritative);
 #endif
@@ -163,6 +161,7 @@ void *cas_create_dir_config(apr_pool_t *pool, char *path)
 	c->CASAuthNHeader = CAS_DEFAULT_AUTHN_HEADER;
 	c->CASScrubRequestHeaders = CAS_DEFAULT_SCRUB_REQUEST_HEADERS;
 	c->CASValidateSAML = CAS_DEFAULT_VALIDATE_SAML;
+	c->CASSSOEnabled = CAS_DEFAULT_SSO_ENABLED;
 	c->CASCookiePath = CAS_DEFAULT_COOKIE_PATH;
 	c->CASLoginURL = NULL;
 	c->CASValidateURL = NULL;
@@ -217,6 +216,7 @@ void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASProxyValidateURL = add->CASProxyValidateURL ? add->CASProxyValidateURL : base->CASProxyValidateURL;
 	c->CASRootProxiedAs = add->CASRootProxiedAs ? add->CASRootProxiedAs : base->CASRootProxiedAs;
 	c->CASValidateSAML = (add->CASValidateSAML != CAS_DEFAULT_VALIDATE_SAML ? add->CASValidateSAML : base->CASValidateSAML);
+	c->CASSSOEnabled = (add->CASSSOEnabled != CAS_DEFAULT_SSO_ENABLED ? add->CASSSOEnabled : base->CASSSOEnabled);
 
 	return(c);
 }
@@ -375,9 +375,9 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 		break;
 		case cmd_sso:
 			if(apr_strnatcasecmp(value, "On") == 0)
-				c->CASSSOEnabled = TRUE;
+				d->CASSSOEnabled = TRUE;
 			else if(apr_strnatcasecmp(value, "Off") == 0)
-				c->CASSSOEnabled = FALSE;
+				d->CASSSOEnabled = FALSE;
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASSSOEnabled - must be 'On' or 'Off'"));
 		break;
@@ -2101,7 +2101,7 @@ int cas_authenticate(request_rec *r)
 		cas_scrub_request_headers(r, c, d);
 	}
 
-	if(r->method_number == M_POST && c->CASSSOEnabled != FALSE) {
+	if(r->method_number == M_POST && d->CASSSOEnabled != FALSE) {
 		/* read the POST data here to determine if it is a SAML LogoutRequest and handle accordingly */
 		ap_add_input_filter("CAS", NULL, r, r->connection);
 	}
@@ -2831,7 +2831,7 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASRenew", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASRenew), ACCESS_CONF|OR_AUTHCFG, "Force credential renew (/app/secure/ will require renew on /app/secure/*)"),
 	AP_INIT_TAKE1("CASGateway", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASGateway), ACCESS_CONF|OR_AUTHCFG, "Allow anonymous access if no CAS session is established on this path (e.g. /app/insecure/ will allow gateway access to /app/insecure/*), CAS v2 only"),
 	AP_INIT_TAKE1("CASAuthNHeader", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASAuthNHeader), ACCESS_CONF|OR_AUTHCFG, "Specify the HTTP header variable to set with the name of the CAS authenticated user.  By default no headers are added."),
-	AP_INIT_TAKE1("CASSSOEnabled", cfg_readCASParameter, (void *) cmd_sso, RSRC_CONF, "Enable or disable Single Sign Out functionality (On or Off)"),
+	AP_INIT_TAKE1("CASSSOEnabled", cfg_readCASParameter, (void *) cmd_sso, RSRC_CONF|ACCESS_CONF, "Enable or disable Single Sign Out functionality (On or Off)"),
 	AP_INIT_TAKE1("CASAttributeDelimiter", cfg_readCASParameter, (void *) cmd_attribute_delimiter, RSRC_CONF, "The delimiter to use when setting multi-valued attributes in the HTTP headers"),
 	AP_INIT_TAKE1("CASAttributePrefix", cfg_readCASParameter, (void *) cmd_attribute_prefix, RSRC_CONF, "The prefix to use when setting attributes in the HTTP headers"),
 

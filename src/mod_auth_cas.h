@@ -43,6 +43,10 @@
 #define LIBCURL_NO_CURLPROTO
 #endif
 
+#include "pcre.h"
+#define OVECCOUNT 3    /* should be a multiple of 3 */
+#define TICKETPATTERN "^ticket=[SP]T-[a-zA-Z0-9-]+$"
+
 #include "cas_saml_attr.h"
 
 #ifndef AP_SERVER_MAJORVERSION_NUMBER

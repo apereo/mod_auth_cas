@@ -640,6 +640,12 @@ char *getCASTicket(request_rec *r)
 	char *tokenizerCtx, *ticket, *args, *rv = NULL;
 	apr_byte_t ticketFound = FALSE;
 
+	pcre *re;
+	const char *error;
+	int erroffset;
+	int ovector[OVECCOUNT];
+	int rc;
+
 	if(r->args == NULL || strlen(r->args) == 0)
 		return NULL;
 
@@ -650,11 +656,35 @@ char *getCASTicket(request_rec *r)
 		if(strncmp(ticket, "ticket=", 7) == 0) {
 			// tickets must begin with ST- or PT- except for PGT and PGT-IOU's which we are not handling anyway
 			if(strncmp((ticket + 7), "ST-", 3) == 0 || strncmp((ticket + 7), "PT-", 3) == 0) {
-				ticketFound = TRUE;
-				/* skip to the meat of the parameter (the value after the '=') */
-				ticket += 7;
-				rv = apr_pstrdup(r->pool, ticket);
-				break;
+				re = pcre_compile(
+				  TICKETPATTERN,        /* the pattern */
+				  0,                    /* default options */
+				  &error,               /* for pattern compilation error message */
+				  			/* as the pattern is hard-coded, we're ignoring errors. */
+				  &erroffset,           /* for error offset */
+				  NULL);                /* use default character tables */
+
+				rc = pcre_exec(
+				  re,                   /* the compiled pattern */
+				  NULL,                 /* no extra data - we didn't study the pattern */
+				  ticket,               /* the subject string */
+				  strlen(ticket),       /* the length of the subject */
+				  0,                    /* start at offset 0 in the subject */
+				  0,                    /* default options */
+				  ovector,              /* output vector for substring information */
+				  OVECCOUNT);           /* number of elements in the output vector */	
+
+				if ( rc > 0 ) {
+					ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "CAS service ticket has valid format.");		
+					ticketFound = TRUE;
+					/* skip to the meat of the parameter (the value after the '=') */
+					ticket += 7;
+					rv = apr_pstrdup(r->pool, ticket);
+					break;
+				}
+				else {
+					ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "CAS service ticket has invalid format. Ignoring ticket ('%s').", ticket);
+				}
 			}
 		}
 		ticket = apr_strtok(NULL, "&", &tokenizerCtx);

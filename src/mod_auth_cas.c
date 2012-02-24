@@ -588,82 +588,138 @@ void redirectRequest(request_rec *r, cas_cfg *c)
 
 }
 
+
+
 apr_byte_t removeCASParams(request_rec *r)
 {
-	char *newArgs, *oldArgs, *p;
-	apr_byte_t copy = TRUE;
-	apr_byte_t changed = FALSE;
-	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
+  char *new_args, *old_args, *p, *ticket, *tmp;
+  const char *k_ticket_param = "ticket=";
+  const size_t k_ticket_param_sz = strlen(k_ticket_param);
+  apr_byte_t changed = FALSE;
+  cas_cfg *c = ap_get_module_config(r->server->module_config,
+                                    &auth_cas_module);
 
-	if(r->args == NULL)
-		return changed;
+  if (r->args == NULL)
+    return changed;
 
-	oldArgs = r->args;
-	p = newArgs = apr_pcalloc(r->pool, strlen(oldArgs) + 1); /* add 1 for terminating NULL */
-	while(*oldArgs != '\0') {
-		/* stop copying when a CAS parameter is encountered */
-		if(strncmp(oldArgs, "ticket=", 7) == 0) {
-			// only prevent copying if an ST or PT is encountered, leaving PGT and PGTIOU to app layer
-			if(strncmp((oldArgs + 7), "ST-", 3) == 0 || strncmp((oldArgs + 7), "PT-", 3) == 0) {
-				copy = FALSE;
-				changed = TRUE;
-			}
-		}
+  ticket = getCASTicket(r);
+  if (!ticket)
+    return changed;
 
-		if(copy)
-			*p++ = *oldArgs++;
-		/* restart copying on a new parameter */
-		else if(*oldArgs++ == '&')
-			copy = TRUE;
-	}
+  old_args = r->args;
+  p = new_args = apr_pcalloc(r->pool, strlen(old_args) + 1);
 
-	/* if the last character is a ? or &, strip it */
-	if(strlen(newArgs) >= 1 && (*(p-1) == '&' || *(p-1) == '?'))
-		p--;
-	/* null terminate the string */
-	*p = '\0';
+  while (*old_args != '\0') {
+    if (strncmp(old_args, k_ticket_param, k_ticket_param_sz) == 0) {
+      tmp = old_args + k_ticket_param_sz;
+      if (strncmp(tmp, ticket, strlen(ticket)) == 0) {
+        changed = TRUE;
+        /* destroy the '&' from '&ticket=' if this wasn't r->args[0] */
+        if (old_args != r->args)
+          p--;
+        old_args += k_ticket_param_sz + strlen(ticket);
+      }
+    }
+    *p++ = *old_args++;
+  }
 
-	if(c->CASDebug && changed == TRUE)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Modified r->args (old '%s', new '%s')", r->args, newArgs);
+  if (strlen(new_args) >= 1 && (*(p-1) == '&' || *(p-1) == '?'))
+    p--;
+  *p = '\0';
 
-	if(strlen(newArgs) != 0 && changed == TRUE)
-		/* r->args is by definition larger or the same size than newArgs, so strcpy() is safe */
-		strcpy(r->args, newArgs);
-	else if(strlen(newArgs) == 0)
-		r->args = NULL;
+  if (c->CASDebug && changed == TRUE)
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "Modified r->args (old '%s', new '%s')",
+                  r->args, new_args);
+  if (strlen(new_args) != 0) {
+    if (changed == TRUE)
+      strcpy(r->args, new_args);
+  } else {
+    r->args = NULL;
+  }
 
-	return changed;
+  return changed;
 }
 
 char *getCASTicket(request_rec *r)
 {
-	char *tokenizerCtx, *ticket, *args, *rv = NULL;
-	apr_byte_t ticketFound = FALSE;
+  char *tokenizer_ctx, *ticket, *test, *args, *rv = NULL;
+  const char *k_ticket_param = "ticket=";
+  const size_t k_ticket_param_sz = strlen(k_ticket_param);
+  apr_byte_t ticket_found = FALSE, bail = FALSE;
+  enum ticket_state {
+    ps,
+    t,
+    dash,
+    postfix,
+    illegal
+  } state = ps;
 
-	if(r->args == NULL || strlen(r->args) == 0)
-		return NULL;
+  if(r->args == NULL || strlen(r->args) == 0)
+    return NULL;
 
-	args = apr_pstrndup(r->pool, r->args, strlen(r->args));
-	/* tokenize on & to find the 'ticket' parameter */
-	ticket = apr_strtok(args, "&", &tokenizerCtx);
-	do {
-		if(strncmp(ticket, "ticket=", 7) == 0) {
-			// tickets must begin with ST- or PT- except for PGT and PGT-IOU's which we are not handling anyway
-			if(strncmp((ticket + 7), "ST-", 3) == 0 || strncmp((ticket + 7), "PT-", 3) == 0) {
-				ticketFound = TRUE;
-				/* skip to the meat of the parameter (the value after the '=') */
-				ticket += 7;
-				rv = apr_pstrdup(r->pool, ticket);
-				break;
-			}
-		}
-		ticket = apr_strtok(NULL, "&", &tokenizerCtx);
-		/* no more parameters */
-		if(ticket == NULL)
-			break;
-	} while (ticketFound == FALSE);
-
-	return rv;
+  args = apr_pstrndup(r->pool, r->args, strlen(r->args));
+  /* tokenize on & to find the 'ticket' parameter */
+  ticket = apr_strtok(args, "&", &tokenizer_ctx);
+  do {
+    if(ticket && strncmp(ticket, k_ticket_param, k_ticket_param_sz) == 0) {
+      state = ps;
+      ticket_found = TRUE;
+      bail = FALSE;
+      test = ticket + k_ticket_param_sz;
+      while (!bail) {
+        if (!*test)
+          break;
+        switch (state) {
+          case ps:
+            if (*test != 'P' && *test != 'S') {
+              ticket_found = FALSE;
+              bail = TRUE;
+              state = illegal;
+            }
+            test++;
+            state = t;
+            break;
+          case t:
+            if (*test != 'T') {
+              ticket_found = FALSE;
+              bail = TRUE;
+              state = illegal;
+            }
+            test++;
+            state = dash;
+            break;
+          case dash:
+            if (*test != '-') {
+              ticket_found = FALSE;
+              bail = TRUE;
+              state = illegal;
+            }
+            test++;
+            state = postfix;
+            break;
+          case postfix:
+            if (*test == '-' || (isalnum(*test) && isascii(*test))) {
+              test++;
+            } else {
+              ticket_found = FALSE;
+              bail = TRUE;
+              state = illegal;
+            }
+            break;
+          default:
+            ticket_found = FALSE;
+            bail = TRUE;
+            break;
+        }
+      }
+    }
+    if (ticket_found && state == postfix)
+      rv = ticket + k_ticket_param_sz;
+    else
+      ticket = apr_strtok(NULL, "&", &tokenizer_ctx);
+  } while (ticket_found == FALSE && ticket);
+    return rv;
 }
 
 char *getCASCookie(request_rec *r, char *cookieName)

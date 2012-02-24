@@ -382,27 +382,82 @@ START_TEST(redirectRequest_test) {
 END_TEST
 
 START_TEST(removeCASParams_test) {
-  char *args = "foo=bar&ticket=ST-1234&baz=zot";
-  const char *expected = "foo=bar&baz=zot";
+  char *only_ticket = "ticket=ST-1234";
+  char *args_and_ticket = "foo=bar&ticket=ST-1234";
+  const char *args_and_ticket_expected = "foo=bar";
+  char *ticket_in_middle = "foo=bar&ticket=ST-1234&baz=zot";
+  const char *ticket_in_middle_expected = "foo=bar&baz=zot";
+  char *non_cas = "foo=bar&ticket=not-a-cas-ticket";
+  const char *non_cas_expected = "foo=bar&ticket=not-a-cas-ticket";
+  char *cas_and_non_ticket =
+      "foo=bar&ticket=not-a-cas-ticket&ticket=ST-1234";
+  const char *cas_and_non_ticket_expected =
+      "foo=bar&ticket=not-a-cas-ticket";
+  /* XXX: is this really what we want? */
+  char *dup_ticket = "foo=bar&ticket=ST-1234&ticket=ST-1234";
+  const char *dup_ticket_expected = "foo=bar";
 
-  request->args = apr_pstrdup(request->pool, args);
+
+  request->args = apr_pstrdup(request->pool, only_ticket);
   fail_if(removeCASParams(request) == FALSE);
-  fail_unless(strcmp(request->args, expected) == 0);
+  fail_unless(request->args == NULL);
 
-  args = "foo=bar&ticket=not-expected-format&baz=zot";
-  request->args = apr_pstrdup(request->pool, args);
+  request->args = apr_pstrdup(request->pool, args_and_ticket);
+  fail_if(removeCASParams(request) == FALSE);
+  fail_unless(strcmp(request->args, args_and_ticket_expected) == 0);
+
+  request->args = apr_pstrdup(request->pool, ticket_in_middle);
+  fail_if(removeCASParams(request) == FALSE);
+  fail_unless(strcmp(request->args, ticket_in_middle_expected) == 0);
+
+  request->args = apr_pstrdup(request->pool, non_cas);
   fail_if(removeCASParams(request) == TRUE);
-  fail_unless(strcmp(request->args, args) == 0);
+  fail_unless(strcmp(request->args, non_cas_expected) == 0);
+
+  request->args = apr_pstrdup(request->pool, cas_and_non_ticket);
+  fail_if(removeCASParams(request) == FALSE);
+  fail_unless(strcmp(request->args, cas_and_non_ticket_expected) == 0);
+
+  request->args = apr_pstrdup(request->pool, dup_ticket);
+  fail_if(removeCASParams(request) == FALSE);
+  fail_unless(strcmp(request->args, dup_ticket_expected) == 0);
 
 }
 END_TEST
 
 START_TEST(getCASTicket_test) {
-  char *args = "foo=bar&ticket=ST-1234&baz=zot", *rv;
+  char *args = "foo=bar&ticket=ST-1234&baz=zot";
+  char *dupargs = "foo=bar&ticket=ST-^<>&baz=zot&ticket=ST-1234";
+  char *badargs = "foo=bar&ticket=ST-^<>&baz=zot";
+  char *emptyargs = "";
+  char *truncated_args = "ST-";
+  char *rv;
   const char *expected = "ST-1234";
+
+
   request->args = apr_pstrdup(request->pool, args);
   rv = getCASTicket(request);
   fail_unless(strcmp(rv, expected) == 0);
+
+  request->args = apr_pstrdup(request->pool, dupargs);
+  rv = getCASTicket(request);
+  fail_unless(strcmp(rv, expected) == 0);
+
+  request->args = apr_pstrdup(request->pool, badargs);
+  rv = getCASTicket(request);
+  fail_unless(rv == NULL);
+
+  request->args = apr_pstrdup(request->pool, emptyargs);
+  rv = getCASTicket(request);
+  fail_unless(rv == NULL);
+
+  request->args = apr_pstrdup(request->pool, truncated_args);
+  rv = getCASTicket(request);
+  fail_unless(rv == NULL);
+
+  request->args = NULL;
+  rv = getCASTicket(request);
+  fail_unless(rv == NULL);
 }
 END_TEST
 
@@ -564,10 +619,9 @@ START_TEST(deleteCASCacheFile_test) {
 END_TEST
 
 char *get_attr(cas_cfg *c, cas_saml_attr *attrs, const char *attr) {
-  cas_saml_attr_val *av;
+  cas_saml_attr_val *av = NULL;
   char *csvs = NULL;
-  cas_saml_attr_val *av;
-  cas_saml_attr *a;
+  cas_saml_attr *a = NULL;
   for (a = attrs; a != NULL; a = a->next) {
     if (strcmp(a->attr, attr) != 0) continue;
     av = a->values;
@@ -884,8 +938,6 @@ void core_setup(void) {
   cas_cfg *cfg = NULL;
   cas_dir_cfg *d_cfg = NULL;
   apr_uri_t login;
-  cas_dir_cfg *d_cfg;
-  cas_cfg *cfg;
   request = (request_rec *) malloc(sizeof(request_rec));
 
   apr_pool_create(&pool, NULL);

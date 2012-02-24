@@ -592,7 +592,7 @@ void redirectRequest(request_rec *r, cas_cfg *c)
 
 apr_byte_t removeCASParams(request_rec *r)
 {
-  char *new_args, *old_args, *p, *ticket, *tmp;
+  char *old_args, *p, *ticket, *tmp;
   const char *k_ticket_param = "ticket=";
   const size_t k_ticket_param_sz = strlen(k_ticket_param);
   apr_byte_t changed = FALSE;
@@ -606,37 +606,30 @@ apr_byte_t removeCASParams(request_rec *r)
   if (!ticket)
     return changed;
 
-  old_args = r->args;
-  p = new_args = apr_pcalloc(r->pool, strlen(old_args) + 1);
+  p = old_args = r->args;
 
   while (*old_args != '\0') {
     if (strncmp(old_args, k_ticket_param, k_ticket_param_sz) == 0) {
       tmp = old_args + k_ticket_param_sz;
       if (strncmp(tmp, ticket, strlen(ticket)) == 0) {
+        old_args += k_ticket_param_sz + strlen(ticket);
         changed = TRUE;
         /* destroy the '&' from '&ticket=' if this wasn't r->args[0] */
         if (old_args != r->args)
           p--;
-        old_args += k_ticket_param_sz + strlen(ticket);
       }
     }
     *p++ = *old_args++;
   }
 
-  if (strlen(new_args) >= 1 && (*(p-1) == '&' || *(p-1) == '?'))
-    p--;
   *p = '\0';
 
   if (c->CASDebug && changed == TRUE)
     ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "Modified r->args (old '%s', new '%s')",
-                  r->args, new_args);
-  if (strlen(new_args) != 0) {
-    if (changed == TRUE)
-      strcpy(r->args, new_args);
-  } else {
+                  "Modified r->args (now '%s')",
+                  r->args);
+  if (strlen(r->args) == 0)
     r->args = NULL;
-  }
 
   return changed;
 }

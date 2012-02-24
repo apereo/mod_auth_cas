@@ -153,7 +153,7 @@ START_TEST(cas_attr_builder_test) {
         {"foo", "bar", 3},
         {foo, "1", 3},
         {foo, "2", 3},
-        {0, 0, 0} /* NULL terminator */
+        {NULL, NULL, 0} /* NULL terminator */
     };
     struct test_data *d;
 

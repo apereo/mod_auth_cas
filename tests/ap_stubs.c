@@ -15,6 +15,14 @@ void ap_hook_check_user_id(int (*)(request_rec *),
 				const char * const *,
 				int);
 
+/* there seems to be no function protoype for this */
+const char *ap_run_http_scheme(const request_rec *r);
+/* ridiculous prototype for AP_DECLARE_HOOK entries */
+void ap_hook_check_user_id(int (*)(request_rec *),
+				const char * const *,
+				const char * const *,
+				int);
+
 AP_DECLARE(ap_filter_t *) ap_add_input_filter(const char *name, void *ctx,
                                               request_rec *r, conn_rec *c) {
 
@@ -45,11 +53,6 @@ void ap_hook_check_user_id(int (*pf)(request_rec *),
 	return;
 }
 
-AP_DECLARE(int) ap_run_check_user_id(request_rec *r) {
-
-  return 0;
-}
-
 AP_DECLARE(int) ap_is_initial_req(request_rec *r) {
   return 0;
 }
@@ -60,7 +63,7 @@ AP_DECLARE(void) ap_log_error(const char *file, int line, int level,
 
 }
 
-AP_DECLARE(void) ap_log_rerror(const char *file, int line, int level, 
+AP_DECLARE(void) ap_log_rerror(const char *file, int line, int level,
                               apr_status_t status, const request_rec *s,
                               const char *fmt, ...) {
 
@@ -90,7 +93,7 @@ AP_DECLARE(ap_filter_rec_t *) ap_register_input_filter(const char *name,
 
 const char *ap_run_http_scheme(const request_rec *r) {
   char *rv;
-  apr_pool_userdata_get((void **) &rv, "scheme", r->pool); 
+  apr_pool_userdata_get((void **) &rv, "scheme", r->pool);
   return (const char *) rv;
 }
 

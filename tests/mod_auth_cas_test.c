@@ -425,6 +425,15 @@ START_TEST(removeCASParams_test) {
 }
 END_TEST
 
+START_TEST(validCASTicketFormat_test) {
+  char *valid = "ST-1234";
+  char *invalid = "ST-<^>";
+
+  fail_unless(validCASTicketFormat(valid) == TRUE);
+  fail_unless(validCASTicketFormat(invalid) == FALSE);
+}
+END_TEST
+
 START_TEST(getCASTicket_test) {
   char *args = "foo=bar&ticket=ST-1234&baz=zot";
   char *dupargs = "foo=bar&ticket=ST-^<>&baz=zot&ticket=ST-1234";
@@ -1030,6 +1039,7 @@ Suite *mod_auth_cas_suite(void) {
   tcase_add_test(tc_core, getCASService_empty_qs_test);
   tcase_add_test(tc_core, redirectRequest_test);
   tcase_add_test(tc_core, removeCASParams_test);
+  tcase_add_test(tc_core, validCASTicketFormat_test);
   tcase_add_test(tc_core, getCASTicket_test);
   tcase_add_test(tc_core, getCASCookie_test);
   tcase_add_test(tc_core, setCASCookie_test);

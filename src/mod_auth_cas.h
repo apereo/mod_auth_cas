@@ -167,6 +167,7 @@ void *cas_create_dir_config(apr_pool_t *pool, char *path);
 void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD);
 const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value);
 char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket);
+apr_byte_t validCASTicketFormat(const char *ticket);
 apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **user, cas_saml_attr **attrs);
 int cas_char_to_env(int c);
 int cas_strnenvcmp(const char *a, const char *b, int len);

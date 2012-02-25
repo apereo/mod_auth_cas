@@ -634,12 +634,9 @@ apr_byte_t removeCASParams(request_rec *r)
   return changed;
 }
 
-char *getCASTicket(request_rec *r)
+apr_byte_t validCASTicketFormat(const char *ticket)
 {
-  char *tokenizer_ctx, *ticket, *test, *args, *rv = NULL;
-  const char *k_ticket_param = "ticket=";
-  const size_t k_ticket_param_sz = strlen(k_ticket_param);
-  apr_byte_t ticket_found = FALSE, bail = FALSE;
+  apr_byte_t rv = TRUE;
   enum ticket_state {
     ps,
     t,
@@ -647,6 +644,48 @@ char *getCASTicket(request_rec *r)
     postfix,
     illegal
   } state = ps;
+
+  if (!*ticket)
+    rv = FALSE;
+
+  while (state != illegal && *ticket) {
+    switch (state) {
+      case ps:
+        if (*ticket != 'P' && *ticket != 'S')
+          goto bail;
+        state = t;
+        break;
+      case t:
+        if (*ticket != 'T')
+          goto bail;
+        state = dash;
+        break;
+      case dash:
+        if (*ticket != '-')
+          goto bail;
+        state = postfix;
+        break;
+      case postfix:
+        if (*ticket != '-' && (!isalnum(*ticket) || !isascii(*ticket)))
+          goto bail;
+        break;
+      default:
+        rv = FALSE;
+        break;
+    }
+    ticket++;
+  }
+
+  return rv;
+bail:
+  return FALSE;
+}
+
+char *getCASTicket(request_rec *r)
+{
+  char *tokenizer_ctx, *ticket, *args, *rv = NULL;
+  const char *k_ticket_param = "ticket=";
+  const size_t k_ticket_param_sz = strlen(k_ticket_param);
 
   if(r->args == NULL || strlen(r->args) == 0)
     return NULL;
@@ -656,62 +695,13 @@ char *getCASTicket(request_rec *r)
   ticket = apr_strtok(args, "&", &tokenizer_ctx);
   do {
     if(ticket && strncmp(ticket, k_ticket_param, k_ticket_param_sz) == 0) {
-      state = ps;
-      ticket_found = TRUE;
-      bail = FALSE;
-      test = ticket + k_ticket_param_sz;
-      while (!bail) {
-        if (!*test)
-          break;
-        switch (state) {
-          case ps:
-            if (*test != 'P' && *test != 'S') {
-              ticket_found = FALSE;
-              bail = TRUE;
-              state = illegal;
-            }
-            test++;
-            state = t;
-            break;
-          case t:
-            if (*test != 'T') {
-              ticket_found = FALSE;
-              bail = TRUE;
-              state = illegal;
-            }
-            test++;
-            state = dash;
-            break;
-          case dash:
-            if (*test != '-') {
-              ticket_found = FALSE;
-              bail = TRUE;
-              state = illegal;
-            }
-            test++;
-            state = postfix;
-            break;
-          case postfix:
-            if (*test == '-' || (isalnum(*test) && isascii(*test))) {
-              test++;
-            } else {
-              ticket_found = FALSE;
-              bail = TRUE;
-              state = illegal;
-            }
-            break;
-          default:
-            ticket_found = FALSE;
-            bail = TRUE;
-            break;
-        }
+      if (validCASTicketFormat(ticket + k_ticket_param_sz)) {
+        rv = ticket + k_ticket_param_sz;
+        break;
       }
     }
-    if (ticket_found && state == postfix)
-      rv = ticket + k_ticket_param_sz;
-    else
-      ticket = apr_strtok(NULL, "&", &tokenizer_ctx);
-  } while (ticket_found == FALSE && ticket);
+    ticket = apr_strtok(NULL, "&", &tokenizer_ctx);
+  } while (ticket);
     return rv;
 }
 

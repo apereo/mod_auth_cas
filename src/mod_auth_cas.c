@@ -594,7 +594,8 @@ apr_byte_t removeCASParams(request_rec *r)
 {
   char *old_args, *p, *ticket, *tmp;
   const char *k_ticket_param = "ticket=";
-  const size_t k_ticket_param_sz = strlen(k_ticket_param);
+  const size_t k_ticket_param_sz = sizeof("ticket=") - 1;
+  size_t ticket_sz;
   apr_byte_t changed = FALSE;
   cas_cfg *c = ap_get_module_config(r->server->module_config,
                                     &auth_cas_module);
@@ -606,13 +607,14 @@ apr_byte_t removeCASParams(request_rec *r)
   if (!ticket)
     return changed;
 
+  ticket_sz = strlen(ticket);
   p = old_args = r->args;
 
   while (*old_args != '\0') {
     if (strncmp(old_args, k_ticket_param, k_ticket_param_sz) == 0) {
       tmp = old_args + k_ticket_param_sz;
-      if (strncmp(tmp, ticket, strlen(ticket)) == 0) {
-        old_args += k_ticket_param_sz + strlen(ticket);
+      if (strncmp(tmp, ticket, ticket_sz) == 0) {
+        old_args += k_ticket_param_sz + ticket_sz;
         changed = TRUE;
         /* destroy the '&' from '&ticket=' if this wasn't r->args[0] */
         if (old_args != r->args)
@@ -628,7 +630,7 @@ apr_byte_t removeCASParams(request_rec *r)
     ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
                   "Modified r->args (now '%s')",
                   r->args);
-  if (strlen(r->args) == 0)
+  if (!*r->args)
     r->args = NULL;
 
   return changed;
@@ -636,7 +638,6 @@ apr_byte_t removeCASParams(request_rec *r)
 
 apr_byte_t validCASTicketFormat(const char *ticket)
 {
-  apr_byte_t rv = TRUE;
   enum ticket_state {
     ps,
     t,
@@ -646,7 +647,7 @@ apr_byte_t validCASTicketFormat(const char *ticket)
   } state = ps;
 
   if (!*ticket)
-    rv = FALSE;
+    goto bail;
 
   while (state != illegal && *ticket) {
     switch (state) {
@@ -670,13 +671,13 @@ apr_byte_t validCASTicketFormat(const char *ticket)
           goto bail;
         break;
       default:
-        rv = FALSE;
+        goto bail;
         break;
     }
     ticket++;
   }
 
-  return rv;
+  return TRUE;
 bail:
   return FALSE;
 }

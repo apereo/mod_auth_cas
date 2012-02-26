@@ -7,6 +7,13 @@
 #include "util_filter.h"
 #include "util_md5.h"
 
+/* there seems to be no function protoype for this */
+const char *ap_run_http_scheme(const request_rec *r);
+/* ridiculous prototype for AP_DECLARE_HOOK entries */
+void ap_hook_check_user_id(int (*)(request_rec *),
+				const char * const *,
+				const char * const *,
+				int);
 
 /* there seems to be no function protoype for this */
 const char *ap_run_http_scheme(const request_rec *r);
@@ -38,7 +45,6 @@ AP_DECLARE(char *) ap_getword(apr_pool_t *p, const char **line, char stop) {
 
   return "";
 }
-
 
 void ap_hook_check_user_id(int (*pf)(request_rec *),
 				const char * const *c1,

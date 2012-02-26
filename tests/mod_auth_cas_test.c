@@ -382,27 +382,91 @@ START_TEST(redirectRequest_test) {
 END_TEST
 
 START_TEST(removeCASParams_test) {
-  char *args = "foo=bar&ticket=ST-1234&baz=zot";
-  const char *expected = "foo=bar&baz=zot";
+  char *only_ticket = "ticket=ST-1234";
+  char *args_and_ticket = "foo=bar&ticket=ST-1234";
+  const char *args_and_ticket_expected = "foo=bar";
+  char *ticket_in_middle = "foo=bar&ticket=ST-1234&baz=zot";
+  const char *ticket_in_middle_expected = "foo=bar&baz=zot";
+  char *non_cas = "foo=bar&ticket=not-a-cas-ticket";
+  const char *non_cas_expected = "foo=bar&ticket=not-a-cas-ticket";
+  char *cas_and_non_ticket =
+      "foo=bar&ticket=not-a-cas-ticket&ticket=ST-1234";
+  const char *cas_and_non_ticket_expected =
+      "foo=bar&ticket=not-a-cas-ticket";
+  /* XXX: is this really what we want? */
+  char *dup_ticket = "foo=bar&ticket=ST-1234&ticket=ST-1234";
+  const char *dup_ticket_expected = "foo=bar";
 
-  request->args = apr_pstrdup(request->pool, args);
+
+  request->args = apr_pstrdup(request->pool, only_ticket);
   fail_if(removeCASParams(request) == FALSE);
-  fail_unless(strcmp(request->args, expected) == 0);
+  fail_unless(request->args == NULL);
 
-  args = "foo=bar&ticket=not-expected-format&baz=zot";
-  request->args = apr_pstrdup(request->pool, args);
+  request->args = apr_pstrdup(request->pool, args_and_ticket);
+  fail_if(removeCASParams(request) == FALSE);
+  fail_unless(strcmp(request->args, args_and_ticket_expected) == 0);
+
+  request->args = apr_pstrdup(request->pool, ticket_in_middle);
+  fail_if(removeCASParams(request) == FALSE);
+  fail_unless(strcmp(request->args, ticket_in_middle_expected) == 0);
+
+  request->args = apr_pstrdup(request->pool, non_cas);
   fail_if(removeCASParams(request) == TRUE);
-  fail_unless(strcmp(request->args, args) == 0);
+  fail_unless(strcmp(request->args, non_cas_expected) == 0);
+
+  request->args = apr_pstrdup(request->pool, cas_and_non_ticket);
+  fail_if(removeCASParams(request) == FALSE);
+  fail_unless(strcmp(request->args, cas_and_non_ticket_expected) == 0);
+
+  request->args = apr_pstrdup(request->pool, dup_ticket);
+  fail_if(removeCASParams(request) == FALSE);
+  fail_unless(strcmp(request->args, dup_ticket_expected) == 0);
 
 }
 END_TEST
 
+START_TEST(validCASTicketFormat_test) {
+  char *valid = "ST-1234";
+  char *invalid = "ST-<^>";
+
+  fail_unless(validCASTicketFormat(valid) == TRUE);
+  fail_unless(validCASTicketFormat(invalid) == FALSE);
+}
+END_TEST
+
 START_TEST(getCASTicket_test) {
-  char *args = "foo=bar&ticket=ST-1234&baz=zot", *rv;
+  char *args = "foo=bar&ticket=ST-1234&baz=zot";
+  char *dupargs = "foo=bar&ticket=ST-^<>&baz=zot&ticket=ST-1234";
+  char *badargs = "foo=bar&ticket=ST-^<>&baz=zot";
+  char *emptyargs = "";
+  char *truncated_args = "ST-";
+  char *rv;
   const char *expected = "ST-1234";
+
+
   request->args = apr_pstrdup(request->pool, args);
   rv = getCASTicket(request);
   fail_unless(strcmp(rv, expected) == 0);
+
+  request->args = apr_pstrdup(request->pool, dupargs);
+  rv = getCASTicket(request);
+  fail_unless(strcmp(rv, expected) == 0);
+
+  request->args = apr_pstrdup(request->pool, badargs);
+  rv = getCASTicket(request);
+  fail_unless(rv == NULL);
+
+  request->args = apr_pstrdup(request->pool, emptyargs);
+  rv = getCASTicket(request);
+  fail_unless(rv == NULL);
+
+  request->args = apr_pstrdup(request->pool, truncated_args);
+  rv = getCASTicket(request);
+  fail_unless(rv == NULL);
+
+  request->args = NULL;
+  rv = getCASTicket(request);
+  fail_unless(rv == NULL);
 }
 END_TEST
 
@@ -564,9 +628,9 @@ START_TEST(deleteCASCacheFile_test) {
 END_TEST
 
 char *get_attr(cas_cfg *c, cas_saml_attr *attrs, const char *attr) {
+  cas_saml_attr_val *av = NULL;
   char *csvs = NULL;
-  cas_saml_attr_val *av;
-  cas_saml_attr *a;
+  cas_saml_attr *a = NULL;
   for (a = attrs; a != NULL; a = a->next) {
     if (strcmp(a->attr, attr) != 0) continue;
     av = a->values;
@@ -877,12 +941,12 @@ START_TEST(cas_strnenvcmp_test) {
 }
 END_TEST
 
-void core_setup() {
+void core_setup(void) {
   const unsigned int kIdx = 0;
   const unsigned int kEls = kIdx + 1;
+  cas_cfg *cfg = NULL;
+  cas_dir_cfg *d_cfg = NULL;
   apr_uri_t login;
-  cas_dir_cfg *d_cfg;
-  cas_cfg *cfg;
   request = (request_rec *) malloc(sizeof(request_rec));
 
   apr_pool_create(&pool, NULL);
@@ -934,7 +998,7 @@ void core_setup() {
   ap_set_module_config(request->per_dir_config, &auth_cas_module, d_cfg);
 }
 
-void core_teardown() {
+void core_teardown(void) {
   // created by various cookie test functions above
   apr_file_remove("/tmp/.metadata", request->pool);
   apr_file_remove("/tmp/.md5", request->pool);
@@ -947,7 +1011,7 @@ void core_teardown() {
   free(request);
 }
 
-Suite *mod_auth_cas_suite() {
+Suite *mod_auth_cas_suite(void) {
   Suite *s = suite_create("mod_auth_cas");
 
   TCase *tc_core = tcase_create("core");
@@ -975,6 +1039,7 @@ Suite *mod_auth_cas_suite() {
   tcase_add_test(tc_core, getCASService_empty_qs_test);
   tcase_add_test(tc_core, redirectRequest_test);
   tcase_add_test(tc_core, removeCASParams_test);
+  tcase_add_test(tc_core, validCASTicketFormat_test);
   tcase_add_test(tc_core, getCASTicket_test);
   tcase_add_test(tc_core, getCASCookie_test);
   tcase_add_test(tc_core, setCASCookie_test);

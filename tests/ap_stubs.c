@@ -104,10 +104,10 @@ AP_DECLARE(int) ap_unescape_url(char *url) {
   return 0;
 }
 
-AP_DECLARE(int) ap_hook_auth_checker(int (*pf)(request_rec *),
-                                     const char * const *c1,
-                                     const char * const *c2,
-                                     int nOrder) {
+void ap_hook_auth_checker(int (*pf)(request_rec *),
+                          const char * const *c1,
+                          const char * const *c2,
+                          int nOrder) {
   return 0;
 }
 

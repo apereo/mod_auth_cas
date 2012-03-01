@@ -782,7 +782,7 @@ START_TEST(cas_attribute_authz_test) {
       {"key1", "val2"},
       {"key2", "val3"},
       {"should", "succeed"},
-      {0} /* NULL terminator */
+      {0, 0} /* NULL terminator */
   };
 
   builder = cas_attr_builder_new(pool, &attrs);

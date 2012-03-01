@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2011 the mod_auth_cas team. 
+ * Copyright 2011 the mod_auth_cas team.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@
 
 #if defined(OPENSSL_THREADS) && APR_HAS_THREADS
 static apr_thread_mutex_t **ssl_locks;
-static int ssl_num_locks;	
+static int ssl_num_locks;
 #endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
 
 /* mod_auth_cas configuration specific functions */
@@ -180,42 +180,37 @@ void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 
 	/* inherit the previous directory's setting if applicable */
 	c->CASScope = (add->CASScope != CAS_DEFAULT_SCOPE ?
-                 add->CASScope : base->CASScope);
+		add->CASScope : base->CASScope);
 	if(add->CASScope != NULL && apr_strnatcasecmp(add->CASScope, "Off") == 0)
 		c->CASScope = NULL;
 
 	c->CASRenew = (add->CASRenew != CAS_DEFAULT_RENEW ?
-                 add->CASRenew : base->CASRenew);
+		add->CASRenew : base->CASRenew);
 	if(add->CASRenew != NULL && apr_strnatcasecmp(add->CASRenew, "Off") == 0)
 		c->CASRenew = NULL;
 
-	c->CASGateway = (add->CASGateway != CAS_DEFAULT_GATEWAY ? 
-                   add->CASGateway : base->CASGateway);
+	c->CASGateway = (add->CASGateway != CAS_DEFAULT_GATEWAY ?
+		add->CASGateway : base->CASGateway);
 	if(add->CASGateway != NULL && apr_strnatcasecmp(add->CASGateway, "Off") == 0)
 		c->CASGateway = NULL;
 
 	c->CASCookie = (apr_strnatcasecmp(add->CASCookie, CAS_DEFAULT_COOKIE) != 0 ?
-                  add->CASCookie : base->CASCookie);
-	c->CASSecureCookie = (apr_strnatcasecmp(add->CASSecureCookie, 
-                                          CAS_DEFAULT_SCOOKIE) != 0 ? 
-                        add->CASSecureCookie : base->CASSecureCookie);
-	c->CASGatewayCookie = (apr_strnatcasecmp(add->CASGatewayCookie,
-                                           CAS_DEFAULT_GATEWAY_COOKIE) != 0 ? 
-                         add->CASGatewayCookie : base->CASGatewayCookie);
-	
-  c->CASAuthNHeader = (add->CASAuthNHeader != CAS_DEFAULT_AUTHN_HEADER ?
-                       add->CASAuthNHeader : base->CASAuthNHeader);
-  if (add->CASAuthNHeader != NULL && apr_strnatcasecmp(add->CASAuthNHeader,
-                                                       "Off") == 0)
-    c->CASAuthNHeader = NULL;
+		add->CASCookie : base->CASCookie);
+	c->CASSecureCookie = (apr_strnatcasecmp(add->CASSecureCookie, CAS_DEFAULT_SCOOKIE) != 0 ?
+		add->CASSecureCookie : base->CASSecureCookie);
+	c->CASGatewayCookie = (apr_strnatcasecmp(add->CASGatewayCookie, CAS_DEFAULT_GATEWAY_COOKIE) != 0 ?
+		add->CASGatewayCookie : base->CASGatewayCookie);
 
-	c->CASScrubRequestHeaders = (add->CASScrubRequestHeaders != 
-                               CAS_DEFAULT_SCRUB_REQUEST_HEADERS ?
-                               add->CASScrubRequestHeaders :
-                               base->CASScrubRequestHeaders);
-	if(add->CASScrubRequestHeaders != NULL &&
-     apr_strnatcasecmp(add->CASScrubRequestHeaders, "Off") == 0)
-    c->CASScrubRequestHeaders = NULL;
+	c->CASAuthNHeader = (add->CASAuthNHeader != CAS_DEFAULT_AUTHN_HEADER ?
+		add->CASAuthNHeader : base->CASAuthNHeader);
+	if (add->CASAuthNHeader != NULL && apr_strnatcasecmp(add->CASAuthNHeader, "Off") == 0)
+		c->CASAuthNHeader = NULL;
+
+	c->CASScrubRequestHeaders = (add->CASScrubRequestHeaders != CAS_DEFAULT_SCRUB_REQUEST_HEADERS ?
+		 add->CASScrubRequestHeaders :
+		 base->CASScrubRequestHeaders);
+	if(add->CASScrubRequestHeaders != NULL && apr_strnatcasecmp(add->CASScrubRequestHeaders, "Off") == 0)
+		c->CASScrubRequestHeaders = NULL;
 
 	return(c);
 }
@@ -224,6 +219,7 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 {
 	cas_cfg *c = (cas_cfg *) ap_get_module_config(cmd->server->module_config, &auth_cas_module);
 	apr_finfo_t f;
+	size_t sz, limit;
 	int i;
 	char d;
 
@@ -282,7 +278,7 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 		case cmd_ca_path:
 			if(apr_stat(&f, value, APR_FINFO_TYPE, cmd->temp_pool) == APR_INCOMPLETE)
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Could not find Certificate Authority file '%s'", value));
-	
+
 			if(f.filetype != APR_REG && f.filetype != APR_DIR)
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Certificate Authority file '%s' is not a regular file or directory", value));
 			c->CASCertificatePath = apr_pstrdup(cmd->pool, value);
@@ -299,7 +295,7 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 			/* this is probably redundant since the same check is performed in cas_post_config */
 			if(apr_stat(&f, value, APR_FINFO_TYPE, cmd->temp_pool) == APR_INCOMPLETE)
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Could not find CASCookiePath '%s'", value));
-			
+
 			if(f.filetype != APR_DIR || value[strlen(value)-1] != '/')
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: CASCookiePath '%s' is not a directory or does not end in a trailing '/'!", value));
 
@@ -352,9 +348,10 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid CASCacheCleanInterval (%s) specified - must be numeric", value));
 		break;
 		case cmd_cookie_domain:
-			for(i = 0; i < (int)strlen(value); i++) {
-				d = value[i];
-				if( (d < '0' || d > '9') && 
+			limit = strlen(value);
+			for(sz = 0; sz < limit; sz++) {
+				d = value[sz];
+				if( (d < '0' || d > '9') &&
 					(d < 'a' || d > 'z') &&
 					(d < 'A' || d > 'Z') &&
 					d != '.' && d != '-') {
@@ -439,7 +436,7 @@ char *getCASPath(request_rec *r)
 		if(p[i] == '/')
 			l = i;
 	}
-        rv = apr_pstrndup(r->pool, p, (l+1));
+	rv = apr_pstrndup(r->pool, p, (l+1));
 	return(rv);
 }
 
@@ -532,7 +529,7 @@ char *getCASLoginURL(request_rec *r, cas_cfg *c)
 /*
  * Responsible for creating the 'service=' parameter.  Constructs this
  * based on the contents of the request_rec because r->parsed_uri lacks
- * information like hostname, scheme, and port. 
+ * information like hostname, scheme, and port.
  */
 char *getCASService(const request_rec *r, const cas_cfg *c)
 {
@@ -543,37 +540,34 @@ char *getCASService(const request_rec *r, const cas_cfg *c)
 	apr_byte_t print_port = TRUE;
 
 #ifdef APACHE2_0
-  scheme = (char *) ap_http_method(r);
+	scheme = (char *) ap_http_method(r);
 #else
-  scheme = (char *) ap_http_scheme(r);
+	scheme = (char *) ap_http_scheme(r);
 #endif
-  
-  if (root_proxy->is_initialized) {
-		service = apr_psprintf(r->pool, "%s%s%s%s", 
-                           escapeString(r,
-                                        apr_uri_unparse(r->pool,
-                                                        root_proxy, 0)),
-                           escapeString(r, r->uri),
-                           (r->args != NULL ? "%3f" : ""),
-                           escapeString(r, r->args));
-  } else {
-    if (ssl && port == 443)
-      print_port = FALSE;
-    else if (!ssl && port == 80)
-      print_port = FALSE;
-    
-    if (print_port)
-      port_str = apr_psprintf(r->pool, "%%3a%u", port);
-    service = apr_pstrcat(r->pool, scheme, "%3a%2f%2f",
-                          r->server->server_hostname,
-                          port_str, escapeString(r, r->uri),
-                          (r->args != NULL && *r->args != '\0' ?
-                           "%3f" : ""),
-                          escapeString(r, r->args), NULL);
-  }
-  if (c->CASDebug)
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "CAS Service '%s'",
-                  service);
+
+	if (root_proxy->is_initialized) {
+		service = apr_psprintf(r->pool, "%s%s%s%s",
+			escapeString(r, apr_uri_unparse(r->pool, root_proxy, 0)),
+			escapeString(r, r->uri),
+			(r->args != NULL ? "%3f" : ""),
+			escapeString(r, r->args));
+	} else {
+		if (ssl && port == 443)
+			print_port = FALSE;
+		else if (!ssl && port == 80)
+			print_port = FALSE;
+
+		if (print_port)
+			port_str = apr_psprintf(r->pool, "%%3a%u", port);
+
+		service = apr_pstrcat(r->pool, scheme, "%3a%2f%2f",
+			r->server->server_hostname,
+			port_str, escapeString(r, r->uri),
+			(r->args != NULL && *r->args != '\0' ? "%3f" : ""),
+			escapeString(r, r->args), NULL);
+	}
+	if (c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "CAS Service '%s'", service);
 	return service;
 }
 
@@ -638,7 +632,7 @@ apr_byte_t removeCASParams(request_rec *r)
 		p--;
 	/* null terminate the string */
 	*p = '\0';
-	
+
 	if(c->CASDebug && changed == TRUE)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Modified r->args (old '%s', new '%s')", r->args, newArgs);
 
@@ -668,7 +662,7 @@ char *getCASTicket(request_rec *r)
 			if(strncmp((ticket + 7), "ST-", 3) == 0 || strncmp((ticket + 7), "PT-", 3) == 0) {
 				ticketFound = TRUE;
 				/* skip to the meat of the parameter (the value after the '=') */
-				ticket += 7; 
+				ticket += 7;
 				rv = apr_pstrdup(r->pool, ticket);
 				break;
 			}
@@ -740,7 +734,7 @@ void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_
 		apr_table_add(r->headers_in, "Cookie", headerString);
 	else
 		apr_table_set(r->headers_in, "Cookie", (apr_pstrcat(r->pool, headerString, ";", currentCookies, NULL)));
-	
+
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Adding outgoing header: Set-Cookie: %s", headerString);
 
@@ -748,7 +742,7 @@ void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_
 	return;
 }
 
-/* 
+/*
  * The CAS protocol spec 2.1.1 says the URL value MUST be URL-encoded as described in 2.2 of RFC 1738.
  * The rfc1738 array below represents the 'unsafe' characters from that section.  No encoding is performed
  * on 'control characters' (0x00-0x1F) or characters not used in US-ASCII (0x80-0xFF) - is this a problem?
@@ -764,34 +758,35 @@ char *escapeString(const request_rec *r, const char *str)
 }
 
 char *urlEncode(const request_rec *r, const char *str,
-                const char *charsToEncode)
+								const char *charsToEncode)
 {
 	char *rv, *p;
 	const char *q;
-	size_t i, j, size;
+	size_t i, j, size, limit, newsz;
 	char escaped = FALSE;
 
 	if(str == NULL)
 		return "";
 
-	size = strlen(str) + 1; /* add 1 for terminating NULL */
+	size = newsz = strlen(str);
+	limit = strlen(charsToEncode);
 
 	for(i = 0; i < size; i++) {
-		for(j = 0; j < strlen(charsToEncode); j++) {
+		for(j = 0; j < limit; j++) {
 			if(str[i] == charsToEncode[j]) {
 				/* allocate 2 extra bytes for the escape sequence (' ' -> '%20') */
-				size += 2;
+				newsz += 2;
 				break;
 			}
 		}
 	}
 	/* allocate new memory to return the encoded URL */
-	p = rv = apr_pcalloc(r->pool, size);
+	p = rv = apr_pcalloc(r->pool, newsz + 1); /* +1 for terminating NULL */
 	q = str;
 
 	do {
 		escaped = FALSE;
-		for(i = 0; i < strlen(charsToEncode); i++) {
+		for(i = 0; i < limit; i++) {
 			if(*q == charsToEncode[i]) {
 				sprintf(p, "%%%x", charsToEncode[i]);
 				p+= 3;
@@ -883,12 +878,12 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 			apr_xml_parser_geterror(parser, errbuf, sizeof(errbuf));
 		}
 
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Error parsing XML content for '%s' (%s)", name, errbuf);
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Error parsing XML content (%s)", errbuf);
 		return FALSE;
 	}
 
 	e = doc->root->first_child;
-	/* XML structure: 
+	/* XML structure:
  	 * cacheEntry
 	 *	attr
 	 *	attr
@@ -1030,7 +1025,7 @@ void CASCleanCache(request_rec *r, cas_cfg *c)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Processing cache file '%s'", fi.name);
 
 			if(apr_file_open(&cacheFile, path, APR_FOPEN_READ, APR_OS_DEFAULT, r->pool) != APR_SUCCESS) {
-				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Unable to clean cache entry '%s'", path);
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Unable to clean cache entry '%s'", path);
 				continue;
 			}
 			if(readCASCacheFile(r, c, (char *) fi.name, &cache) == TRUE) {
@@ -1089,7 +1084,7 @@ apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache
 
 		/* update the file with a new idle time if a write lock can be obtained */
 		if(apr_file_lock(f, APR_FLOCK_EXCLUSIVE) != APR_SUCCESS) {
-			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: could not obtain an exclusive lock on %s", path);
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: could not obtain an exclusive lock on %s", path);
 			apr_file_close(f);
 			return FALSE;
 		} else
@@ -1137,6 +1132,7 @@ apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache
 char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ticket)
 {
 	char *path, *buf, *rv;
+	char errbuf[CAS_MAX_ERROR_SIZE];
 	apr_file_t *f;
 	cas_cache_entry e;
 	int i;
@@ -1162,9 +1158,9 @@ char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ti
 	apr_generate_random_bytes((unsigned char *) buf, c->CASCookieEntropy);
 	rv = (char *) ap_md5_binary(r->pool, (unsigned char *) buf, c->CASCookieEntropy);
 
-	/* 
-	 * Associate this text with user for lookups later.  By using files instead of 
-	 * shared memory the advantage of NFS shares in a clustered environment or a 
+	/*
+	 * Associate this text with user for lookups later.  By using files instead of
+	 * shared memory the advantage of NFS shares in a clustered environment or a
 	 * memory based file systems can be used at the expense of potentially some performance
 	 */
 	if(writeCASCacheEntry(r, rv, &e, FALSE) == FALSE)
@@ -1177,13 +1173,13 @@ char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ti
 	path = apr_psprintf(r->pool, "%s.%s", c->CASCookiePath, buf);
 
 	if((i = apr_file_open(&f, path, APR_FOPEN_CREATE|APR_FOPEN_WRITE|APR_EXCL, APR_FPROT_UREAD|APR_FPROT_UWRITE, r->pool)) != APR_SUCCESS) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket to Cookie map file '%s' could not be created: %s", path, apr_strerror(i, buf, strlen(buf)));
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket to Cookie map file could not be created: %s", apr_strerror(i, errbuf, sizeof(errbuf)));
 		return FALSE;
 	} else {
 		apr_file_printf(f, "%s", rv);
 		apr_file_close(f);
 	}
-	
+
 	return(apr_pstrdup(r->pool, rv));
 }
 
@@ -1207,17 +1203,17 @@ void expireCASST(request_rec *r, const char *ticketname)
 	path = apr_psprintf(r->pool, "%s.%s", c->CASCookiePath, ticket);
 
 	if(apr_file_open(&f, path, APR_FOPEN_READ, APR_OS_DEFAULT, r->pool) != APR_SUCCESS) {
-		ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' could not be opened (ticket %s - expired already?)", path, ticketname);
+		ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry could not be opened (ticket %s - expired already?)", ticketname);
 		return;
 	}
-	
+
 	if(apr_file_read(f, &line, &bytes) != APR_SUCCESS) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' could not be read (ticket %s)", path, ticketname);
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry could not be read (ticket %s)", ticketname);
 		return;
 	}
-	
+
 	if(bytes != APR_MD5_DIGESTSIZE*2) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry '%s' incomplete (read %" APR_SIZE_T_FMT ", expected %d, ticket %s)", path, bytes, APR_MD5_DIGESTSIZE*2, ticketname);
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Service Ticket mapping to Cache entry incomplete (read %" APR_SIZE_T_FMT ", expected %d, ticket %s)", bytes, APR_MD5_DIGESTSIZE*2, ticketname);
 		return;
 	}
 
@@ -1239,7 +1235,7 @@ void CASSAMLLogout(request_rec *r, char *body)
 		line = (char *) body;
 
 		/* convert + to ' ' or else the XML won't parse right */
-		do { 
+		do {
 			if(*line == '+')
 				*line = ' ';
 			line++;
@@ -1312,7 +1308,7 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 	apr_xml_parser *parser = apr_xml_parser_create(r->pool);
 	const char *response = getResponseFromServer(r, c, ticket);
 	const char *value = NULL;
-	
+
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering isValidCASTicket()");
 
@@ -1333,7 +1329,7 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 			}
 
 		} while (apr_strnatcmp(line, "no") != 0 && apr_strnatcmp(line, "yes") != 0);
-		
+
 		if(apr_strnatcmp(line, "no") == 0) {
 			return FALSE;
 		}
@@ -1509,7 +1505,7 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
 
 	path = apr_psprintf(r->pool, "%s%s", c->CASCookiePath, cookie);
 
-	/* 
+	/*
 	 * mitigate session hijacking by not allowing cookies transmitted in the clear to be submitted
 	 * for HTTPS URLs and by voiding HTTPS cookies sent in the clear
 	 */
@@ -1559,13 +1555,13 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
 
 /*
  * from curl_easy_setopt documentation:
- * This function gets called by libcurl as soon as there 
+ * This function gets called by libcurl as soon as there
  * is data received that needs to be saved. The size of the
  * data pointed to by ptr is size multiplied with nmemb, it
  * will not be zero terminated. Return the number of bytes
- * actually taken care of. If that amount differs from the 
- * amount passed to your function, it'll signal an error to the 
- * library. This will abort the transfer and return 
+ * actually taken care of. If that amount differs from the
+ * amount passed to your function, it'll signal an error to the
+ * library. This will abort the transfer and return
  * CURLE_WRITE_ERROR.
  */
 
@@ -1608,8 +1604,8 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 
 	curl = curl_easy_init();
 
-	curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L); 
-	curl_easy_setopt(curl, CURLOPT_HEADER, 0L); 
+	curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);
+	curl_easy_setopt(curl, CURLOPT_HEADER, 0L);
 	curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
 	curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 	curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlError);
@@ -1651,10 +1647,10 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 		curl_easy_setopt(curl, CURLOPT_POST, 1L);
 		samlPayload = apr_psprintf(r->pool, "<?xml version=\"1.0\" encoding=\"utf-8\"?><SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\"><SOAP-ENV:Header/><SOAP-ENV:Body><samlp:Request xmlns:samlp=\"urn:oasis:names:tc:SAML:1.0:protocol\"  MajorVersion=\"1\" MinorVersion=\"1\"><samlp:AssertionArtifact>%s%s</samlp:AssertionArtifact></samlp:Request></SOAP-ENV:Body></SOAP-ENV:Envelope>",ticket, getCASRenew(r));
 		headers = curl_slist_append(headers, "soapaction: http://www.oasis-open.org/committees/security");
-		headers = curl_slist_append(headers, "cache-control: no-cache"); 
+		headers = curl_slist_append(headers, "cache-control: no-cache");
 		headers = curl_slist_append(headers, "pragma: no-cache");
-		headers = curl_slist_append(headers, "accept: text/xml"); 
-		headers = curl_slist_append(headers, "content-type: text/xml"); 
+		headers = curl_slist_append(headers, "accept: text/xml");
+		headers = curl_slist_append(headers, "content-type: text/xml");
 		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, samlPayload);
 	} else
@@ -1874,7 +1870,7 @@ int cas_authenticate(request_rec *r)
 	apr_byte_t parametersRemoved = FALSE;
 	apr_port_t port = r->connection->local_addr->port;
 	apr_byte_t printPort = FALSE;
-	
+
 	char *newLocation = NULL;
 
 	/* Do nothing if we are not the authenticator */
@@ -1901,7 +1897,7 @@ int cas_authenticate(request_rec *r)
 	/* the presence of a ticket overrides all */
 	ticket = getCASTicket(r);
 	cookieString = getCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie));
-	
+
 	// only remove parameters if a ticket was found (makes no sense to do this otherwise)
 	if(ticket != NULL)
 		parametersRemoved = removeCASParams(r);
@@ -1936,9 +1932,9 @@ int cas_authenticate(request_rec *r)
 			r->user = remoteUser;
 			if(d->CASAuthNHeader != NULL)
 				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);
-				
+
 			if(parametersRemoved == TRUE) {
-				if(ssl == TRUE && port != 443) 
+				if(ssl == TRUE && port != 443)
 					printPort = TRUE;
 				else if(port != 80)
 					printPort = TRUE;
@@ -1969,7 +1965,7 @@ int cas_authenticate(request_rec *r)
 				return HTTP_UNAUTHORIZED;
 		}
 	}
-	
+
 	if(cookieString == NULL) {
 		/* redirect the user to the CAS server since they have no cookie and no ticket */
 		redirectRequest(r, c);
@@ -2326,7 +2322,7 @@ int check_vhost_config(apr_pool_t *pool, server_rec *s)
 		ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "MOD_AUTH_CAS: CASCookiePath '%s' is not a directory or does not end in a trailing '/'!", c->CASCookiePath);
 		return HTTP_INTERNAL_SERVER_ERROR;
 	}
-	
+
 	if(memcmp(&c->CASLoginURL, &nullURL, sizeof(apr_uri_t)) == 0 || memcmp(&c->CASValidateURL, &nullURL, sizeof(apr_uri_t)) == 0) {
 		ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "MOD_AUTH_CAS: CASLoginURL or CASValidateURL not defined.");
 		return HTTP_INTERNAL_SERVER_ERROR;
@@ -2457,7 +2453,7 @@ apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode
 			continue;
 		if(apr_bucket_read(b, &bucketData, &len, APR_BLOCK_READ) == APR_SUCCESS) {
 			if(offset + len >= sizeof(data)) {
-				// hack below casts strlen() to unsigned long to avoid %zu vs. %Iu on Linux vs. Win 
+				// hack below casts strlen() to unsigned long to avoid %zu vs. %Iu on Linux vs. Win
 				ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->c->base_server, "bucket brigade contains more than %lu bytes, truncation required (SSOut may fail)", (unsigned long) sizeof(data));
 				memcpy(data + offset, bucketData, (sizeof(data) - offset) - 1); // copy what we can into the space remaining
 				break;
@@ -2467,7 +2463,7 @@ apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode
 		}
 	}
 
-	// hack below casts strlen() to unsigned long to avoid %zu vs. %Iu on Linux vs. Win 
+	// hack below casts strlen() to unsigned long to avoid %zu vs. %Iu on Linux vs. Win
 	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->c->base_server, "read %lu bytes (%s) from incoming buckets\n", (unsigned long) strlen(data), data);
 	CASSAMLLogout(f->r, data);
 
@@ -2483,7 +2479,7 @@ void cas_register_hooks(apr_pool_t *p)
 	ap_hook_post_config(cas_post_config, NULL, NULL, APR_HOOK_LAST);
 	ap_hook_check_user_id(cas_authenticate, NULL, NULL, APR_HOOK_MIDDLE);
 	ap_hook_auth_checker(cas_authorize, NULL, authzSucc, APR_HOOK_MIDDLE);
-	ap_register_input_filter("CAS", cas_in_filter, NULL, AP_FTYPE_RESOURCE); 
+	ap_register_input_filter("CAS", cas_in_filter, NULL, AP_FTYPE_RESOURCE);
 }
 
 const command_rec cas_cmds [] = {
@@ -2524,20 +2520,19 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASCacheCleanInterval", cfg_readCASParameter, (void *) cmd_cache_interval, RSRC_CONF, "Amount of time (in seconds) between cache cleanups.  This value is checked when a new local ticket is issued or when a ticket expires."),
 	AP_INIT_TAKE1("CASRootProxiedAs", cfg_readCASParameter, (void *) cmd_root_proxied_as, RSRC_CONF, "URL used to access the root of the virtual server (only needed when the server is proxied)"),
  	AP_INIT_TAKE1("CASScrubRequestHeaders", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASScrubRequestHeaders), ACCESS_CONF, "Scrub CAS user name and SAML attribute headers from the user's request."),
-
 	/* authorization options */
 	AP_INIT_TAKE1("CASAuthoritative", cfg_readCASParameter, (void *) cmd_authoritative, RSRC_CONF, "Set 'On' to reject if access isn't allowed based on our rules; 'Off' (default) to allow checking against other modules too."),
 
-	{NULL}
+	AP_INIT_TAKE1(0, 0, 0, 0, 0)
 };
 
 /* Dispatch list for API hooks */
 module AP_MODULE_DECLARE_DATA auth_cas_module = {
-    STANDARD20_MODULE_STUFF, 
-    cas_create_dir_config,                  /* create per-dir    config structures */
-    cas_merge_dir_config,                  /* merge  per-dir    config structures */
-    cas_create_server_config,                  /* create per-server config structures */
-    cas_merge_server_config,                  /* merge  per-server config structures */
-    cas_cmds,                  /* table of config file commands       */
-    cas_register_hooks  /* register hooks                      */
+	STANDARD20_MODULE_STUFF,
+	cas_create_dir_config,                  /* create per-dir    config structures */
+	cas_merge_dir_config,                  /* merge  per-dir    config structures */
+	cas_create_server_config,                  /* create per-server config structures */
+	cas_merge_server_config,                  /* merge  per-server config structures */
+	cas_cmds,                  /* table of config file commands       */
+	cas_register_hooks  /* register hooks                      */
 };

@@ -29,6 +29,8 @@
 
 #include "../src/cas_saml_attr.h"
 
+TCase *cas_saml_attr_tcase(void);
+
 static apr_pool_t *pool;
 
 /* XXX: This is duplicated from cas_saml_attr.c
@@ -151,8 +153,9 @@ START_TEST(cas_attr_builder_test) {
         {"foo", "bar", 3},
         {foo, "1", 3},
         {foo, "2", 3},
-        {0} /* NULL terminator */
+        {NULL, NULL, 0} /* NULL terminator */
     };
+    struct test_data *d;
 
     int i = 0;
     cas_saml_attr *attrs;
@@ -162,11 +165,11 @@ START_TEST(cas_attr_builder_test) {
     while (1) {
         cas_attr_builder_check_invariants(builder, &attrs);
 
-        struct test_data d = test_data_list[i];
-        if (d.v == NULL) break;
+        d = &test_data_list[i];
+        if (d->v == NULL) break;
 
-        cas_attr_builder_add(builder, d.k, d.v);
-        fail_unless(cas_saml_attr_len(attrs) == d.len);
+        cas_attr_builder_add(builder, d->k, d->v);
+        fail_unless(cas_saml_attr_len(attrs) == d->len);
         i++;
     }
 }

@@ -108,7 +108,6 @@ void ap_hook_auth_checker(int (*pf)(request_rec *),
                           const char * const *c1,
                           const char * const *c2,
                           int nOrder) {
-  return 0;
 }
 
 /* Perhaps this is the top of a slippery slope, but pulling these in

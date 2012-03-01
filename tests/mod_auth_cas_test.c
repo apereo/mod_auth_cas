@@ -577,7 +577,6 @@ char *get_attr(cas_cfg *c, cas_saml_attr *attrs, const char *attr) {
   char *csvs = NULL;
   cas_saml_attr_val *av;
   cas_saml_attr *a;
-  cas_saml_attr_val *av;
   for (a = attrs; a != NULL; a = a->next) {
     if (strcmp(a->attr, attr) != 0) continue;
     av = a->values;
@@ -663,7 +662,6 @@ START_TEST(isValidCASCookie_test) {
 END_TEST
 
 START_TEST(cas_curl_write_test) {
-  const char *data;
   cas_curl_buffer cb;
   const char *data = "This is some test data.";
   memset(&cb, 0, sizeof(cb));
@@ -827,7 +825,6 @@ char *rand_str(apr_pool_t *p, unsigned int length_limit) {
     /* Generate a random length from one to length_limit, inclusive.
      * This method for choosing a length is biased, but it should be
      * fine for testing purposes. */
-    char *ans;
     unsigned int len;
     char *ans;
 
@@ -870,7 +867,7 @@ START_TEST(cas_strnenvcmp_test) {
     int l1 = strlen(rnd1);
     int l2 = strlen(rnd2);
     int l = l1 > l2 ? l1 : l2;
-    int i, a, b;
+    int i;
 
     /* Comparing zero characters yields equal, regardless of the other
      * inputs. */

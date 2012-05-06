@@ -28,6 +28,41 @@ protocol specification is here:
 
 http://www.ja-sig.org/products/cas/overview/protocol/index.html
 
+
+====================================================================
+QUICKSTART INSTALLATION
+====================================================================
+The following development libraries and utilities must be installed:
+* OpenSSL - 0.9.8c
+* Apache Portable Runtime - 1.2.8
+* Apache Portable Runtime Utilities - 1.2.7
+* Apache Web Server - 2.2.3
+* libcurl - 7.18.2
+
+Download the distribution via git or tarball, and use the standard
+Autoconf incantation:
+
+	./configure; make; make install
+
+Edit your Apache configuration to load the mod_auth_cas module:
+
+	LoadModule auth_cas_module /path/to/mod_auth_cas.so
+
+Set a few required parameters in your Apache configuration:
+
+	CASCookiePath /var/cache/apache2/mod_auth_cas/
+	CASLoginURL https://login.example.org/cas/login
+	CASValidateURL https://login.example.org/cas/serviceValidate
+	
+Finally, protect a "Location" or "Directory" block in your Apache
+  configuration:
+  
+	<Location />
+		Authtype CAS
+		require valid-user
+	</Location>
+
+
 ====================================================================
 NEW FEATURES AND FUNCTIONS IN THIS RELEASE 
 ====================================================================

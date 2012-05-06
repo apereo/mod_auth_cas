@@ -436,11 +436,23 @@ START_TEST(removeCASParams_test) {
 END_TEST
 
 START_TEST(validCASTicketFormat_test) {
-  char *valid = "ST-1234";
-  char *invalid = "ST-<^>";
+  const char *valid[] = {
+    "ST-1234",
+    "ST-1234-login.example.com"
+  };
+  const char *invalid[] = {
+    "ST-<^>",
+    "ST-\x22qwe", /* ST-"qwe */
+    "ST-\x25qwe", /* ST-<nak>qwe */
+    "ST-\xc8qwe"  /* ST-<ascii 200>qwe */
+  };
+  unsigned int i;
 
-  fail_unless(validCASTicketFormat(valid) == TRUE);
-  fail_unless(validCASTicketFormat(invalid) == FALSE);
+  for (i = 0; i < ARRAY_SIZE(valid); i++)
+    fail_unless(validCASTicketFormat(valid[i]) == TRUE);
+
+  for (i = 0; i < ARRAY_SIZE(invalid); i++)
+    fail_unless(validCASTicketFormat(invalid[i]) == FALSE);
 }
 END_TEST
 

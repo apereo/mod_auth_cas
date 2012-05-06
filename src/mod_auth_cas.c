@@ -677,7 +677,7 @@ apr_byte_t validCASTicketFormat(const char *ticket)
         state = postfix;
         break;
       case postfix:
-        if (*ticket != '-' && (!isalnum(*ticket) || !isascii(*ticket)))
+        if (*ticket != '-' && *ticket != '.' && !isalnum(*ticket))
           goto bail;
         break;
       default:

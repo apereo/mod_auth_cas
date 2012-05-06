@@ -42,7 +42,7 @@ The following development libraries and utilities must be installed:
 Download the distribution via git or tarball, and use the standard
 Autoconf incantation:
 
-	./configure; make; make install
+	./configure && make && sudo make install
 
 Edit your Apache configuration to load the mod_auth_cas module:
 
@@ -54,13 +54,28 @@ Set a few required parameters in your Apache configuration:
 	CASLoginURL https://login.example.org/cas/login
 	CASValidateURL https://login.example.org/cas/serviceValidate
 	
-Finally, protect a "Location" or "Directory" block in your Apache
+Protect a "Location" or "Directory" block in your Apache
   configuration:
   
-	<Location />
+	<Location /secured>
 		Authtype CAS
 		require valid-user
 	</Location>
+
+If SAML-delivered attribute authorization is also desired, use the
+  samlValidate URL, enable SAML validation, and specify cas-attribute
+  in your require rule (please note: both attribute name and value are
+  case-sensitive):
+	
+   	CASCookiePath /var/cache/apache2/mod_auth_cas/
+	CASLoginURL https://login.example.org/cas/login
+	CASValidateURL https://login.example.org/cas/samlValidate
+    CASValidateSAML On
+   
+    <Location /secured>
+		Authtype CAS
+        require cas-attribute edupersonaffiliation:staff
+     </Location>
 
 
 ====================================================================

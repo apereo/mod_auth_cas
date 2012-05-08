@@ -2177,7 +2177,7 @@ int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const
 
 		token = ap_getword_white(r->pool, &requirement);
 
-		if (strcasecmp(token, "cas-attribute")) {
+		if (apr_strnatcasecmp(token, "cas-attribute") != 0) {
 			continue;
 		}
 

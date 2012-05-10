@@ -820,7 +820,7 @@ START_TEST(cas_attribute_authz_test) {
   should_fail = cas_authorize_worker(request, attrs, &(require_line_array[0]), 1, c);
 
   // When mod_auth_cas is authoritative, an attribute payload which
-  // does pass the policy check should result should succeed.
+  // does pass the policy check should succeed.
   c->CASAuthoritative = 1;
   should_succeed1 = cas_authorize_worker(request, attrs, &(require_line_array[1]), 1, c);
 

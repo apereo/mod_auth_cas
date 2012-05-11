@@ -772,8 +772,8 @@ START_TEST(cas_attribute_authz_test) {
   require_line *r;
 
   /* Manually create some SAML attributes.  These attributes represent
-     a CAS attribute payload returned by CAS.  This test will apply an
-     authorization policy to these attributes to test its behavior.
+   * a CAS attribute payload returned by CAS.  This test will apply an
+   * authorization policy to these attributes to test its behavior.
    */
   struct test_data {
       const char *const k;
@@ -801,9 +801,9 @@ START_TEST(cas_attribute_authz_test) {
                            &auth_cas_module);
 
   /* Create two 'Require' config structures representing the
-     configured authorization policy.  Although we create two, we'll
-     apply different combinations of them in the tests which
-     follow. */
+   * configured authorization policy.  Although we create two, we'll
+   * apply different combinations of them in the tests which
+   * follow. */
   r = &(require_line_array[0]);
   r->method_mask = AP_METHOD_BIT;
   r->requirement = apr_pstrdup(pool, "cas-attribute hopefully:fail");
@@ -812,25 +812,25 @@ START_TEST(cas_attribute_authz_test) {
   r->method_mask = AP_METHOD_BIT;
   r->requirement = apr_pstrdup(pool, "cas-attribute should:succeed");
 
-  // When mod_auth_cas is authoritative, an attribute payload which
-  // fails to pass the policy check should result in
-  // HTTP_UNAUTHORIZED.
+  /* When mod_auth_cas is authoritative, an attribute payload which
+   * fails to pass the policy check should result in
+   * HTTP_UNAUTHORIZED. */
   c->CASAuthoritative = 1;
   should_fail = cas_authorize_worker(request, attrs, &(require_line_array[0]), 1, c);
 
-  // When mod_auth_cas is authoritative, an attribute payload which
-  // does pass the policy check should succeed.
+  /* When mod_auth_cas is authoritative, an attribute payload which
+   * does pass the policy check should succeed. */
   c->CASAuthoritative = 1;
   should_succeed1 = cas_authorize_worker(request, attrs, &(require_line_array[1]), 1, c);
 
-  // When mod_auth_cas is *not* authoritative, an attribute payload
-  // which does pass the policy check should succeed.
+  /* When mod_auth_cas is *not* authoritative, an attribute payload
+   * which does pass the policy check should succeed. */
   c->CASAuthoritative = 0;
   should_succeed2 = cas_authorize_worker(request, attrs, &(require_line_array[0]), 2, c);
 
-  // Regardless of whether mod_auth_cas is authoritative, the empty
-  // list of Require directives means mod_auth_cas has no policy to
-  // check and should DECLINE.
+  /* Regardless of whether mod_auth_cas is authoritative, the empty
+   * list of Require directives means mod_auth_cas has no policy to
+   * check and should DECLINE. */
   c->CASAuthoritative = 1;
   should_decline1 = cas_authorize_worker(request, attrs, NULL, 0, c);
   c->CASAuthoritative = 0;

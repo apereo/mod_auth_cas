@@ -768,7 +768,6 @@ START_TEST(cas_attribute_authz_test) {
   cas_attr_builder *builder;
   require_line require_line_array[2];
   cas_cfg *c;
-  // cas_dir_cfg *d;
   int i;
   require_line *r;
 

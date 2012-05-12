@@ -132,7 +132,7 @@ AP_DECLARE(char *) ap_getword_white(apr_pool_t *p, const char **line) {
     }
 
     len = pos - *line;
-    res = (char *)calloc(sizeof(char), len + 1);
+    res = calloc(1, len + 1);
     memcpy(res, *line, len);
     res[len] = 0;
 

@@ -624,11 +624,11 @@ apr_byte_t removeCASParams(request_rec *r)
     if (strncmp(old_args, k_ticket_param, k_ticket_param_sz) == 0) {
       tmp = old_args + k_ticket_param_sz;
       if (strncmp(tmp, ticket, ticket_sz) == 0) {
-        old_args += k_ticket_param_sz + ticket_sz;
-        changed = TRUE;
         /* destroy the '&' from '&ticket=' if this wasn't r->args[0] */
         if (old_args != r->args)
           p--;
+        old_args += k_ticket_param_sz + ticket_sz;
+        changed = TRUE;
       }
     }
     *p++ = *old_args++;

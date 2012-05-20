@@ -112,6 +112,15 @@ START_TEST(isSSL_test) {
 }
 END_TEST
 
+
+START_TEST(cas_isalnum_test) {
+  fail_unless(cas_isalnum('a') == TRUE);
+  fail_unless(cas_isalnum('A') == TRUE);
+  fail_unless(cas_isalnum('5') == TRUE);
+  fail_if(cas_isalnum('^') == TRUE);
+}
+END_TEST
+
 START_TEST(cas_char_to_env_test) {
   int i;
   for (i = 0; i < 255; i++) {
@@ -1181,6 +1190,7 @@ Suite *mod_auth_cas_suite(void) {
   tcase_add_checked_fixture(tc_core, core_setup, core_teardown);
   tcase_add_test(tc_core, escapeString_test);
   tcase_add_test(tc_core, isSSL_test);
+  tcase_add_test(tc_core, cas_isalnum_test);
   tcase_add_test(tc_core, cas_char_to_env_test);
   tcase_add_test(tc_core, cas_scrub_headers_test);
   tcase_add_test(tc_core, cas_strnenvcmp_test);

@@ -667,7 +667,7 @@ apr_byte_t validCASTicketFormat(const char *ticket)
         state = postfix;
         break;
       case postfix:
-        if (*ticket != '-' && *ticket != '.' && !isalnum(*ticket))
+        if (*ticket != '-' && *ticket != '.' && !cas_isalnum(*ticket))
           goto bail;
         break;
       default:
@@ -1710,13 +1710,21 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	return (apr_pstrndup(r->pool, curlBuffer.buf, strlen(curlBuffer.buf)));
 }
 
+/* locale independent version of isalnum() */
+apr_byte_t cas_isalnum(char c) {
+  if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') ||
+      (c >= 'a' && c <= 'z'))
+    return TRUE;
+  return FALSE;
+}
+
 /* convert a character to a normalized representation, as for using as
  * an environment variable. Perform the same character transformation
  * as http2env() from server/util_script.c at e.g.
  * <http://svn.apache.org/viewvc/httpd/httpd/tags/2.2.19/
  * server/util_script.c?revision=1125468&view=markup#l56> */
 int cas_char_to_env(int c) {
-	return apr_isalnum(c) ? apr_toupper(c) : '_';
+	return cas_isalnum(c) ? apr_toupper(c) : '_';
 }
 
 /* Compare two strings based on how they would be converted to an

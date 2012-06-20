@@ -1628,11 +1628,18 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	struct curl_slist *headers = NULL;
 	char *samlPayload;
 	CURL *curl;
+	char *rv;
+
+	rv = NULL;
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering getResponseFromServer()");
 
 	curl = curl_easy_init();
+	if (curl == NULL) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: curl_easy_init() error");
+		return NULL;
+	}
 
 	curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);
 	curl_easy_setopt(curl, CURLOPT_HEADER, 0L);
@@ -1658,7 +1665,7 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 
 	if(apr_stat(&f, c->CASCertificatePath, APR_FINFO_TYPE, r->pool) == APR_INCOMPLETE) {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not load CA certificate: %s", c->CASCertificatePath);
-		return (NULL);
+		goto out;
 	}
 	if(f.filetype == APR_DIR)
 		curl_easy_setopt(curl, CURLOPT_CAPATH, c->CASCertificatePath);
@@ -1666,7 +1673,7 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 		curl_easy_setopt(curl, CURLOPT_CAINFO, c->CASCertificatePath);
 	else {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not process Certificate Authority: %s", c->CASCertificatePath);
-		return (NULL);
+		goto out;
 	}
 
 	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, (c->CASValidateServer != FALSE ? 2L : 0L));
@@ -1697,7 +1704,7 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	if(curl_easy_perform(curl) != CURLE_OK) {
 		if(c->CASDebug)
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: curl_easy_perform() failed (%s)", curlError);
-		return (NULL);
+		goto out;
 	}
 
 	if(headers != NULL)
@@ -1706,8 +1713,11 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Validation response: %s", curlBuffer.buf);
 
+	rv = apr_pstrndup(r->pool, curlBuffer.buf, strlen(curlBuffer.buf));
+
+out:
 	curl_easy_cleanup(curl);
-	return (apr_pstrndup(r->pool, curlBuffer.buf, strlen(curlBuffer.buf)));
+	return rv;
 }
 
 /* convert a character to a normalized representation, as for using as

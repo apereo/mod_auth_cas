@@ -9,3 +9,6 @@ config.h
 config.log
 config.status
 tests/mactest
+tests/check_mac
+tests/*.gcda
+tests/*.gcno

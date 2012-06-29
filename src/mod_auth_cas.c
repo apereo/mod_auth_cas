@@ -417,17 +417,24 @@ apr_byte_t isSSL(const request_rec *r)
 	return FALSE;
 }
 
-/* r->parsed_uri.path will return something like /xyz/index.html - this removes the file portion */
+/* r->parsed_uri.path will return something like /xyz/index.html - this removes
+ * the file portion
+ */
 char *getCASPath(request_rec *r)
 {
-	char *p = r->parsed_uri.path, *rv;
-	size_t i, l = 0;
-	for(i = 0; i < strlen(p); i++) {
-		if(p[i] == '/')
-			l = i;
-	}
-	rv = apr_pstrndup(r->pool, p, (l+1));
-	return(rv);
+	size_t i;
+	char *p;
+
+	p = r->parsed_uri.path;
+
+	if (p[0] == '\0')
+		return apr_pstrdup(r->pool, "/");
+
+	for (i = strlen(p) - 1; i > 0; i--)
+		if (p[i] == '/')
+			break;
+
+	return apr_pstrndup(r->pool, p, i + 1);
 }
 
 char *getCASScope(request_rec *r)

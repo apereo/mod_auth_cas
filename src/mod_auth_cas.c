@@ -95,6 +95,7 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASValidateSAML = CAS_DEFAULT_VALIDATE_SAML;
 	c->CASAttributeDelimiter = CAS_DEFAULT_ATTRIBUTE_DELIMITER;
 	c->CASAttributePrefix = CAS_DEFAULT_ATTRIBUTE_PREFIX;
+	c->CASAuthoritative = CAS_DEFAULT_AUTHORITATIVE;
 
 	cas_setURL(pool, &(c->CASLoginURL), CAS_DEFAULT_LOGIN_URL);
 	cas_setURL(pool, &(c->CASValidateURL), CAS_DEFAULT_VALIDATE_URL);
@@ -128,6 +129,7 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASCookieHttpOnly = (add->CASCookieHttpOnly != CAS_DEFAULT_COOKIE_HTTPONLY ? add->CASCookieHttpOnly : base->CASCookieHttpOnly);
 	c->CASSSOEnabled = (add->CASSSOEnabled != CAS_DEFAULT_SSO_ENABLED ? add->CASSSOEnabled : base->CASSSOEnabled);
 	c->CASValidateSAML = (add->CASValidateSAML != CAS_DEFAULT_VALIDATE_SAML ? add->CASValidateSAML : base->CASValidateSAML);
+	c->CASAuthoritative = (add->CASAuthoritative != CAS_DEFAULT_AUTHORITATIVE ? add->CASAuthoritative : base->CASAuthoritative);
 	c->CASAttributeDelimiter = (apr_strnatcasecmp(add->CASAttributeDelimiter, CAS_DEFAULT_ATTRIBUTE_DELIMITER) != 0 ? add->CASAttributeDelimiter : base->CASAttributeDelimiter);
 	c->CASAttributePrefix = (apr_strnatcasecmp(add->CASAttributePrefix, CAS_DEFAULT_ATTRIBUTE_PREFIX) != 0 ? add->CASAttributePrefix : base->CASAttributePrefix);
 
@@ -375,6 +377,14 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASSSOEnabled - must be 'On' or 'Off'"));
 		break;
+		case cmd_authoritative:
+			if(apr_strnatcasecmp(value, "On") == 0)
+				c->CASAuthoritative = TRUE;
+			else if(apr_strnatcasecmp(value, "Off") == 0)
+				c->CASAuthoritative = FALSE;
+			else
+				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASAuthoritative - must be 'On' or 'Off'"));
+		break;
 		default:
 			/* should not happen */
 			return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: invalid command '%s'", cmd->directive->directive));
@@ -621,11 +631,11 @@ apr_byte_t removeCASParams(request_rec *r)
     if (strncmp(old_args, k_ticket_param, k_ticket_param_sz) == 0) {
       tmp = old_args + k_ticket_param_sz;
       if (strncmp(tmp, ticket, ticket_sz) == 0) {
-        old_args += k_ticket_param_sz + ticket_sz;
-        changed = TRUE;
         /* destroy the '&' from '&ticket=' if this wasn't r->args[0] */
         if (old_args != r->args)
           p--;
+        old_args += k_ticket_param_sz + ticket_sz;
+        changed = TRUE;
       }
     }
     *p++ = *old_args++;
@@ -674,7 +684,7 @@ apr_byte_t validCASTicketFormat(const char *ticket)
         state = postfix;
         break;
       case postfix:
-        if (*ticket != '-' && (!isalnum(*ticket) || !isascii(*ticket)))
+        if (*ticket != '-' && *ticket != '.' && !isalnum(*ticket))
           goto bail;
         break;
       default:
@@ -2042,6 +2052,8 @@ int cas_authenticate(request_rec *r)
 			remoteUser = NULL;
 		}
 
+		cas_set_attributes(r, attrs);
+
 		if(remoteUser) {
 			r->user = remoteUser;
 			if(d->CASAuthNHeader != NULL) {
@@ -2071,6 +2083,230 @@ int cas_authenticate(request_rec *r)
 			return HTTP_MOVED_TEMPORARILY;
 		}
 	}
+
+	return HTTP_UNAUTHORIZED;
+}
+
+/* Store a reference to the request's attributes for later use.
+ * Subsequent calls to cas_get_attributes() with the same request
+ * object will return this same set of attributes. Note that the
+ * attributes are stored directly, and not copied. In particular,
+ * beware that the attributes must live at least as long as the
+ * specified request. */
+void cas_set_attributes(request_rec *r, cas_saml_attr *const attrs) {
+	/* Always set the attributes in the current request, even if
+	 * it is a subrequest, because we always allocate memory in
+	 * the current request, so we run the risk of accessing freed
+	 * memory if we were to set it in the main request. */
+	ap_set_module_config(r->request_config, &auth_cas_module, attrs);
+}
+
+/* Get a reference to the attributes that were previously stored for
+ * this request (or its main request). If no attributes have been
+ * stored, this function will return NULL.
+ */
+const cas_saml_attr *cas_get_attributes(request_rec *r) {
+	/* If we have attribute stored in this request, then use them. If
+	 * not, then check the main request (if any). */
+	const cas_saml_attr *attrs = ap_get_module_config(r->request_config,
+							  &auth_cas_module);
+	if (attrs == NULL && r->main != NULL) {
+		return cas_get_attributes(r->main);
+	} else {
+		return attrs;
+	}
+}
+
+/* Look for an attribute that matches the given attribute spec (e.g.
+ * from a Require directive)
+ *
+ * An attribute spec is a string containing an attribute name and an
+ * attribute value separated by a colon. This means that attribute
+ * specification strings containing more than one colon produce ambiguous
+ * specifications that match multiple attributes. For instance:
+ *
+ *   spec = "foo:bar:baz"
+ *
+ * matches both:
+ *
+ *   attr1 = "foo" "bar:baz"
+ *   attr2 = "foo:bar" "baz"
+ *
+ * Attribute name matching is exact, and value matching has some
+ * leeway. Value matching uses apr_strnatcmp to determine equality, so
+ * whitespace is ignored and decimal numbers can have differing
+ * representations. See the documentation of apr_strnatcmp for
+ * details.
+ */
+int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const attributes, struct request_rec *r) {
+	const cas_saml_attr *attr = attributes;
+
+	/* Loop over all of the user attributes */
+	for ( ; attr; attr = attr->next ) {
+
+		const char *attr_c = attr->attr;
+		const char *spec_c = attr_spec;
+
+		/* Walk both strings until we get to the end of either or we
+		 * find a differing character */
+		while ((*attr_c) &&
+		       (*spec_c) &&
+		       (*attr_c) == (*spec_c)) {
+			attr_c++;
+			spec_c++;
+		}
+
+		/* The match is a success if we walked the whole attribute
+		 * name and the attr_spec is at a colon. */
+		if (!(*attr_c) && (*spec_c) == ':') {
+			const cas_saml_attr_val *val;
+
+			/* Skip the colon */
+			spec_c++;
+
+			/* Compare the attribute values */
+			val = attr->values;
+			for ( ; val; val = val->next ) {
+
+				/* Approximately compare the attribute value (ignoring
+				 * whitespace). At this point, spec_c points to the
+				 * NULL-terminated value pattern. */
+				if (apr_strnatcmp(val->value, spec_c) == 0) {
+					return CAS_ATTR_MATCH;
+				}
+			}
+		}
+	}
+	return CAS_ATTR_NO_MATCH;
+}
+
+
+/* CAS authorization module, code adopted from Nick Kew's Apache Modules Book, 2007, p. 190f */
+int cas_authorize(request_rec *r)
+{
+	const cas_saml_attr *const attrs = cas_get_attributes(r);
+
+	const apr_array_header_t *const reqs_arr = ap_requires(r);
+	const require_line *const reqs =
+		reqs_arr ? (require_line *) reqs_arr->elts : NULL;
+	const cas_cfg *const c =
+		ap_get_module_config(r->server->module_config,
+				     &auth_cas_module);
+
+	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		      "Entering cas_authorize.");
+
+	if (!reqs_arr) {
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+			      "No require statements found, "
+			      "so declining to perform authorization.");
+		return DECLINED;
+	}
+
+	return (cas_authorize_worker(r, attrs, reqs, reqs_arr->nelts, c));
+}
+
+/* Pulled out from cas_authorize to enable unit-testing */
+
+int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const require_line *const reqs, int nelts, const cas_cfg *const c)
+{
+	const int m = r->method_number;
+	const char *token;
+	const char *requirement;
+	int i;
+	int have_casattr = 0;
+	int count_casattr = 0;
+
+	// Q: why don't we use ap_some_auth_required here?? performance?
+
+	/* Go through applicable Require directives */
+	for (i = 0; i < nelts; ++i) {
+		/* Ignore this Require if it's in a <Limit> section
+		 * that exclude this method
+		 */
+
+		if (!(reqs[i].method_mask & (AP_METHOD_BIT << m))) {
+			continue;
+		}
+
+		/* ignore if it's not a "Require cas-attribute ..." */
+		requirement = reqs[i].requirement;
+
+		token = ap_getword_white(r->pool, &requirement);
+
+		if (apr_strnatcasecmp(token, "cas-attribute") != 0) {
+			continue;
+		}
+
+		/* OK, we have a "Require cas-attribute" to satisfy */
+		have_casattr = 1;
+
+		/* If we have an applicable cas-attribute, but no
+		 * attributes were sent in the request, then we can
+		 * just stop looking here, because it's not
+		 * satisfiable. The code after this loop will give the
+		 * appropriate response. */
+		if (!attrs) {
+			break;
+		}
+
+		/* Iterate over the attribute specification strings in this
+		 * require directive searching for a specification that
+		 * matches one of the attributes. */
+		while (*requirement) {
+			token = ap_getword_conf(r->pool, &requirement);
+			count_casattr++;
+
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+				     "Evaluating attribute specification: %s",
+				     token);
+
+			if (cas_match_attribute(token, attrs, r) ==
+			    CAS_ATTR_MATCH) {
+
+				/* If *any* attribute matches, then
+				 * authorization has succeeded and all
+				 * of the others are ignored. */
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+					      "Require cas-attribute "
+					      "'%s' matched", token);
+				return OK;
+			} 
+		}
+	}
+
+	/* If there weren't any "Require cas-attribute" directives,
+	 * we're irrelevant.
+	 */
+	if (!have_casattr) {
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+			      "No cas-attribute statements found. "
+                              "Not performing authZ.");
+		return DECLINED;
+	}
+	/* If there was a "Require cas-attribute", but no actual attributes,
+	 * that's cause to warn the admin of an iffy configuration. 
+	 */
+	if (count_casattr == 0) {
+		ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+			      "'Require cas-attribute' missing specification(s) in configuration. Declining.");
+		return DECLINED;
+	}
+
+	/* If we're not authoritative, hand over to other authz modules */
+	if (!c->CASAuthoritative) {
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+			      "Authorization failed, but we are not "
+			      "authoritative, thus handing over to other "
+			      "module(s).");
+		return DECLINED;
+	}
+
+	/* OK, our decision is final and binding */
+	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		      "Authorization denied for client session");
+
+	ap_note_auth_failure(r);
 
 	return HTTP_UNAUTHORIZED;
 }
@@ -2293,6 +2529,10 @@ apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode
 
 void cas_register_hooks(apr_pool_t *p)
 {
+	/* make sure we run before mod_authz_user so that a "require valid-user"
+         *  directive doesn't just automatically pass us. */
+	static const char *const authzSucc[] = { "mod_authz_user.c", NULL };
+
 	ap_hook_post_config(cas_post_config, NULL, NULL, APR_HOOK_LAST);
 #if MODULE_MAGIC_NUMBER_MAJOR >= 20100714
 	ap_hook_check_access_ex(
@@ -2303,7 +2543,8 @@ void cas_register_hooks(apr_pool_t *p)
 		AP_AUTH_INTERNAL_PER_URI);
 #else
 	ap_hook_check_user_id(cas_authenticate, NULL, NULL, APR_HOOK_MIDDLE);
-#endif
+#endif	
+ap_hook_auth_checker(cas_authorize, NULL, authzSucc, APR_HOOK_MIDDLE);
 	ap_register_input_filter("CAS", cas_in_filter, NULL, AP_FTYPE_RESOURCE);
 }
 
@@ -2345,6 +2586,9 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASCacheCleanInterval", cfg_readCASParameter, (void *) cmd_cache_interval, RSRC_CONF, "Amount of time (in seconds) between cache cleanups.  This value is checked when a new local ticket is issued or when a ticket expires."),
 	AP_INIT_TAKE1("CASRootProxiedAs", cfg_readCASParameter, (void *) cmd_root_proxied_as, RSRC_CONF, "URL used to access the root of the virtual server (only needed when the server is proxied)"),
  	AP_INIT_TAKE1("CASScrubRequestHeaders", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASScrubRequestHeaders), ACCESS_CONF, "Scrub CAS user name and SAML attribute headers from the user's request."),
+	/* authorization options */
+	AP_INIT_TAKE1("CASAuthoritative", cfg_readCASParameter, (void *) cmd_authoritative, RSRC_CONF, "Set 'On' to reject if access isn't allowed based on our rules; 'Off' (default) to allow checking against other modules too."),
+
 	AP_INIT_TAKE1(0, 0, 0, 0, 0)
 };
 

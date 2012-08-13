@@ -621,11 +621,11 @@ apr_byte_t removeCASParams(request_rec *r)
     if (strncmp(old_args, k_ticket_param, k_ticket_param_sz) == 0) {
       tmp = old_args + k_ticket_param_sz;
       if (strncmp(tmp, ticket, ticket_sz) == 0) {
-        old_args += k_ticket_param_sz + ticket_sz;
-        changed = TRUE;
         /* destroy the '&' from '&ticket=' if this wasn't r->args[0] */
         if (old_args != r->args)
           p--;
+        old_args += k_ticket_param_sz + ticket_sz;
+        changed = TRUE;
       }
     }
     *p++ = *old_args++;
@@ -674,7 +674,7 @@ apr_byte_t validCASTicketFormat(const char *ticket)
         state = postfix;
         break;
       case postfix:
-        if (*ticket != '-' && (!isalnum(*ticket) || !isascii(*ticket)))
+        if (*ticket != '-' && *ticket != '.' && !cas_isalnum(*ticket))
           goto bail;
         break;
       default:
@@ -1727,13 +1727,21 @@ out:
 	return rv;
 }
 
+/* locale independent version of isalnum() */
+apr_byte_t cas_isalnum(char c) {
+  if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') ||
+      (c >= 'a' && c <= 'z'))
+    return TRUE;
+  return FALSE;
+}
+
 /* convert a character to a normalized representation, as for using as
  * an environment variable. Perform the same character transformation
  * as http2env() from server/util_script.c at e.g.
  * <http://svn.apache.org/viewvc/httpd/httpd/tags/2.2.19/
  * server/util_script.c?revision=1125468&view=markup#l56> */
 int cas_char_to_env(int c) {
-	return apr_isalnum(c) ? apr_toupper(c) : '_';
+	return cas_isalnum(c) ? apr_toupper(c) : '_';
 }
 
 /* Compare two strings based on how they would be converted to an

@@ -102,6 +102,15 @@ START_TEST(isSSL_test) {
 }
 END_TEST
 
+
+START_TEST(cas_isalnum_test) {
+  fail_unless(cas_isalnum('a') == TRUE);
+  fail_unless(cas_isalnum('A') == TRUE);
+  fail_unless(cas_isalnum('5') == TRUE);
+  fail_if(cas_isalnum('^') == TRUE);
+}
+END_TEST
+
 START_TEST(cas_char_to_env_test) {
   int i;
   for (i = 0; i < 255; i++) {
@@ -441,11 +450,23 @@ START_TEST(removeCASParams_test) {
 END_TEST
 
 START_TEST(validCASTicketFormat_test) {
-  char *valid = "ST-1234";
-  char *invalid = "ST-<^>";
+  const char *valid[] = {
+    "ST-1234",
+    "ST-1234-login.example.com"
+  };
+  const char *invalid[] = {
+    "ST-<^>",
+    "ST-\x22qwe", /* ST-"qwe */
+    "ST-\x25qwe", /* ST-<nak>qwe */
+    "ST-\xc8qwe"  /* ST-<ascii 200>qwe */
+  };
+  unsigned int i;
 
-  fail_unless(validCASTicketFormat(valid) == TRUE);
-  fail_unless(validCASTicketFormat(invalid) == FALSE);
+  for (i = 0; i < ARRAY_SIZE(valid); i++)
+    fail_unless(validCASTicketFormat(valid[i]) == TRUE);
+
+  for (i = 0; i < ARRAY_SIZE(invalid); i++)
+    fail_unless(validCASTicketFormat(invalid[i]) == FALSE);
 }
 END_TEST
 
@@ -1033,6 +1054,7 @@ Suite *mod_auth_cas_suite(void) {
   tcase_add_checked_fixture(tc_core, core_setup, core_teardown);
   tcase_add_test(tc_core, escapeString_test);
   tcase_add_test(tc_core, isSSL_test);
+  tcase_add_test(tc_core, cas_isalnum_test);
   tcase_add_test(tc_core, cas_char_to_env_test);
   tcase_add_test(tc_core, cas_scrub_headers_test);
   tcase_add_test(tc_core, cas_strnenvcmp_test);

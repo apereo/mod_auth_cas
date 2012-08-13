@@ -204,11 +204,26 @@ END_TEST
 
 START_TEST(getCASPath_test) {
   char *path;
-  apr_uri_parse(request->pool, "http://www.example.com/foo/bar/baz.html",
-                &request->parsed_uri);
 
+  request->parsed_uri.path = "";
+  path = getCASPath(request);
+  fail_unless(strcmp(path, "/") == 0);
+
+  request->parsed_uri.path = "/";
+  path = getCASPath(request);
+  fail_unless(strcmp(path, "/") == 0);
+
+  request->parsed_uri.path = "/foo.html";
+  path = getCASPath(request);
+  fail_unless(strcmp(path, "/") == 0);
+
+  request->parsed_uri.path = "/foo/bar/baz.html";
   path = getCASPath(request);
   fail_unless(strcmp(path, "/foo/bar/") == 0);
+
+  request->parsed_uri.path = "/foo/bar/baz.html/";
+  path = getCASPath(request);
+  fail_unless(strcmp(path, "/foo/bar/baz.html/") == 0);
 }
 END_TEST
 

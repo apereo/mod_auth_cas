@@ -48,6 +48,7 @@
 #include "apr_thread_mutex.h"
 #include "apr_strings.h"
 #include "apr_xml.h"
+#include "apr_env.h"
 
 #include "cas_saml_attr.h"
 
@@ -2072,7 +2073,11 @@ int cas_authenticate(request_rec *r)
 						}
 						av = av->next;
 					}
+					//Set attributes in headers
 					apr_table_set(r->headers_in, apr_psprintf(r->pool, "%s%s", c->CASAttributePrefix, normalizeHeaderName(r, a->attr)), csvs);
+					
+					//Export attributes to environment
+					apr_env_set(apr_psprintf(r->pool, "%s%s", c->CASAttributePrefix, normalizeHeaderName(r, a->attr)),csvs,r->pool);
 					a = a->next;
 				}
 			}

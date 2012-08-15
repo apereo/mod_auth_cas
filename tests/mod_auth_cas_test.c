@@ -27,6 +27,16 @@ Suite *mod_auth_cas_suite(void);
 request_rec *request;
 apr_pool_t *pool;
 
+/* Function prototypes to make gcc happy */
+int find_entries_in_list(void *rec, const char *key, const char *val);
+char *get_attr(cas_cfg *c, cas_saml_attr *attrs, const char *attr);
+char *rand_str(apr_pool_t *p, unsigned int length_limit);
+void core_setup(void);
+void core_teardown(void);
+Suite *mod_auth_cas_suite(void);
+
+
+/* The tests */
 START_TEST(cas_merge_server_config_test) {
   cas_cfg *base = cas_create_server_config(request->pool, NULL);
   cas_cfg *add = cas_create_server_config(request->pool, NULL);
@@ -880,14 +890,98 @@ START_TEST(cas_register_hooks_test) {
 }
 END_TEST
 
+START_TEST(cas_attribute_authz_test) {
+  int should_fail, should_succeed1, should_succeed2,
+      should_decline1, should_decline2;
+  cas_saml_attr *attrs = NULL;
+  cas_attr_builder *builder;
+  require_line require_line_array[2];
+  cas_cfg *c;
+  int i;
+  require_line *r;
+
+  /* Manually create some SAML attributes.  These attributes represent
+   * a CAS attribute payload returned by CAS.  This test will apply an
+   * authorization policy to these attributes to test its behavior.
+   */
+  struct test_data {
+      const char *const k;
+      const char *const v;
+  } test_data_list[] = {
+      {"key1", "val1"},
+      {"key1", "val2"},
+      {"key2", "val3"},
+      {"should", "succeed"},
+      {0, 0} /* NULL terminator */
+  };
+
+  // Build a CAS attribute structure.
+  builder = cas_attr_builder_new(pool, &attrs);
+  i = 0;
+  while (1) {
+      struct test_data d = test_data_list[i];
+      if (d.v == NULL) break;
+
+      cas_attr_builder_add(builder, d.k, d.v);
+      i++;
+  }
+
+  c = ap_get_module_config(request->server->module_config,
+                           &auth_cas_module);
+
+  /* Create two 'Require' config structures representing the
+   * configured authorization policy.  Although we create two, we'll
+   * apply different combinations of them in the tests which
+   * follow. */
+  r = &(require_line_array[0]);
+  r->method_mask = AP_METHOD_BIT;
+  r->requirement = apr_pstrdup(pool, "cas-attribute hopefully:fail");
+
+  r = &(require_line_array[1]);
+  r->method_mask = AP_METHOD_BIT;
+  r->requirement = apr_pstrdup(pool, "cas-attribute should:succeed");
+
+  /* When mod_auth_cas is authoritative, an attribute payload which
+   * fails to pass the policy check should result in
+   * HTTP_UNAUTHORIZED. */
+  c->CASAuthoritative = 1;
+  should_fail = cas_authorize_worker(request, attrs, &(require_line_array[0]), 1, c);
+
+  /* When mod_auth_cas is authoritative, an attribute payload which
+   * does pass the policy check should succeed. */
+  c->CASAuthoritative = 1;
+  should_succeed1 = cas_authorize_worker(request, attrs, &(require_line_array[1]), 1, c);
+
+  /* When mod_auth_cas is *not* authoritative, an attribute payload
+   * which does pass the policy check should succeed. */
+  c->CASAuthoritative = 0;
+  should_succeed2 = cas_authorize_worker(request, attrs, &(require_line_array[0]), 2, c);
+
+  /* Regardless of whether mod_auth_cas is authoritative, the empty
+   * list of Require directives means mod_auth_cas has no policy to
+   * check and should DECLINE. */
+  c->CASAuthoritative = 1;
+  should_decline1 = cas_authorize_worker(request, attrs, NULL, 0, c);
+  c->CASAuthoritative = 0;
+  should_decline2 = cas_authorize_worker(request, attrs, NULL, 0, c);
+
+  fail_unless((should_fail == HTTP_UNAUTHORIZED) &&
+              (should_succeed1 == OK) &&
+              (should_succeed2 == OK) &&
+              (should_decline1 == DECLINED) &&
+              (should_decline2 == DECLINED));
+}
+END_TEST
+
 /* Generate a null-terminated string of random bytes between one and
  * length_limit characters */
 char *rand_str(apr_pool_t *p, unsigned int length_limit) {
     /* Generate a random length from one to length_limit, inclusive.
      * This method for choosing a length is biased, but it should be
      * fine for testing purposes. */
-    char *ans;
     unsigned int len;
+    char *ans;
+
     if (length_limit < 1) {
         len = 1;
     } else {
@@ -927,7 +1021,7 @@ START_TEST(cas_strnenvcmp_test) {
     int l1 = strlen(rnd1);
     int l2 = strlen(rnd2);
     int l = l1 > l2 ? l1 : l2;
-    int i, a, b;
+    int i;
 
     /* Comparing zero characters yields equal, regardless of the other
      * inputs. */
@@ -945,6 +1039,7 @@ START_TEST(cas_strnenvcmp_test) {
 
     /* For all lengths up to the length of the longer string */
     for (i = 0; i <= l; i++) {
+      int a, b;
 
       /* A string always compares equal to itself */
       assert_snecmp_eqn(rnd1, rnd1, i);
@@ -1134,6 +1229,7 @@ Suite *mod_auth_cas_suite(void) {
   tcase_add_test(tc_core, cas_post_config_test);
   tcase_add_test(tc_core, cas_in_filter_test);
   tcase_add_test(tc_core, cas_register_hooks_test);
+  tcase_add_test(tc_core, cas_attribute_authz_test);
   suite_add_tcase(s, tc_core);
   suite_add_tcase(s, cas_saml_attr_tcase());
 

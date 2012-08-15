@@ -28,6 +28,56 @@ protocol specification is here:
 
 http://www.ja-sig.org/products/cas/overview/protocol/index.html
 
+
+====================================================================
+QUICKSTART INSTALLATION
+====================================================================
+The following development libraries and utilities must be installed:
+* OpenSSL - 0.9.8c
+* Apache Portable Runtime - 1.2.8
+* Apache Portable Runtime Utilities - 1.2.7
+* Apache Web Server - 2.2.3
+* libcurl - 7.18.2
+
+Download the distribution via git or tarball, and use the standard
+Autoconf incantation:
+
+	./configure && make && sudo make install
+
+Edit your Apache configuration to load the mod_auth_cas module:
+
+	LoadModule auth_cas_module /path/to/mod_auth_cas.so
+
+Set a few required parameters in your Apache configuration:
+
+	CASCookiePath /var/cache/apache2/mod_auth_cas/
+	CASLoginURL https://login.example.org/cas/login
+	CASValidateURL https://login.example.org/cas/serviceValidate
+	
+Protect a "Location" or "Directory" block in your Apache
+  configuration:
+  
+	<Location /secured>
+		Authtype CAS
+		require valid-user
+	</Location>
+
+If SAML-delivered attribute authorization is also desired, use the
+  samlValidate URL, enable SAML validation, and specify cas-attribute
+  in your require rule (please note: both attribute name and value are
+  case-sensitive):
+	
+   	CASCookiePath /var/cache/apache2/mod_auth_cas/
+	CASLoginURL https://login.example.org/cas/login
+	CASValidateURL https://login.example.org/cas/samlValidate
+    CASValidateSAML On
+   
+    <Location /secured>
+		Authtype CAS
+        require cas-attribute edupersonaffiliation:staff
+     </Location>
+
+
 ====================================================================
 NEW FEATURES AND FUNCTIONS IN THIS RELEASE 
 ====================================================================
@@ -273,6 +323,13 @@ Description:	Set the optional 'HttpOnly' flag for cookies issues by mod_auth_cas
 		for more information.  Please note this feature is not honored by all
 		browsers.
 
+Directive:	CASAuthoritative
+Default:	Off
+Description:	This directive determines whether an optional authorization directive
+		(see 'Require cas-attribute') is authoritative and thus binding or
+		if other authorization modules will also be applied.
+		'On' means authoritative, 'Off' means not authoritative.
+
 Valid Directory/.htaccess Directives
 ------------------------------------
 Directive:	CASScope
@@ -354,6 +411,14 @@ Default:	Off
 Description:	mod_auth_cas will strip request inbound request headers that may have
 		special meaning, such as those set with the CASAttributePrefix or the
 		CASAuthNHeader value. 
+
+Directive:	Require cas-attribute <attribute>:<value>
+Default:	NULL
+Description:	Use this directive to authorize based on SAML cas attributes
+		returned via the session validation call. Multiple directives
+		are OR-ed. If directive is present with no attributes defined,
+		the request is declined. If value has spaces, wrap the pair in quotes.
+		See also CASAuthoritative.
 
 ====================================================================
 CONTACT INFORMATION AND WEBSITE

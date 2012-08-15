@@ -83,7 +83,6 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASDebug = CAS_DEFAULT_DEBUG;
 	c->CASValidateServer = CAS_DEFAULT_VALIDATE_SERVER;
 	c->CASValidateDepth = CAS_DEFAULT_VALIDATE_DEPTH;
-	c->CASAllowWildcardCert = CAS_DEFAULT_ALLOW_WILDCARD_CERT;
 	c->CASCertificatePath = CAS_DEFAULT_CA_PATH;
 	c->CASCookiePath = CAS_DEFAULT_COOKIE_PATH;
 	c->CASCookieEntropy = CAS_DEFAULT_COOKIE_ENTROPY;
@@ -2325,7 +2324,6 @@ const command_rec cas_cmds [] = {
 	/* ssl related options */
 	AP_INIT_TAKE1("CASValidateServer", cfg_readCASParameter, (void *) cmd_validate_server, RSRC_CONF, "Require validation of CAS server SSL certificate for successful authentication (On or Off)"),
 	AP_INIT_TAKE1("CASValidateDepth", cfg_readCASParameter, (void *) cmd_validate_depth, RSRC_CONF, "Define the number of chained certificates required for a successful validation"),
-	AP_INIT_TAKE1("CASAllowWildcardCert", cfg_readCASParameter, (void *) cmd_wildcard_cert, RSRC_CONF, "Allow wildcards in certificates when performing validation (e.g. *.example.com) (On or Off)"),
 	AP_INIT_TAKE1("CASCertificatePath", cfg_readCASParameter, (void *) cmd_ca_path, RSRC_CONF, "Path to the X509 certificate for the CASServer Certificate Authority"),
 
 	/* pertinent CAS urls */

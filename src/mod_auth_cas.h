@@ -165,6 +165,10 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr);
 void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD);
 void *cas_create_dir_config(apr_pool_t *pool, char *path);
 void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD);
+const char *cas_read_onoff(apr_pool_t *pool, const char *directive,
+                const char *value, unsigned int *cfg);
+const char *cas_read_int(apr_pool_t *pool, const char *directive,
+                const char *value, unsigned int *cfg);
 const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value);
 char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket);
 apr_byte_t validCASTicketFormat(const char *ticket);

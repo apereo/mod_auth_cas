@@ -84,6 +84,35 @@ START_TEST(cas_merge_dir_config_test) {
 }
 END_TEST
 
+START_TEST(cas_read_onoff_test) {
+  unsigned int u = 0;
+  fail_unless(cas_read_onoff(request->pool, "CASFoo",
+                             "On", &u) == NULL);
+  fail_unless(u == 1);
+
+  fail_unless(cas_read_onoff(request->pool, "CASFoo",
+                             "Off", &u) == NULL);
+  fail_unless(u == 0);
+
+  fail_unless(cas_read_onoff(request->pool, "CASFoo",
+                             "Qwe", &u) != NULL);
+}
+END_TEST
+
+START_TEST(cas_read_int_test) {
+  unsigned int i = 0;
+  fail_unless(cas_read_int(request->pool, "CASFoo",
+                             "1", &i) == NULL);
+  fail_unless(i == 1);
+
+  fail_unless(cas_read_int(request->pool, "CASFoo",
+                           "Qwe", &i) != NULL);
+
+  fail_unless(cas_read_int(request->pool, "CASFoo",
+                           "12Qwe", &i) != NULL);
+}
+END_TEST
+
 START_TEST(cas_setURL_test) {
   const char *url1 = "http://www.example.com/";
   const char *url2 = "http://www.example.com:8080/foo.html";
@@ -1197,6 +1226,8 @@ Suite *mod_auth_cas_suite(void) {
   tcase_add_test(tc_core, normalizeHeaderName_test);
   tcase_add_test(tc_core, cas_merge_server_config_test);
   tcase_add_test(tc_core, cas_merge_dir_config_test);
+  tcase_add_test(tc_core, cas_read_onoff_test);
+  tcase_add_test(tc_core, cas_read_int_test);
   tcase_add_test(tc_core, cas_setURL_test);
   tcase_add_test(tc_core, getCASPath_test);
   tcase_add_test(tc_core, getCASScope_test);

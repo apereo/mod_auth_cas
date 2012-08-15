@@ -934,11 +934,11 @@ START_TEST(cas_attribute_authz_test) {
    * apply different combinations of them in the tests which
    * follow. */
   r = &(require_line_array[0]);
-  r->method_mask = AP_METHOD_BIT;
+  r->method_mask = AP_METHOD_BIT << M_POST;
   r->requirement = apr_pstrdup(pool, "cas-attribute hopefully:fail");
 
   r = &(require_line_array[1]);
-  r->method_mask = AP_METHOD_BIT;
+  r->method_mask = AP_METHOD_BIT << M_POST;
   r->requirement = apr_pstrdup(pool, "cas-attribute should:succeed");
 
   /* When mod_auth_cas is authoritative, an attribute payload which
@@ -965,11 +965,11 @@ START_TEST(cas_attribute_authz_test) {
   c->CASAuthoritative = 0;
   should_decline2 = cas_authorize_worker(request, attrs, NULL, 0, c);
 
-  fail_unless((should_fail == HTTP_UNAUTHORIZED) &&
-              (should_succeed1 == OK) &&
-              (should_succeed2 == OK) &&
-              (should_decline1 == DECLINED) &&
-              (should_decline2 == DECLINED));
+  fail_unless(should_fail == HTTP_UNAUTHORIZED);
+  fail_unless(should_succeed1 == OK);
+  fail_unless(should_succeed2 == OK);
+  fail_unless(should_decline1 == DECLINED);
+  fail_unless(should_decline2 == DECLINED);
 }
 END_TEST
 
@@ -1112,6 +1112,7 @@ void core_setup(void) {
   apr_pool_create(&pool, NULL);
   request->pool = pool;
   /* set up the request */
+  request->method_number = M_POST;
   request->headers_in = apr_table_make(request->pool, 0);
   request->headers_out = apr_table_make(request->pool, 0);
   request->err_headers_out = apr_table_make(request->pool, 0);

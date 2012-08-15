@@ -119,7 +119,6 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASDebug = (add->CASDebug != CAS_DEFAULT_DEBUG ? add->CASDebug : base->CASDebug);
 	c->CASValidateServer = (add->CASValidateServer != CAS_DEFAULT_VALIDATE_SERVER ? add->CASValidateServer : base->CASValidateServer);
 	c->CASValidateDepth = (add->CASValidateDepth != CAS_DEFAULT_VALIDATE_DEPTH ? add->CASValidateDepth : base->CASValidateDepth);
-	c->CASAllowWildcardCert = (add->CASAllowWildcardCert != CAS_DEFAULT_ALLOW_WILDCARD_CERT ? add->CASAllowWildcardCert : base->CASAllowWildcardCert);
 	c->CASCertificatePath = (apr_strnatcasecmp(add->CASCertificatePath,CAS_DEFAULT_CA_PATH) != 0 ? add->CASCertificatePath : base->CASCertificatePath);
 	c->CASCookiePath = (apr_strnatcasecmp(add->CASCookiePath, CAS_DEFAULT_COOKIE_PATH) != 0 ? add->CASCookiePath : base->CASCookiePath);
 	c->CASCookieEntropy = (add->CASCookieEntropy != CAS_DEFAULT_COOKIE_ENTROPY ? add->CASCookieEntropy : base->CASCookieEntropy);
@@ -368,9 +367,12 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
     case cmd_cookie_httponly:
       return cas_read_onoff(cmd->pool, cmd->directive->directive,
                             value, &c->CASCookieHttpOnly);
-		case cmd_sso:
+    case cmd_sso:
       return cas_read_onoff(cmd->pool, cmd->directive->directive,
                             value, &c->CASSSOEnabled);
+    case cmd_authoritative:
+      return cas_read_onoff(cmd->pool, cmd->directive->directive,
+                            value, &c->CASAuthoritative);
     default:
     /* should not happen */
     return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: invalid command '%s'",

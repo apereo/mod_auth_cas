@@ -945,11 +945,11 @@ START_TEST(cas_attribute_authz_test) {
    * apply different combinations of them in the tests which
    * follow. */
   r = &(require_line_array[0]);
-  r->method_mask = AP_METHOD_BIT;
+  r->method_mask = AP_METHOD_BIT << M_POST;
   r->requirement = apr_pstrdup(pool, "cas-attribute hopefully:fail");
 
   r = &(require_line_array[1]);
-  r->method_mask = AP_METHOD_BIT;
+  r->method_mask = AP_METHOD_BIT << M_POST;
   r->requirement = apr_pstrdup(pool, "cas-attribute should:succeed");
 
   r = &(require_line_array[2]);
@@ -1002,15 +1002,15 @@ START_TEST(cas_attribute_authz_test) {
   request->method = old_method;
   request->method_number = old_method_number;
 
-  fail_unless((should_fail1 == HTTP_UNAUTHORIZED) &&
-              (should_fail2 == HTTP_UNAUTHORIZED) &&
-              (should_succeed1 == OK) &&
-              (should_succeed2 == OK) &&
-              (should_succeed3 == OK) &&
-              (should_succeed4 == OK) &&
-              (should_succeed5 == OK) &&
-              (should_decline1 == DECLINED) &&
-              (should_decline2 == DECLINED));
+  fail_unless(should_fail1 == HTTP_UNAUTHORIZED);
+  fail_unless(should_fail2 == HTTP_UNAUTHORIZED);
+  fail_unless(should_succeed1 == OK);
+  fail_unless(should_succeed2 == OK);
+  fail_unless(should_succeed3 == OK);
+  fail_unless(should_succeed4 == OK);
+  fail_unless(should_succeed5 == OK);
+  fail_unless(should_decline1 == DECLINED);
+  fail_unless(should_decline2 == DECLINED);
 }
 END_TEST
 
@@ -1153,6 +1153,7 @@ void core_setup(void) {
   apr_pool_create(&pool, NULL);
   request->pool = pool;
   /* set up the request */
+  request->method_number = M_POST;
   request->headers_in = apr_table_make(request->pool, 0);
   request->headers_out = apr_table_make(request->pool, 0);
   request->err_headers_out = apr_table_make(request->pool, 0);

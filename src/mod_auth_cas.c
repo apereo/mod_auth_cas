@@ -2067,17 +2067,22 @@ int cas_authenticate(request_rec *r)
 					char *csvs = NULL;
 					while(av != NULL) {
 						if(csvs != NULL) {
-							csvs = apr_psprintf(r->pool, "%s%s%s", csvs, c->CASAttributeDelimiter, av->value);
+							csvs = apr_psprintf(r->pool, "%s%s%s", csvs,
+								c->CASAttributeDelimiter, av->value);
 						} else {
 							csvs = apr_psprintf(r->pool, "%s", av->value);
 						}
 						av = av->next;
 					}
 					//Set attributes in headers
-					apr_table_set(r->headers_in, apr_psprintf(r->pool, "%s%s", c->CASAttributePrefix, normalizeHeaderName(r, a->attr)), csvs);
+					apr_table_set(r->headers_in, apr_psprintf(r->pool, "%s%s",
+						c->CASAttributePrefix, normalizeHeaderName(r, a->attr)),
+						csvs);
 					
 					//Export attributes to environment
-					apr_env_set(apr_psprintf(r->pool, "%s%s", c->CASAttributePrefix, normalizeHeaderName(r, a->attr)),csvs,r->pool);
+					apr_env_set(apr_psprintf(r->pool, "%s%s",
+						c->CASAttributePrefix, normalizeHeaderName(r, a->attr)),
+						csvs, r->pool);
 					a = a->next;
 				}
 			}

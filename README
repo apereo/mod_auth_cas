@@ -19,7 +19,7 @@ You may obtain a copy of the License at
    limitations under the License.
 
 ====================================================================
-INTRODUCTION 
+INTRODUCTION
 ====================================================================
 The purpose of this module is to allow an Apache web server to interact
 with an authentication server that conforms to the CAS version 1 or 2
@@ -38,6 +38,7 @@ The following development libraries and utilities must be installed:
 * Apache Portable Runtime Utilities - 1.2.7
 * Apache Web Server - 2.2.3
 * libcurl - 7.18.2
+* libpcre - 7.8
 
 Download the distribution via git or tarball, and use the standard
 Autoconf incantation:
@@ -53,10 +54,10 @@ Set a few required parameters in your Apache configuration:
 	CASCookiePath /var/cache/apache2/mod_auth_cas/
 	CASLoginURL https://login.example.org/cas/login
 	CASValidateURL https://login.example.org/cas/serviceValidate
-	
+
 Protect a "Location" or "Directory" block in your Apache
   configuration:
-  
+
 	<Location /secured>
 		Authtype CAS
 		require valid-user
@@ -66,12 +67,12 @@ If SAML-delivered attribute authorization is also desired, use the
   samlValidate URL, enable SAML validation, and specify cas-attribute
   in your require rule (please note: both attribute name and value are
   case-sensitive):
-	
+
    	CASCookiePath /var/cache/apache2/mod_auth_cas/
 	CASLoginURL https://login.example.org/cas/login
 	CASValidateURL https://login.example.org/cas/samlValidate
     CASValidateSAML On
-   
+
     <Location /secured>
 		Authtype CAS
         require cas-attribute edupersonaffiliation:staff
@@ -79,14 +80,14 @@ If SAML-delivered attribute authorization is also desired, use the
 
 
 ====================================================================
-NEW FEATURES AND FUNCTIONS IN THIS RELEASE 
+NEW FEATURES AND FUNCTIONS IN THIS RELEASE
 ====================================================================
 * Unit tests added for a significant portion of functionality.
 
 * Improved automake suport.
 
 ====================================================================
-BUG FIXES 
+BUG FIXES
 ====================================================================
 * Fixed security bug impacting users of CAS attributes in a CGI
   environment (MAS-62) reported by Josh Hoyt.
@@ -167,7 +168,7 @@ mod_auth_cas.h
 
 COMPILE INSTRUCTIONS
 --------------------------------------------------------------------
-Use the APache eXtenSion tool (APXS) to compile and install this 
+Use the APache eXtenSion tool (APXS) to compile and install this
 object as a dynamically shared object (DSO), by either:
 
 apxs -i -lssl -lcurl -c mod_auth_cas.c
@@ -270,7 +271,7 @@ Description:	This URL represents the URL that end users may see in the event tha
 		prefix.  As an example: If the site being protected is http://example.com/
 		and the Apache instance of this server is http://internal.example.com:8080,
 		setting CASRootProxiedAs to http://example.com would result in proper
-		service parameter generation. 
+		service parameter generation.
 
 Directive: 	CASCookiePath
 Default:	/dev/null
@@ -341,7 +342,7 @@ Description:	This directive determines whether an optional authorization directi
 Valid Directory/.htaccess Directives
 ------------------------------------
 Directive:	CASScope
-Default:	Off	
+Default:	Off
 Description:	Use this directive with an argument as a relative path (e.g. /application/) to specify
 		the scope for which a mod_auth_cas cookie is valid.  This is beneficial to prevent
 		additional round trips to the CAS server.  Assume someone authenticates to /application/subdir/
@@ -418,7 +419,7 @@ Directive:	CASScrubRequestHeaders
 Default:	Off
 Description:	mod_auth_cas will strip request inbound request headers that may have
 		special meaning, such as those set with the CASAttributePrefix or the
-		CASAuthNHeader value. 
+		CASAuthNHeader value.
 
 Directive:	Require cas-attribute <attribute>:<value>
 Default:	NULL
@@ -428,11 +429,20 @@ Description:	Use this directive to authorize based on SAML cas attributes
 		the request is declined. If value has spaces, wrap the pair in quotes.
 		See also CASAuthoritative.
 
+Directive:	Require cas-attribute <attribute>~<value>
+Default:	NULL
+Description:	Use this form of the directive to authorize based on SAML cas
+		attributes returned via the session validation call. Multiple
+		directives are OR-ed. If directive is present with no attributes
+		defined, the request is declined. The value is interpreted as a
+		Perl-Compatible Regular Expression (PCRE) using case-sensitive
+		matching. See also CASAuthoritative.
+
 ====================================================================
 CONTACT INFORMATION AND WEBSITE
 ====================================================================
 We welcome your feedback, suggestions and contributions. Contact us
-via email if you have questions, feedback, code submissions, 
+via email if you have questions, feedback, code submissions,
 and bug reports.  To reach the development team, send an e-mail to:
 
 mod-auth-cas-dev [at] lists [dot] jasig [dot] org

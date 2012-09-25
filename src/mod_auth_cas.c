@@ -1537,7 +1537,6 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 
 apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **user, cas_saml_attr **attrs)
 {
-	char *path;
 	cas_cache_entry cache;
 	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
 
@@ -1550,8 +1549,6 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' is corrupt or invalid", cookie);
 		return FALSE;
 	}
-
-	path = apr_psprintf(r->pool, "%s%s", c->CASCookiePath, cookie);
 
 	/*
 	 * mitigate session hijacking by not allowing cookies transmitted in the clear to be submitted

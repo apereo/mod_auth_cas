@@ -435,7 +435,7 @@ Description:	Use this form of the directive to authorize based on SAML cas
 		attributes returned via the session validation call. Multiple
 		directives are OR-ed. If directive is present with no attributes
 		defined, the request is declined. The value is interpreted as a
-		Perl-Compatible Regular Expression (PCRE) using case-sensitive 
+		Perl-Compatible Regular Expression (PCRE) using case-sensitive
 		matching. See also CASAuthoritative.
 
 ====================================================================

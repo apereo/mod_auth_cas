@@ -15,6 +15,9 @@
 /* Define to 1 if you have a functional curl library. */
 #undef HAVE_LIBCURL
 
+/* Define to 1 if you have the `pcre' library (-lpcre). */
+#undef HAVE_LIBPCRE
+
 /* Define to 1 if you have the `ssl' library (-lssl). */
 #undef HAVE_LIBSSL
 
@@ -168,9 +171,6 @@
 
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
-
-/* Define to the home page for this package. */
-#undef PACKAGE_URL
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION

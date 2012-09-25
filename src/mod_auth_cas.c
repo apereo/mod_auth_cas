@@ -41,6 +41,7 @@
 #include "util_md5.h"
 #include "ap_config.h"
 #include "ap_release.h"
+#include "pcre.h"
 #include "apr_buckets.h"
 #include "apr_file_info.h"
 #include "apr_lib.h"
@@ -2176,6 +2177,37 @@ int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const 
 				}
 			}
 		}
+		/* The match is a success is we walked the whole attribute
+		 * name and the attr_spec is a tilde (denotes a PCRE match). */
+		else if (!(*attr_c) && (*spec_c) == '~') {
+			const cas_saml_attr_val *val;
+			const char *errorptr;
+			int erroffset;
+			pcre *preg;
+
+			/* Skip the tilde */
+			spec_c++;
+
+			/* Set up the regex */
+			preg = pcre_compile(spec_c, 0, &errorptr, &erroffset, NULL);
+			if (NULL == preg) {
+				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "Pattern [%s] is not a valid regular expression", spec_c);
+				continue;
+			}
+
+			/* Compare the attribute values */
+			val = attr->values;
+			for ( ; val; val = val->next) {
+				/* PCRE-compare the attribute value. At this point, spec_c
+				 * points to the NULL-terminated value pattern. */
+				if (0 == pcre_exec(preg, NULL, val->value, (int)strlen(val->value), 0, 0, NULL, 0)) {
+					pcre_free(preg);
+					return CAS_ATTR_MATCH;
+				}
+			}
+
+			pcre_free(preg);
+		}
 	}
 	return CAS_ATTR_NO_MATCH;
 }
@@ -2271,7 +2303,7 @@ int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const
 					      "Require cas-attribute "
 					      "'%s' matched", token);
 				return OK;
-			} 
+			}
 		}
 	}
 
@@ -2285,7 +2317,7 @@ int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const
 		return DECLINED;
 	}
 	/* If there was a "Require cas-attribute", but no actual attributes,
-	 * that's cause to warn the admin of an iffy configuration. 
+	 * that's cause to warn the admin of an iffy configuration.
 	 */
 	if (count_casattr == 0) {
 		ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
@@ -2543,7 +2575,7 @@ void cas_register_hooks(apr_pool_t *p)
 		AP_AUTH_INTERNAL_PER_URI);
 #else
 	ap_hook_check_user_id(cas_authenticate, NULL, NULL, APR_HOOK_MIDDLE);
-#endif	
+#endif
 ap_hook_auth_checker(cas_authorize, NULL, authzSucc, APR_HOOK_MIDDLE);
 	ap_register_input_filter("CAS", cas_in_filter, NULL, AP_FTYPE_RESOURCE);
 }

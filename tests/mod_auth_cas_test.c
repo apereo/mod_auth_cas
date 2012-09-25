@@ -853,14 +853,18 @@ START_TEST(cas_register_hooks_test) {
 END_TEST
 
 START_TEST(cas_attribute_authz_test) {
-  int should_fail, should_succeed1, should_succeed2,
-      should_decline1, should_decline2;
+  int should_fail1, should_fail2, should_succeed1, should_succeed2,
+      should_succeed3, should_succeed4, should_succeed5, should_decline1,
+      should_decline2;
   cas_saml_attr *attrs = NULL;
   cas_attr_builder *builder;
-  require_line require_line_array[2];
+  require_line require_line_array[5];
   cas_cfg *c;
   int i;
   require_line *r;
+
+  const char *old_method;
+  int old_method_number;
 
   /* Manually create some SAML attributes.  These attributes represent
    * a CAS attribute payload returned by CAS.  This test will apply an
@@ -874,6 +878,7 @@ START_TEST(cas_attribute_authz_test) {
       {"key1", "val2"},
       {"key2", "val3"},
       {"should", "succeed"},
+      {"regexAttribute", "urn:mace:example.edu:testing?placeholder=there&success=true"},
       {0, 0} /* NULL terminator */
   };
 
@@ -891,8 +896,14 @@ START_TEST(cas_attribute_authz_test) {
   c = ap_get_module_config(request->server->module_config,
                            &auth_cas_module);
 
-  /* Create two 'Require' config structures representing the
-   * configured authorization policy.  Although we create two, we'll
+  /* Allow these tests to pass - simulate a GET request. */
+  old_method = request->method;
+  old_method_number = request->method_number;
+  request->method = "GET";
+  request->method_number = M_GET;
+
+  /* Create 'Require' config structures representing the
+   * configured authorization policy.  Although we create many, we'll
    * apply different combinations of them in the tests which
    * follow. */
   r = &(require_line_array[0]);
@@ -903,21 +914,43 @@ START_TEST(cas_attribute_authz_test) {
   r->method_mask = AP_METHOD_BIT;
   r->requirement = apr_pstrdup(pool, "cas-attribute should:succeed");
 
+  r = &(require_line_array[2]);
+  r->method_mask = AP_METHOD_BIT;
+  r->requirement = apr_pstrdup(pool, "cas-attribute regexAttribute~.+:testing\?.*success=true.*");
+
+  r = &(require_line_array[3]);
+  r->method_mask = AP_METHOD_BIT;
+  r->requirement = apr_pstrdup(pool, "cas-attribute regexAttribute~.+:testing\?.*success=TRUE.*");
+
+  r = &(require_line_array[4]);
+  r->method_mask = AP_METHOD_BIT;
+  r->requirement = apr_pstrdup(pool, "cas-attribute regexAttribute~.+:testing\?.*(?i:success=TRUE).*");
+
   /* When mod_auth_cas is authoritative, an attribute payload which
    * fails to pass the policy check should result in
    * HTTP_UNAUTHORIZED. */
   c->CASAuthoritative = 1;
-  should_fail = cas_authorize_worker(request, attrs, &(require_line_array[0]), 1, c);
+  should_fail1 = cas_authorize_worker(request, attrs, &(require_line_array[0]), 1, c);
+  c->CASAuthoritative = 1;
+  should_fail2 = cas_authorize_worker(request, attrs, &(require_line_array[3]), 1, c);
 
   /* When mod_auth_cas is authoritative, an attribute payload which
    * does pass the policy check should succeed. */
   c->CASAuthoritative = 1;
   should_succeed1 = cas_authorize_worker(request, attrs, &(require_line_array[1]), 1, c);
+  c->CASAuthoritative = 1;
+  should_succeed2 = cas_authorize_worker(request, attrs, &(require_line_array[2]), 1, c);
 
   /* When mod_auth_cas is *not* authoritative, an attribute payload
    * which does pass the policy check should succeed. */
   c->CASAuthoritative = 0;
-  should_succeed2 = cas_authorize_worker(request, attrs, &(require_line_array[0]), 2, c);
+  should_succeed3 = cas_authorize_worker(request, attrs, &(require_line_array[0]), 2, c);
+  c->CASAuthoritative = 0;
+  should_succeed4 = cas_authorize_worker(request, attrs, &(require_line_array[2]), 1, c);
+
+  /* Case-insensitive flag should allow case-sensitivity to be overridden */
+  c->CASAuthoritative = 0;
+  should_succeed5 = cas_authorize_worker(request, attrs, &(require_line_array[4]), 1, c);
 
   /* Regardless of whether mod_auth_cas is authoritative, the empty
    * list of Require directives means mod_auth_cas has no policy to
@@ -927,9 +960,17 @@ START_TEST(cas_attribute_authz_test) {
   c->CASAuthoritative = 0;
   should_decline2 = cas_authorize_worker(request, attrs, NULL, 0, c);
 
-  fail_unless((should_fail == HTTP_UNAUTHORIZED) &&
+  /* Restore the request object */
+  request->method = old_method;
+  request->method_number = old_method_number;
+
+  fail_unless((should_fail1 == HTTP_UNAUTHORIZED) &&
+              (should_fail2 == HTTP_UNAUTHORIZED) &&
               (should_succeed1 == OK) &&
               (should_succeed2 == OK) &&
+              (should_succeed3 == OK) &&
+              (should_succeed4 == OK) &&
+              (should_succeed5 == OK) &&
               (should_decline1 == DECLINED) &&
               (should_decline2 == DECLINED));
 }

@@ -2056,24 +2056,28 @@ int cas_authenticate(request_rec *r)
 			r->user = remoteUser;
 			if(d->CASAuthNHeader != NULL) {
 				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);
- 				if(attrs != NULL) {
- 					cas_saml_attr *a = attrs;
- 					while(a != NULL) {
- 						cas_saml_attr_val *av = a->values;
- 						char *csvs = NULL;
- 						while(av != NULL) {
- 							if(csvs != NULL) {
- 								csvs = apr_psprintf(r->pool, "%s%s%s", csvs, c->CASAttributeDelimiter, av->value);
- 							} else {
- 								csvs = apr_psprintf(r->pool, "%s", av->value);
- 							}
- 							av = av->next;
- 						}
- 						apr_table_set(r->headers_in, apr_psprintf(r->pool, "%s%s", c->CASAttributePrefix, normalizeHeaderName(r, a->attr)), csvs);
- 						a = a->next;
- 					}
- 				}
- 			}
+			}
+			if(attrs != NULL) {
+				cas_saml_attr *a = attrs;
+				while(a != NULL) {
+					cas_saml_attr_val *av = a->values;
+					char *csvs = NULL;
+					while(av != NULL) {
+						if(csvs != NULL) {
+							csvs = apr_psprintf(r->pool, "%s%s%s", csvs,
+							  c->CASAttributeDelimiter, av->value);
+						} else {
+							csvs = apr_psprintf(r->pool, "%s", av->value);
+						}
+						av = av->next;
+					}
+					apr_table_set(r->headers_in, apr_psprintf(r->pool, "%s%s",
+					  c->CASAttributePrefix, normalizeHeaderName(r, a->attr)),
+					  csvs);
+					a = a->next;
+				}
+			}
+
 			return OK;
 		} else {
 			/* maybe the cookie expired, have the user get a new service ticket */

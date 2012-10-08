@@ -1953,6 +1953,10 @@ int cas_authenticate(request_rec *r)
 	ticket = getCASTicket(r);
 	cookieString = getCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie));
 
+	// ADE : if we have a cookieString AND a ticket, don't remove the ticket because it can be requested on the proxied backend servers
+	if(cookieString != NULL && ticket != NULL)
+		ticket=NULL;
+
 	// only remove parameters if a ticket was found (makes no sense to do this otherwise)
 	if(ticket != NULL)
 		parametersRemoved = removeCASParams(r);

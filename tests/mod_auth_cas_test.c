@@ -945,11 +945,11 @@ START_TEST(cas_attribute_authz_test) {
    * apply different combinations of them in the tests which
    * follow. */
   r = &(require_line_array[0]);
-  r->method_mask = AP_METHOD_BIT << M_POST;
+  r->method_mask = AP_METHOD_BIT;
   r->requirement = apr_pstrdup(pool, "cas-attribute hopefully:fail");
 
   r = &(require_line_array[1]);
-  r->method_mask = AP_METHOD_BIT << M_POST;
+  r->method_mask = AP_METHOD_BIT;
   r->requirement = apr_pstrdup(pool, "cas-attribute should:succeed");
 
   r = &(require_line_array[2]);

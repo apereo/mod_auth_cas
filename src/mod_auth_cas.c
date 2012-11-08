@@ -2232,7 +2232,9 @@ int cas_authorize(request_rec *r)
 
 /* Pulled out from cas_authorize to enable unit-testing */
 
-int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const require_line *const reqs, int nelts, const cas_cfg *const c)
+int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs,
+                         const require_line *const reqs, int nelts,
+                         const cas_cfg *const c)
 {
 	const int m = r->method_number;
 	const char *token;

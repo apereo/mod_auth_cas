@@ -236,8 +236,7 @@ const char *cas_read_int(apr_pool_t *pool, const char *directive,
   errno = 0;
   l = strtol(value, &eptr, 10);
 
-  if ((errno == ERANGE && (l == LONG_MAX || l == LONG_MIN)) ||
-       (errno != 0 && l == 0) || l < 0 || *eptr != '\0') {
+  if (errno != 0 || *eptr != '\0' || l < 0) {
     return apr_psprintf(pool, "MOD_AUTH_CAS: Invalid argument to %s (must be "
                         "greater than zero", directive);
   }
@@ -249,7 +248,7 @@ const char *cas_read_int(apr_pool_t *pool, const char *directive,
 
 const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 {
-  cas_cfg *c = (cas_cfg *)
+  cas_cfg *c =
       ap_get_module_config(cmd->server->module_config, &auth_cas_module);
   apr_finfo_t f;
   size_t sz, limit;
@@ -285,7 +284,7 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
       c->CASAttributePrefix = apr_pstrdup(cmd->pool, value);
       break;
     case cmd_ca_path:
-      if(apr_stat(&f, value, APR_FINFO_TYPE, cmd->temp_pool) == APR_INCOMPLETE)
+      if(apr_stat(&f, value, APR_FINFO_TYPE, cmd->temp_pool) != APR_SUCCESS)
         return(apr_psprintf(cmd->pool,
                             "MOD_AUTH_CAS: Could not find Certificate "
                             "Authority file '%s'", value));
@@ -307,7 +306,7 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
        * this is probably redundant since the same check is performed in
        * cas_post_config
        */
-      if(apr_stat(&f, value, APR_FINFO_TYPE, cmd->temp_pool) == APR_INCOMPLETE)
+      if(apr_stat(&f, value, APR_FINFO_TYPE, cmd->temp_pool) != APR_SUCCESS)
         return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Could not find "
                             "CASCookiePath '%s'", value));
 

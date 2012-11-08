@@ -182,6 +182,7 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket);
 apr_byte_t validCASTicketFormat(const char *ticket);
 apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **user, cas_saml_attr **attrs);
 apr_byte_t cas_isalnum(char c);
+apr_byte_t cas_valid_domain(const char *test);
 int cas_char_to_env(int c);
 int cas_strnenvcmp(const char *a, const char *b, int len);
 apr_table_t *cas_scrub_headers(apr_pool_t *p, const char *const attr_prefix,

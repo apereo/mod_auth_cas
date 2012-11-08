@@ -150,6 +150,13 @@ START_TEST(cas_isalnum_test) {
 }
 END_TEST
 
+START_TEST(cas_valid_domain_test) {
+  fail_unless(cas_valid_domain("example.com") == TRUE);
+  fail_unless(cas_valid_domain("") == FALSE);
+  fail_unless(cas_valid_domain("http://www.example.com") == FALSE);
+}
+END_TEST
+
 START_TEST(cas_char_to_env_test) {
   int i;
   for (i = 0; i < 255; i++) {
@@ -945,11 +952,11 @@ START_TEST(cas_attribute_authz_test) {
    * apply different combinations of them in the tests which
    * follow. */
   r = &(require_line_array[0]);
-  r->method_mask = AP_METHOD_BIT << M_POST;
+  r->method_mask = AP_METHOD_BIT;
   r->requirement = apr_pstrdup(pool, "cas-attribute hopefully:fail");
 
   r = &(require_line_array[1]);
-  r->method_mask = AP_METHOD_BIT << M_POST;
+  r->method_mask = AP_METHOD_BIT;
   r->requirement = apr_pstrdup(pool, "cas-attribute should:succeed");
 
   r = &(require_line_array[2]);
@@ -1221,6 +1228,7 @@ Suite *mod_auth_cas_suite(void) {
   tcase_add_test(tc_core, escapeString_test);
   tcase_add_test(tc_core, isSSL_test);
   tcase_add_test(tc_core, cas_isalnum_test);
+  tcase_add_test(tc_core, cas_valid_domain_test);
   tcase_add_test(tc_core, cas_char_to_env_test);
   tcase_add_test(tc_core, cas_scrub_headers_test);
   tcase_add_test(tc_core, cas_strnenvcmp_test);

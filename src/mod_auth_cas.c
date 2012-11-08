@@ -251,13 +251,11 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
   cas_cfg *c =
       ap_get_module_config(cmd->server->module_config, &auth_cas_module);
   apr_finfo_t f;
-  size_t sz, limit;
-  char d;
   const char *rv;
   /*
    * cases determined from valid_cmds in mod_auth_cas.h
    */
-  switch((size_t) cmd->info) {
+  switch((valid_cmds) cmd->info) {
     case cmd_version:
       rv = cas_read_int(cmd->pool, cmd->directive->directive, value,
                         &c->CASVersion);
@@ -350,17 +348,9 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
                           &c->CASCacheCleanInterval);
       break;
     case cmd_cookie_domain:
-      limit = strlen(value);
-      for(sz = 0; sz < limit; sz++) {
-        d = value[sz];
-        if( (d < '0' || d > '9') &&
-           (d < 'a' || d > 'z') &&
-           (d < 'A' || d > 'Z') &&
-           d != '.' && d != '-') {
-          return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid character "
-                              "(%c) in CASCookieDomain", d));
-        }
-      }
+      if (!cas_valid_domain(value))
+        return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid character in "
+                            "CASCookieDomain"));
       c->CASCookieDomain = apr_pstrdup(cmd->pool, value);
       break;
     case cmd_cookie_httponly:
@@ -1728,6 +1718,22 @@ apr_byte_t cas_isalnum(char c) {
       (c >= 'a' && c <= 'z'))
     return TRUE;
   return FALSE;
+}
+
+apr_byte_t cas_valid_domain(const char *test) {
+  char c;
+  if (!*test)
+    return FALSE;
+
+  while (*test) {
+    c = *test++;
+    if((c < '0' || c > '9') &&
+       (c < 'a' || c > 'z') &&
+       (c < 'A' || c > 'Z') &&
+       c != '.' && c != '-')
+      return FALSE;
+  }
+  return TRUE;
 }
 
 /* convert a character to a normalized representation, as for using as

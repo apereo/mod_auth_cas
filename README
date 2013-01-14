@@ -263,12 +263,6 @@ Default:	NULL
 Description:	The URL to use when performing a proxy validation.  This is currently
 		an unimplemented feature, so setting this will have no effect.
 
-Directive:	CASValidateRedirectTicket
-Default:	On
-Description:	When disabled, Off, don't send 302 redirect to the client.  Just allows
-		the request through with the ticket parameter.  For use with CAS enabled
-                web services.
-
 Directive: 	CASRootProxiedAs
 Default:	NULL
 Description:	This URL represents the URL that end users may see in the event that
@@ -367,6 +361,13 @@ Description:	Use this directive with an argument as a relative path (e.g. /appli
 		credentials when accessing that directory.  The argument MUST be a relative path.
 		To disable this requirement, the special argument 'Off' will disable this requirement
 		for this directory and subdirectories.
+
+Directive:	CASValidateRedirectTicket
+Default:	On
+Description:	When disabled, Off, don't send 302 redirect to the client.  Just allows
+		the request through with the ticket parameter.  For use with CAS enabled
+                web services.
+
 
 Directive: 	CASGateway
 Default:	Off

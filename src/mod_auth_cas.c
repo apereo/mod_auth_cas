@@ -1355,7 +1355,6 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 	apr_xml_attr *attr;
 	apr_xml_parser *parser = apr_xml_parser_create(r->pool);
 	const char *response = getResponseFromServer(r, c, ticket);
-	const char *value = NULL;
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering isValidCASTicket()");
@@ -1407,134 +1406,110 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 			return FALSE;
 		}
 		if(c->CASValidateSAML == TRUE) {
-			int success = 0;
-			node = doc->root->first_child;
-            // older CAS servers send the Header, skip
-            if(node && apr_strnatcmp(node->name, "Header") == 0) {
-                node = node->next;
-            }   
-            // Body
-            if(node != NULL) {
-                node = node->first_child;
-                // Response
-                if(node != NULL) {
-                    apr_xml_elem *aNode = NULL;
-                    node = node->first_child;
-                    aNode = node->next;
-                    // Status
-                    if(node != NULL) {
-                        node = node->first_child;
-                        // StatusCode
-                        if(node != NULL) {
-                            apr_xml_attr *attr = node->attr;
-                            while(attr != NULL) {
-                                if(apr_strnatcmp(attr->name, "Value") == 0) {
-                                    // handle old and new CAS servers
-                                    if(apr_strnatcmp(attr->value,
-                                                     "saml1p:Success") == 0 ||
-                                       apr_strnatcmp(attr->value,
-                                                     "samlp:Success") == 0) {
-                                        success = 1;
-                                    }
-                                    break;
-                                }
-                                attr = attr->next;
-                            }
-                        }
-                    }
-                    // Assertion
-                    if(success && aNode != NULL) {
-                        aNode = aNode->first_child;
-                        // Conditions
-                        if(aNode != NULL) {
-                            aNode = aNode->next;
-                            // skip the AuthenticationStatement 
-                            if(aNode &&
-                               apr_strnatcmp(aNode->name,
-                                             "AuthenticationStatement") == 0) {
-                                aNode = aNode->next;
-                            }
-                            // AttributeStatement
-                            if(aNode != NULL) {
-                                apr_xml_elem *as = aNode;
-                                aNode = aNode->first_child;
-                                // Subject
-                                if(aNode != NULL) {
-                                    aNode = aNode->first_child;
-                                    // NameIdentifier
-                                    if(aNode != NULL) {
-                                        apr_xml_to_text(r->pool, aNode, APR_XML_X2T_INNER,
-                                            NULL, NULL, (const char **)user, NULL);
-                                    }
-                                }
-                                if(as != NULL) {
-                                    cas_saml_attr **attrtail = attrs;
-                                    as = as->first_child;
-                                    while(as != NULL) {
-                                        if(apr_strnatcmp(as->name, "Attribute") == 0) {
-                                            apr_xml_attr *attr = as->attr;
-                                            while(attr != NULL) {
-                                                if(apr_strnatcmp(attr->name, "AttributeName") == 0) {
-                                                    cas_saml_attr *csa = apr_pcalloc(r->pool, sizeof(cas_saml_attr));
-                                                    cas_saml_attr_val **valtail = &csa->values;
-                                                    apr_xml_elem *a =
-                                                        as->first_child;
-                                                    csa->attr = apr_pstrndup(r->pool, attr->value, strlen(attr->value));
-                                                    csa->values = NULL;
-                                                    csa->next = NULL;
-
-                                                    while(a != NULL) {
-                                                        cas_saml_attr_val *csav = apr_pcalloc(r->pool, sizeof(cas_saml_attr_val));
-                                                        apr_xml_to_text(r->pool, a, APR_XML_X2T_INNER,
-                                                            NULL, NULL, (const char **)&csav->value, NULL);
-                                                        csav->next = NULL;
-                                                        *valtail = csav;
-                                                        valtail = &csav->next;
-                                                        a = a->next;
-                                                    }
-                                                    *attrtail = csa;
-                                                    attrtail = &csa->next;
-                                                }
-                                                attr = attr->next;
-                                            }
-                                        }
-                                        as = as->next;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+			int success = FALSE;
+			node = doc->root;
+			while(node != NULL && apr_strnatcmp(node->name, "Envelope") != 0) { node = node->next; }
+			if(node != NULL) {
+				node = node->first_child;
+				while(node != NULL && apr_strnatcmp(node->name, "Body") != 0) { node = node->next; }
+				if(node != NULL) {
+					node = node->first_child;
+					while(node != NULL && apr_strnatcmp(node->name, "Response") != 0) { node = node->next; }
+					if(node != NULL) {
+						apr_xml_elem *response_node = node = node->first_child;
+						while(node != NULL && apr_strnatcmp(node->name, "Status") != 0) { node = node->next; }
+						if(node != NULL) {
+							node = node->first_child;
+							while(node != NULL && apr_strnatcmp(node->name, "StatusCode") != 0) { node = node->next; }
+							if(node != NULL) {
+								attr = node->attr;
+								while(attr != NULL && apr_strnatcmp(attr->name, "Value") != 0) { attr = attr->next; }
+								if(attr != NULL) {
+									const char *value = strchr(attr->value, ':');
+									value = (value == NULL ? attr->value : value + 1);
+									if(apr_strnatcmp(value, "Success") == 0) {
+										success = TRUE;
+									}
+								}
+							}
+						}
+						if(success) {
+							node = response_node;
+							while(node != NULL && apr_strnatcmp(node->name, "Assertion") != 0) { node = node->next; }
+							if(node != NULL) {
+								cas_attr_builder *builder = cas_attr_builder_new(r->pool, attrs);
+								int found_user = FALSE;
+								node = node->first_child;
+								while(node != NULL) {
+									if(apr_strnatcmp(node->name, "AttributeStatement") == 0) {
+										apr_xml_elem *as_node = node->first_child;
+										while(as_node != NULL) {
+											if(!found_user && apr_strnatcmp(as_node->name, "Subject") == 0) {
+												apr_xml_elem *subject_node = as_node->first_child;
+												while(subject_node != NULL && apr_strnatcmp(subject_node->name, "NameIdentifier") != 0) { subject_node = subject_node->next; }
+												if(subject_node != NULL) {
+													found_user = TRUE;
+													apr_xml_to_text(r->pool, subject_node, APR_XML_X2T_INNER, NULL, NULL, (const char **)user, NULL);
+												}
+											}
+											else if(apr_strnatcmp(as_node->name, "Attribute") == 0) {
+												attr = as_node->attr;
+												while(attr != NULL && apr_strnatcmp(attr->name, "AttributeName") != 0) { attr = attr->next; }
+												if(attr != NULL) {
+													const char *attr_name = attr->value;
+													apr_xml_elem *attr_node = as_node->first_child;
+													while(attr_node != NULL) {
+														if(apr_strnatcmp(attr_node->name, "AttributeValue") == 0) {
+															const char *attr_value = NULL;
+															apr_xml_to_text(r->pool, attr_node, APR_XML_X2T_INNER, NULL, NULL, &attr_value, NULL);
+															cas_attr_builder_add(builder, attr_name, attr_value);
+														}
+														attr_node = attr_node->next;
+													}
+												}
+											}
+											as_node = as_node->next;
+										}
+									}
+									else if(apr_strnatcmp(node->name, "AuthenticationStatement") == 0) {
+										attr = node->attr;
+										while(attr != NULL && apr_strnatcmp(attr->name, "AuthenticationMethod") != 0) { attr = attr->next; }
+										if(attr != NULL) {
+											cas_attr_builder_add(builder, attr->name, attr->value);
+										}
+									}
+									node = node->next;
+								}
+							}
+						}
+					}
+				}
+			}
 			if(success) {
 				return TRUE;
 			}
 		} else {
-			/* XML tree:
-			 * ServiceResponse
-			 *  ->authenticationSuccess
-			 *      ->user
-			 *      ->proxyGrantingTicket
-			 *  ->authenticationFailure (code)
-			 */
-			node = doc->root->first_child;
-			if(apr_strnatcmp(node->name, "authenticationSuccess") == 0) {
+			node = doc->root;
+			while(node != NULL && apr_strnatcmp(node->name, "serviceResponse") != 0) { node = node->next; }
+			if(node != NULL) {
 				node = node->first_child;
-				while(node != NULL && apr_strnatcmp(node->name, "user") != 0)
+				while(node != NULL) {
+					if(apr_strnatcmp(node->name, "authenticationSuccess") == 0) {
+						node = node->first_child;
+						while(node != NULL && apr_strnatcmp(node->name, "user") != 0) { node = node->next; }
+						if(node != NULL) {
+							apr_xml_to_text(r->pool, node, APR_XML_X2T_INNER, NULL, NULL, (const char **)user, NULL);
+							return TRUE;
+						}
+					}
+					else if(apr_strnatcmp(node->name, "authenticationFailure") == 0) {
+						attr = node->attr;
+						while(attr != NULL && apr_strnatcmp(attr->name, "code") != 0) { attr = attr->next; }
+						ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: %s", (attr == NULL ? "Unknown Error" : attr->value));
+						return FALSE;
+					}
 					node = node->next;
-				if(node != NULL) {
-					apr_xml_to_text(r->pool, node, APR_XML_X2T_INNER, NULL, NULL, &value, NULL);
-					*user = apr_pstrndup(r->pool, value, strlen(value));
-					return TRUE;
 				}
-			} else if (apr_strnatcmp(node->name, "authenticationFailure") == 0) {
-				attr = node->attr;
-				while(attr != NULL && apr_strnatcmp(attr->name, "code") != 0)
-					attr = attr->next;
-
-				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: %s", (attr == NULL ? "Unknown Error" : attr->value));
-
-				return FALSE;
 			}
 		}
 	}

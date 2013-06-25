@@ -684,8 +684,16 @@ char *get_attr(cas_cfg *c, cas_saml_attr *attrs, const char *attr) {
   return csvs;
 }
 
-START_TEST(isValidCASTicket_test1) {
-  // CAS < 3.5.1
+/*
+ * CAS 3.5.1 switched from OpenSAML 1.1 to OpenSAML 2.x (https://issues.jasig.org/browse/CAS-951).
+ *
+ * OpenSAML 1.1 and 2.x produce slightly different XML structures, and old mod_auth_cas XML parsing
+ * code did not work with 2.x.  Therefore, we now have two unit tests for the two different XML
+ * structures: isValidCASTicket_OpenSAML1_test and isValidCASTicket_OpenSAML2_test
+ */
+
+/* Test OpenSAML 1.1 responses (CAS < 3.5.1) */
+START_TEST(isValidCASTicket_OpenSAML1_test) {
   const char *response =
       "<?xml version='1.0' encoding='UTF-8'?>"
       "<SOAP-ENV:Envelope xmlns:SOAP-ENV='http://schemas.xmlsoap.org/soap/envelope/'>"
@@ -749,8 +757,8 @@ START_TEST(isValidCASTicket_test1) {
 }
 END_TEST
 
-START_TEST(isValidCASTicket_test2) {
-  // CAS >= 3.5.1 (XML structure changed slightly in 3.5.1)
+/* Test OpenSAML 2.x responses (CAS >= 3.5.1) */
+START_TEST(isValidCASTicket_OpenSAML2_test) {
   const char *response =
       "<?xml version='1.0' encoding='UTF-8'?>"
       "<SOAP-ENV:Envelope xmlns:SOAP-ENV='http://schemas.xmlsoap.org/soap/envelope/'>"
@@ -1287,8 +1295,8 @@ Suite *mod_auth_cas_suite(void) {
   tcase_add_test(tc_core, CASSAMLLogout_test);
   tcase_add_test(tc_core, deleteCASCacheFile_test);
   tcase_add_test(tc_core, getResponseFromServer_test);
-  tcase_add_test(tc_core, isValidCASTicket_test1);
-  tcase_add_test(tc_core, isValidCASTicket_test2);
+  tcase_add_test(tc_core, isValidCASTicket_OpenSAML1_test);
+  tcase_add_test(tc_core, isValidCASTicket_OpenSAML2_test);
   tcase_add_test(tc_core, isValidCASCookie_test);
   tcase_add_test(tc_core, cas_curl_write_test);
   tcase_add_test(tc_core, cas_curl_ssl_ctx_test);

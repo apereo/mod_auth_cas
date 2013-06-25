@@ -1408,22 +1408,35 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 		if(c->CASValidateSAML == TRUE) {
 			int success = FALSE;
 			node = doc->root;
-			while(node != NULL && apr_strnatcmp(node->name, "Envelope") != 0) { node = node->next; }
+			while(node != NULL && apr_strnatcmp(node->name, "Envelope") != 0) {
+				node = node->next;
+			}
 			if(node != NULL) {
 				node = node->first_child;
-				while(node != NULL && apr_strnatcmp(node->name, "Body") != 0) { node = node->next; }
+				while(node != NULL && apr_strnatcmp(node->name, "Body") != 0) {
+					node = node->next;
+				}
 				if(node != NULL) {
 					node = node->first_child;
-					while(node != NULL && apr_strnatcmp(node->name, "Response") != 0) { node = node->next; }
+					while(node != NULL && apr_strnatcmp(node->name, "Response") != 0) {
+						node = node->next;
+					}
 					if(node != NULL) {
+						// Save node so we can search for both Status and Assertion starting with Response->first_child
 						apr_xml_elem *response_node = node = node->first_child;
-						while(node != NULL && apr_strnatcmp(node->name, "Status") != 0) { node = node->next; }
+						while(node != NULL && apr_strnatcmp(node->name, "Status") != 0) {
+							node = node->next;
+						}
 						if(node != NULL) {
 							node = node->first_child;
-							while(node != NULL && apr_strnatcmp(node->name, "StatusCode") != 0) { node = node->next; }
+							while(node != NULL && apr_strnatcmp(node->name, "StatusCode") != 0) {
+								node = node->next;
+							}
 							if(node != NULL) {
 								attr = node->attr;
-								while(attr != NULL && apr_strnatcmp(attr->name, "Value") != 0) { attr = attr->next; }
+								while(attr != NULL && apr_strnatcmp(attr->name, "Value") != 0) {
+									attr = attr->next;
+								}
 								if(attr != NULL) {
 									const char *value = strchr(attr->value, ':');
 									value = (value == NULL ? attr->value : value + 1);
@@ -1435,30 +1448,35 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 						}
 						if(success) {
 							node = response_node;
-							while(node != NULL && apr_strnatcmp(node->name, "Assertion") != 0) { node = node->next; }
+							while(node != NULL && apr_strnatcmp(node->name, "Assertion") != 0) {
+								node = node->next;
+							}
 							if(node != NULL) {
 								cas_attr_builder *builder = cas_attr_builder_new(r->pool, attrs);
 								int found_user = FALSE;
 								node = node->first_child;
-								while(node != NULL) {
+								while(node != NULL) {  // For each child element...
 									if(apr_strnatcmp(node->name, "AttributeStatement") == 0) {
 										apr_xml_elem *as_node = node->first_child;
-										while(as_node != NULL) {
+										while(as_node != NULL) {  // For each child element...
 											if(!found_user && apr_strnatcmp(as_node->name, "Subject") == 0) {
 												apr_xml_elem *subject_node = as_node->first_child;
-												while(subject_node != NULL && apr_strnatcmp(subject_node->name, "NameIdentifier") != 0) { subject_node = subject_node->next; }
+												while(subject_node != NULL && apr_strnatcmp(subject_node->name, "NameIdentifier") != 0) {
+													subject_node = subject_node->next;
+												}
 												if(subject_node != NULL) {
 													found_user = TRUE;
 													apr_xml_to_text(r->pool, subject_node, APR_XML_X2T_INNER, NULL, NULL, (const char **)user, NULL);
 												}
-											}
-											else if(apr_strnatcmp(as_node->name, "Attribute") == 0) {
+											} else if(apr_strnatcmp(as_node->name, "Attribute") == 0) {
 												attr = as_node->attr;
-												while(attr != NULL && apr_strnatcmp(attr->name, "AttributeName") != 0) { attr = attr->next; }
+												while(attr != NULL && apr_strnatcmp(attr->name, "AttributeName") != 0) {i
+													attr = attr->next;
+												}
 												if(attr != NULL) {
 													const char *attr_name = attr->value;
 													apr_xml_elem *attr_node = as_node->first_child;
-													while(attr_node != NULL) {
+													while(attr_node != NULL) {  // For each child element...
 														if(apr_strnatcmp(attr_node->name, "AttributeValue") == 0) {
 															const char *attr_value = NULL;
 															apr_xml_to_text(r->pool, attr_node, APR_XML_X2T_INNER, NULL, NULL, &attr_value, NULL);
@@ -1470,10 +1488,11 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 											}
 											as_node = as_node->next;
 										}
-									}
-									else if(apr_strnatcmp(node->name, "AuthenticationStatement") == 0) {
+									} else if(apr_strnatcmp(node->name, "AuthenticationStatement") == 0) {
 										attr = node->attr;
-										while(attr != NULL && apr_strnatcmp(attr->name, "AuthenticationMethod") != 0) { attr = attr->next; }
+										while(attr != NULL && apr_strnatcmp(attr->name, "AuthenticationMethod") != 0) {
+											attr = attr->next;
+										}
 										if(attr != NULL) {
 											cas_attr_builder_add(builder, attr->name, attr->value);
 										}
@@ -1490,21 +1509,26 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 			}
 		} else {
 			node = doc->root;
-			while(node != NULL && apr_strnatcmp(node->name, "serviceResponse") != 0) { node = node->next; }
+			while(node != NULL && apr_strnatcmp(node->name, "serviceResponse") != 0) {
+				node = node->next;
+			}
 			if(node != NULL) {
 				node = node->first_child;
-				while(node != NULL) {
+				while(node != NULL) {  // For each child element...
 					if(apr_strnatcmp(node->name, "authenticationSuccess") == 0) {
 						node = node->first_child;
-						while(node != NULL && apr_strnatcmp(node->name, "user") != 0) { node = node->next; }
+						while(node != NULL && apr_strnatcmp(node->name, "user") != 0) {
+							node = node->next;
+						}
 						if(node != NULL) {
 							apr_xml_to_text(r->pool, node, APR_XML_X2T_INNER, NULL, NULL, (const char **)user, NULL);
 							return TRUE;
 						}
-					}
-					else if(apr_strnatcmp(node->name, "authenticationFailure") == 0) {
+					} else if(apr_strnatcmp(node->name, "authenticationFailure") == 0) {
 						attr = node->attr;
-						while(attr != NULL && apr_strnatcmp(attr->name, "code") != 0) { attr = attr->next; }
+						while(attr != NULL && apr_strnatcmp(attr->name, "code") != 0) {
+							attr = attr->next;
+						}
 						ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: %s", (attr == NULL ? "Unknown Error" : attr->value));
 						return FALSE;
 					}

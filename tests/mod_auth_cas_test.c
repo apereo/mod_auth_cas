@@ -684,7 +684,16 @@ char *get_attr(cas_cfg *c, cas_saml_attr *attrs, const char *attr) {
   return csvs;
 }
 
-START_TEST(isValidCASTicket_test) {
+/*
+ * CAS 3.5.1 switched from OpenSAML 1.1 to OpenSAML 2.x (https://issues.jasig.org/browse/CAS-951).
+ *
+ * OpenSAML 1.1 and 2.x produce slightly different XML structures, and old mod_auth_cas XML parsing
+ * code did not work with 2.x.  Therefore, we now have two unit tests for the two different XML
+ * structures: isValidCASTicket_OpenSAML1_test and isValidCASTicket_OpenSAML2_test
+ */
+
+/* Test OpenSAML 1.1 responses (CAS < 3.5.1) */
+START_TEST(isValidCASTicket_OpenSAML1_test) {
   const char *response =
       "<?xml version='1.0' encoding='UTF-8'?>"
       "<SOAP-ENV:Envelope xmlns:SOAP-ENV='http://schemas.xmlsoap.org/soap/envelope/'>"
@@ -729,6 +738,77 @@ START_TEST(isValidCASTicket_test) {
   cas_cfg *c = ap_get_module_config(request->server->module_config,
                                     &auth_cas_module);
   set_curl_response(response);
+  c->CASCertificatePath = "/";
+  c->CASValidateSAML = TRUE;
+  rv = isValidCASTicket(request, c, "ST-1234", &remoteUser, &attrs);
+  fail_if(rv == FALSE);
+  attr = get_attr(c, attrs, "FirstName");
+  fail_if(attr == NULL);
+  fail_unless(strcmp(attr, "Joe") == 0);
+  attr = get_attr(c, attrs, "Last Name");
+  fail_if(attr == NULL);
+  fail_unless(strcmp(attr, "Test") == 0);
+  attr = get_attr(c, attrs, "GroupList");
+  fail_if(attr == NULL);
+  fail_unless(strcmp(attr, "A,B" CAS_DEFAULT_ATTRIBUTE_DELIMITER "C") == 0);
+  attr = get_attr(c, attrs, "AuthenticationMethod");
+  fail_if(attr == NULL);
+  fail_unless(strcmp(attr, "urn:oasis:names:tc:SAML:1.0:am:password") == 0);
+}
+END_TEST
+
+/* Test OpenSAML 2.x responses (CAS >= 3.5.1) */
+START_TEST(isValidCASTicket_OpenSAML2_test) {
+  const char *response =
+      "<?xml version='1.0' encoding='UTF-8'?>"
+      "<SOAP-ENV:Envelope xmlns:SOAP-ENV='http://schemas.xmlsoap.org/soap/envelope/'>"
+      "<SOAP-ENV:Body>"
+      "<saml1p:Response xmlns:saml1p='urn:oasis:names:tc:SAML:1.0:protocol'"
+      " IssueInstant='2011-01-01T01:01:01.001Z'"
+      " MajorVersion='1' MinorVersion='1'"
+      " Recipient='https://example.com/example_app'"
+      " ResponseID='_0123456789abcdef0123456789abcdef'>"
+      "<saml1p:Status><saml1p:StatusCode Value='saml1p:Success'/></saml1p:Status>"
+      "<saml1:Assertion xmlns:saml1='urn:oasis:names:tc:SAML:1.0:assertion'"
+      " AssertionID='_0123456789abcdef0123456789abcdef'"
+      " IssueInstant='2011-01-01T01:01:01.001Z' Issuer='localhost'"
+      " MajorVersion='1' MinorVersion='1'>"
+      "<saml1:Conditions NotBefore='2011-01-01T12:00:00.000Z' NotOnOrAfter='2011-01-01T12:01:00.000Z'>"
+      "<saml1:AudienceRestrictionCondition>"
+      "<saml1:Audience>https://example.com/example_app</saml1:Audience>"
+      "</saml1:AudienceRestrictionCondition>"
+      "</saml1:Conditions>"
+      "<saml1:AuthenticationStatement AuthenticationMethod='urn:oasis:names:tc:SAML:1.0:am:password'>"
+      "<saml1:Subject><saml1:NameIdentifier>username</saml1:NameIdentifier></saml1:Subject>"
+      "</saml1:AuthenticationStatement>"
+      "<saml1:AttributeStatement>"
+      "<saml1:Subject><saml1:NameIdentifier>username</saml1:NameIdentifier></saml1:Subject>"
+      "<saml1:Attribute AttributeName='FirstName'"
+      " AttributeNamespace='http://www.ja-sig.org/products/cas/'>"
+      "<saml1:AttributeValue>Joe</saml1:AttributeValue>"
+      "</saml1:Attribute>"
+      "<saml1:Attribute AttributeName='Last Name'"
+      " AttributeNamespace='http://www.ja-sig.org/products/cas/'>"
+      "<saml1:AttributeValue>Test</saml1:AttributeValue>"
+      "</saml1:Attribute>"
+      "<saml1:Attribute AttributeName='GroupList'"
+      " AttributeNamespace='http://www.ja-sig.org/products/cas/'>"
+      "<saml1:AttributeValue>A,B</saml1:AttributeValue>"
+      "<saml1:AttributeValue>C</saml1:AttributeValue>"
+      "</saml1:Attribute>"
+      "</saml1:AttributeStatement>"
+      "</saml1:Assertion>"
+      "</saml1p:Response>"
+      "</SOAP-ENV:Body>"
+      "</SOAP-ENV:Envelope>";
+  char *remoteUser = NULL;
+  cas_saml_attr *attrs = NULL;
+  char *attr;
+  apr_byte_t rv;
+  cas_cfg *c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+  set_curl_response(response);
+  c->CASCertificatePath = "/";
   c->CASValidateSAML = TRUE;
   rv = isValidCASTicket(request, c, "ST-1234", &remoteUser, &attrs);
   fail_if(rv == FALSE);
@@ -1215,7 +1295,8 @@ Suite *mod_auth_cas_suite(void) {
   tcase_add_test(tc_core, CASSAMLLogout_test);
   tcase_add_test(tc_core, deleteCASCacheFile_test);
   tcase_add_test(tc_core, getResponseFromServer_test);
-  tcase_add_test(tc_core, isValidCASTicket_test);
+  tcase_add_test(tc_core, isValidCASTicket_OpenSAML1_test);
+  tcase_add_test(tc_core, isValidCASTicket_OpenSAML2_test);
   tcase_add_test(tc_core, isValidCASCookie_test);
   tcase_add_test(tc_core, cas_curl_write_test);
   tcase_add_test(tc_core, cas_curl_ssl_ctx_test);

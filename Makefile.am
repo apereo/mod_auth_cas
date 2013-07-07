@@ -41,3 +41,6 @@ ${DISTBALL}:
 	mkdir -p ${DISTDIR}
 	cp --parents ${DISTFILES} ${DISTDIR}
 	tar -czvf ${DISTBALL} ${DISTDIR}
+
+pretty:
+	cd src && $(MAKE) $@

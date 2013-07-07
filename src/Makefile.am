@@ -19,3 +19,6 @@ clean:
 
 distclean: clean
 	rm Makefile
+
+pretty:
+	@indent --continuation-indentation1 --continue-at-parentheses --no-tabs --tab-size2 --indent-level2 --line-length80 --comment-line-length80 --space-after-for --space-after-if --space-after-while -v src/*.c src/*.h

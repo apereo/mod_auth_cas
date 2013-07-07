@@ -1470,7 +1470,7 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 												}
 											} else if(apr_strnatcmp(as_node->name, "Attribute") == 0) {
 												attr = as_node->attr;
-												while(attr != NULL && apr_strnatcmp(attr->name, "AttributeName") != 0) {i
+												while(attr != NULL && apr_strnatcmp(attr->name, "AttributeName") != 0) {
 													attr = attr->next;
 												}
 												if(attr != NULL) {

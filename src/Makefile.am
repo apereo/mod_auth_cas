@@ -18,4 +18,4 @@ clean-local:
 	rm -rf mod_auth_cas.slo mod_auth_cas.la mod_auth_cas.lo cas_saml_attr.lo cas_saml_attr.slo .libs
 	
 pretty:
-	@indent --continuation-indentation1 --continue-at-parentheses --no-tabs --tab-size2 --indent-level2 --line-length80 --comment-line-length80 --space-after-for --space-after-if --space-after-while -v src/*.c src/*.h
+	@indent --continuation-indentation1 --continue-at-parentheses --no-tabs --tab-size2 --indent-level2 --line-length80 --comment-line-length80 --space-after-for --space-after-if --space-after-while -v *.c *.h

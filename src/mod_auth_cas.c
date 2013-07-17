@@ -729,6 +729,9 @@ char *getCASCookie(request_rec *r, char *cookieName)
 	char *cookie, *tokenizerCtx, *rv = NULL;
 	apr_byte_t cookieFound = FALSE;
 	char *cookies = apr_pstrdup(r->pool, (char *) apr_table_get(r->headers_in, "Cookie"));
+	cas_cfg *c;
+	apr_byte_t isValid = FALSE;
+	cas_cache_entry cache;
 
 	if(cookies != NULL) {
 		/* tokenize on ; to find the cookie we want */
@@ -749,7 +752,12 @@ char *getCASCookie(request_rec *r, char *cookieName)
 		} while (cookieFound == FALSE);
 	}
 
-	return rv;
+	if(rv != NULL) {
+		c = ap_get_module_config(r->server->module_config, &auth_cas_module);
+		isValid = readCASCacheFile(r, c, rv, &cache);
+	}
+
+	return isValid ? rv : NULL;
 }
 
 void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure)
@@ -2038,6 +2046,9 @@ int cas_authenticate(request_rec *r)
 		redirectRequest(r, c);
 		return HTTP_MOVED_TEMPORARILY;
 	} else {
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Got CAS cookie string: %s", cookieString);
+
 		if(!ap_is_initial_req(r) && c->CASValidateSAML == FALSE) {
 			/*
 			 * MAS-27 fix:  copy the user from the initial request to prevent a hit on the backing

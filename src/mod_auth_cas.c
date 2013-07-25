@@ -169,6 +169,7 @@ void *cas_create_dir_config(apr_pool_t *pool, char *path)
 	c->CASSecureCookie = CAS_DEFAULT_SCOOKIE;
 	c->CASGatewayCookie = CAS_DEFAULT_GATEWAY_COOKIE;
 	c->CASAuthNHeader = CAS_DEFAULT_AUTHN_HEADER;
+	c->CASValidateRedirectTicket = CAS_DEFAULT_VALIDATE_REDIRECT_TICKET;
 	c->CASScrubRequestHeaders = CAS_DEFAULT_SCRUB_REQUEST_HEADERS;
 	return(c);
 }
@@ -207,6 +208,8 @@ void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 	if (add->CASAuthNHeader != NULL && apr_strnatcasecmp(add->CASAuthNHeader, "Off") == 0)
 		c->CASAuthNHeader = NULL;
 
+	c->CASValidateRedirectTicket = (add->CASValidateRedirectTicket != CAS_DEFAULT_VALIDATE_REDIRECT_TICKET) ? add->CASValidateRedirectTicket : base->CASValidateRedirectTicket;
+
 	c->CASScrubRequestHeaders = (add->CASScrubRequestHeaders != CAS_DEFAULT_SCRUB_REQUEST_HEADERS ?
 		 add->CASScrubRequestHeaders :
 		 base->CASScrubRequestHeaders);
@@ -214,6 +217,13 @@ void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 		c->CASScrubRequestHeaders = NULL;
 
 	return(c);
+}
+
+const char *cfg_read_validateredirectticket(cmd_parms *cmd, void *cfg, int flag)
+{
+	cas_dir_cfg *c = (cas_dir_cfg *) cfg;
+	c->CASValidateRedirectTicket = flag;
+	return NULL;
 }
 
 const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
@@ -1550,6 +1560,7 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 
 apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **user, cas_saml_attr **attrs)
 {
+	char *path;
 	cas_cache_entry cache;
 	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
 
@@ -1562,6 +1573,8 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' is corrupt or invalid", cookie);
 		return FALSE;
 	}
+
+	path = apr_psprintf(r->pool, "%s%s", c->CASCookiePath, cookie);
 
 	/*
 	 * mitigate session hijacking by not allowing cookies transmitted in the clear to be submitted
@@ -1722,6 +1735,9 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 		curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
 
 	memcpy(&validateURL, &c->CASValidateURL, sizeof(apr_uri_t));
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK,APLOG_DEBUG,0,r,"MOD_AUTH_CAS: validateUrl: %s", apr_uri_unparse(r->pool, &validateURL, 0));
+
 	if(c->CASValidateSAML == FALSE)
 		validateURL.query = apr_psprintf(r->pool, "service=%s&ticket=%s%s", getCASService(r, c), ticket, getCASRenew(r));
 	else
@@ -1738,8 +1754,10 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	if(headers != NULL)
 		curl_slist_free_all(headers);
 
-	if(c->CASDebug)
+	if(c->CASDebug) {
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Query: %s", validateURL.query);
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Validation response: %s", curlBuffer.buf);
+	}
 
 	rv = apr_pstrndup(r->pool, curlBuffer.buf, strlen(curlBuffer.buf));
 
@@ -2008,31 +2026,34 @@ int cas_authenticate(request_rec *r)
 			if(d->CASAuthNHeader != NULL)
 				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);
 
-			if(parametersRemoved == TRUE) {
-				if(ssl == TRUE && port != 443)
-					printPort = TRUE;
-				else if(port != 80)
-					printPort = TRUE;
+			if(d->CASValidateRedirectTicket == TRUE) {
+				if(parametersRemoved == TRUE) {
+					if(ssl == TRUE && port != 443)
+						printPort = TRUE;
+					else if(port != 80)
+						printPort = TRUE;
 
-				if(c->CASRootProxiedAs.is_initialized) {
-						newLocation = apr_psprintf(r->pool, "%s%s%s%s", apr_uri_unparse(r->pool, &c->CASRootProxiedAs, 0), r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-				} else {
+					if(c->CASRootProxiedAs.is_initialized) {
+							newLocation = apr_psprintf(r->pool, "%s%s%s%s", apr_uri_unparse(r->pool, &c->CASRootProxiedAs, 0), r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
+					} else {
 #ifdef APACHE2_0
-					if(printPort == TRUE)
-						newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_method(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-					else
-						newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_method(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
+						if(printPort == TRUE)
+							newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_method(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
+						else
+							newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_method(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
 #else
-					if(printPort == TRUE)
-						newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-					else
-						newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
+						if(printPort == TRUE)
+							newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
+						else
+							newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
 #endif
+					}
+					ap_log_rerror(APLOG_MARK,APLOG_DEBUG,0,r,"Sending 302 redirect (%s)", newLocation);
+					apr_table_add(r->headers_out, "Location", newLocation);
+					return HTTP_MOVED_TEMPORARILY;
+				} else {
+					return OK;
 				}
-				apr_table_add(r->headers_out, "Location", newLocation);
-				return HTTP_MOVED_TEMPORARILY;
-			} else {
-				return OK;
 			}
 		} else {
 			/* sometimes, pages that automatically refresh will re-send the ticket parameter, so let's check any cookies presented or return an error if none */
@@ -2619,6 +2640,7 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASRenew", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASRenew), ACCESS_CONF|OR_AUTHCFG, "Force credential renew (/app/secure/ will require renew on /app/secure/*)"),
 	AP_INIT_TAKE1("CASGateway", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASGateway), ACCESS_CONF|OR_AUTHCFG, "Allow anonymous access if no CAS session is established on this path (e.g. /app/insecure/ will allow gateway access to /app/insecure/*), CAS v2 only"),
 	AP_INIT_TAKE1("CASAuthNHeader", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASAuthNHeader), ACCESS_CONF|OR_AUTHCFG, "Specify the HTTP header variable to set with the name of the CAS authenticated user.  By default no headers are added."),
+	AP_INIT_FLAG("CASValidateRedirectTicket", cfg_read_validateredirectticket, NULL, OR_AUTHCFG, "Default on, disable to not force 302 redirect on validation"),
 	AP_INIT_TAKE1("CASSSOEnabled", cfg_readCASParameter, (void *) cmd_sso, RSRC_CONF, "Enable or disable Single Sign Out functionality (On or Off)"),
 	AP_INIT_TAKE1("CASAttributeDelimiter", cfg_readCASParameter, (void *) cmd_attribute_delimiter, RSRC_CONF, "The delimiter to use when setting multi-valued attributes in the HTTP headers"),
 	AP_INIT_TAKE1("CASAttributePrefix", cfg_readCASParameter, (void *) cmd_attribute_prefix, RSRC_CONF, "The prefix to use when setting attributes in the HTTP headers"),

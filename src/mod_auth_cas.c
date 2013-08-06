@@ -210,6 +210,8 @@ void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 	
         c->CASValidateRedirectTicket = (add->CASValidateRedirectTicket != CAS_DEFAULT_VALIDATE_REDIRECT_TICKET) ? add->CASValidateRedirectTicket : base->CASValidateRedirectTicket;
 
+	c->CASValidateRedirectTicket = (add->CASValidateRedirectTicket != CAS_DEFAULT_VALIDATE_REDIRECT_TICKET) ? add->CASValidateRedirectTicket : base->CASValidateRedirectTicket;
+
 	c->CASScrubRequestHeaders = (add->CASScrubRequestHeaders != CAS_DEFAULT_SCRUB_REQUEST_HEADERS ?
 		 add->CASScrubRequestHeaders :
 		 base->CASScrubRequestHeaders);
@@ -739,6 +741,9 @@ char *getCASCookie(request_rec *r, char *cookieName)
 	char *cookie, *tokenizerCtx, *rv = NULL;
 	apr_byte_t cookieFound = FALSE;
 	char *cookies = apr_pstrdup(r->pool, (char *) apr_table_get(r->headers_in, "Cookie"));
+	cas_cfg *c;
+	apr_byte_t isValid = FALSE;
+	cas_cache_entry cache;
 
 	if(cookies != NULL) {
 		/* tokenize on ; to find the cookie we want */
@@ -759,7 +764,12 @@ char *getCASCookie(request_rec *r, char *cookieName)
 		} while (cookieFound == FALSE);
 	}
 
-	return rv;
+	if(rv != NULL) {
+		c = ap_get_module_config(r->server->module_config, &auth_cas_module);
+		isValid = readCASCacheFile(r, c, rv, &cache);
+	}
+
+	return isValid ? rv : NULL;
 }
 
 void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure)
@@ -1949,7 +1959,7 @@ int cas_authenticate(request_rec *r)
 	apr_byte_t parametersRemoved = FALSE;
 	apr_port_t port = r->connection->local_addr->port;
 	apr_byte_t printPort = FALSE;
-
+	apr_byte_t gatewayEnabled = FALSE;
 	char *newLocation = NULL;
 
 	/* Do nothing if we are not the authenticator */
@@ -1977,12 +1987,19 @@ int cas_authenticate(request_rec *r)
 	ticket = getCASTicket(r);
 	cookieString = getCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie));
 
+	// ADE : if we have a cookieString AND a ticket, don't remove the ticket because it can be requested on the proxied backend servers
+	if(cookieString != NULL && ticket != NULL)
+		ticket=NULL;
+
 	// only remove parameters if a ticket was found (makes no sense to do this otherwise)
 	if(ticket != NULL)
 		parametersRemoved = removeCASParams(r);
 
+	if(d->CASGateway != NULL)
+		gatewayEnabled = strncmp(d->CASGateway, r->parsed_uri.path, strlen(d->CASGateway)) == 0;
+
 	/* first, handle the gateway case */
-	if(d->CASGateway != NULL && strncmp(d->CASGateway, r->parsed_uri.path, strlen(d->CASGateway)) == 0 && ticket == NULL && cookieString == NULL) {
+	if(gatewayEnabled == TRUE && ticket == NULL && cookieString == NULL) {
 		cookieString = getCASCookie(r, d->CASGatewayCookie);
 		if(cookieString == NULL) { /* they have not made a gateway trip yet */
 			if(c->CASDebug)
@@ -2022,17 +2039,17 @@ int cas_authenticate(request_rec *r)
 					if(c->CASRootProxiedAs.is_initialized) {
 							newLocation = apr_psprintf(r->pool, "%s%s%s%s", apr_uri_unparse(r->pool, &c->CASRootProxiedAs, 0), r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
 					} else {
-	#ifdef APACHE2_0	
+#ifdef APACHE2_0
 						if(printPort == TRUE)
 							newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_method(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
 						else
 							newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_method(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-	#else	
+#else
 						if(printPort == TRUE)
 							newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
 						else
 							newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-	#endif
+#endif
 					}
 					ap_log_rerror(APLOG_MARK,APLOG_DEBUG,0,r,"Sending 302 redirect (%s)", newLocation);
 					apr_table_add(r->headers_out, "Location", newLocation);
@@ -2053,6 +2070,9 @@ int cas_authenticate(request_rec *r)
 		redirectRequest(r, c);
 		return HTTP_MOVED_TEMPORARILY;
 	} else {
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Got CAS cookie string: %s", cookieString);
+
 		if(!ap_is_initial_req(r) && c->CASValidateSAML == FALSE) {
 			/*
 			 * MAS-27 fix:  copy the user from the initial request to prevent a hit on the backing
@@ -2083,24 +2103,35 @@ int cas_authenticate(request_rec *r)
 			r->user = remoteUser;
 			if(d->CASAuthNHeader != NULL) {
 				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);
- 				if(attrs != NULL) {
- 					cas_saml_attr *a = attrs;
- 					while(a != NULL) {
- 						cas_saml_attr_val *av = a->values;
- 						char *csvs = NULL;
- 						while(av != NULL) {
- 							if(csvs != NULL) {
- 								csvs = apr_psprintf(r->pool, "%s%s%s", csvs, c->CASAttributeDelimiter, av->value);
- 							} else {
- 								csvs = apr_psprintf(r->pool, "%s", av->value);
- 							}
- 							av = av->next;
- 						}
- 						apr_table_set(r->headers_in, apr_psprintf(r->pool, "%s%s", c->CASAttributePrefix, normalizeHeaderName(r, a->attr)), csvs);
- 						a = a->next;
- 					}
- 				}
- 			}
+			}
+			if(attrs != NULL) {
+				cas_saml_attr *a = attrs;
+				while(a != NULL) {
+					cas_saml_attr_val *av = a->values;
+					char *csvs = NULL;
+					while(av != NULL) {
+						if(csvs != NULL) {
+							csvs = apr_psprintf(r->pool, "%s%s%s", csvs,
+							  c->CASAttributeDelimiter, av->value);
+						} else {
+							csvs = apr_psprintf(r->pool, "%s", av->value);
+						}
+						av = av->next;
+					}
+					apr_table_set(r->headers_in, apr_psprintf(r->pool, "%s%s",
+					  c->CASAttributePrefix, normalizeHeaderName(r, a->attr)),
+					  csvs);
+					a = a->next;
+				}
+			}
+
+			return OK;
+		} else if(gatewayEnabled == TRUE) {
+			/* Handle the edge case where gateway-ing is enabled, the upstream CAS session has expired
+			 * but the client still sends a MOD_AUTH_CAS cookie. If we redirect to the CAS server with
+			 * "service=request_uri&gateway=true", we'd create an infinite loop.
+			 */
+			r->main = NULL;
 			return OK;
 		} else {
 			/* maybe the cookie expired, have the user get a new service ticket */

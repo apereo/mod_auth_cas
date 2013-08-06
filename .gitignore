@@ -12,3 +12,7 @@ tests/mactest
 tests/check_mac
 tests/*.gcda
 tests/*.gcno
+/.settings
+.project
+.DS_Store
+.cproject

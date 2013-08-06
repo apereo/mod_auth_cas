@@ -362,6 +362,12 @@ Description:	Use this directive with an argument as a relative path (e.g. /appli
 		To disable this requirement, the special argument 'Off' will disable this requirement
 		for this directory and subdirectories.
 
+Directive:	CASValidateRedirectTicket
+Default:	On
+Description:	When disabled, Off, don't send 302 redirect to the client.  Just allows
+		the request through with the ticket parameter.  For use with CAS enabled
+                web services.
+
 Directive: 	CASGateway
 Default:	Off
 Description:	Use this directive with an argument as a relative path (e.g. /application/insecure/

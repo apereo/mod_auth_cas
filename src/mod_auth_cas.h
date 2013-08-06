@@ -92,6 +92,7 @@
 #define CAS_DEFAULT_SCOOKIE "MOD_AUTH_CAS_S"
 #define CAS_DEFAULT_GATEWAY_COOKIE "MOD_CAS_G"
 #define CAS_DEFAULT_AUTHN_HEADER NULL
+#define CAS_DEFAULT_VALIDATE_REDIRECT_TICKET TRUE 
 #define CAS_DEFAULT_SCRUB_REQUEST_HEADERS NULL
 #define CAS_DEFAULT_SSO_ENABLED FALSE
 #define CAS_DEFAULT_AUTHORITATIVE FALSE
@@ -133,6 +134,7 @@ typedef struct cas_cfg {
 } cas_cfg;
 
 typedef struct cas_dir_cfg {
+	unsigned int CASValidateRedirectTicket;
 	char *CASScope;
 	char *CASRenew;
 	char *CASGateway;
@@ -164,7 +166,7 @@ typedef enum {
 	cmd_ca_path, cmd_cookie_path, cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy,
 	cmd_session_timeout, cmd_idle_timeout, cmd_cache_interval, cmd_cookie_domain, cmd_cookie_httponly,
 	cmd_sso, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix, cmd_root_proxied_as,
-	cmd_authoritative
+	cmd_authoritative, cmd_validredirticket
 } valid_cmds;
 
 module AP_MODULE_DECLARE_DATA auth_cas_module;
@@ -174,6 +176,7 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD);
 void *cas_create_dir_config(apr_pool_t *pool, char *path);
 void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD);
 const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value);
+const char *cfg_read_validateredirectticket(cmd_parms *cmd, void *cfg, int flag);
 char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket);
 apr_byte_t validCASTicketFormat(const char *ticket);
 apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **user, cas_saml_attr **attrs);

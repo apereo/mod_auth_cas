@@ -50,6 +50,10 @@
 #include "apr_strings.h"
 #include "apr_xml.h"
 
+#if MODULE_MAGIC_NUMBER_MAJOR >= 20120211
+#include "mod_auth.h"
+#endif
+
 #include "cas_saml_attr.h"
 
 /* Apache is NOT a well-behaved citizen. It unconditionally
@@ -2213,7 +2217,49 @@ int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const 
 	}
 	return CAS_ATTR_NO_MATCH;
 }
+#if MODULE_MAGIC_NUMBER_MAJOR >= 20120211
 
+static authz_status cas_check_authorization(request_rec *r,
+						const char *require_line,
+						const void *parsed_require_line)
+{
+	const cas_saml_attr *const attrs = cas_get_attributes(r);
+
+	const char *t, *w;
+	int count_casattr = 0;
+    
+	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+			"Entering cas_check_authorization.");
+
+	t = require_line;
+	while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
+		count_casattr++;
+		if (cas_match_attribute(w, attrs, r) == CAS_ATTR_MATCH) {
+			/* If *any* attribute matches, then
+			 * authorization has succeeded and all
+			 * of the others are ignored. */
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+					"Require cas-attribute "
+					"'%s' matched", w);
+			return AUTHZ_GRANTED;
+		}
+	}
+    
+	if (count_casattr == 0) {
+		ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+			  "'Require cas-attribute' missing specification(s) in configuration. Declining.");
+		return DECLINED;
+	}
+	return AUTHZ_DENIED;
+}
+
+static const authz_provider authz_cas_provider =
+{
+	&cas_check_authorization,
+	NULL,
+};
+
+#else
 
 /* CAS authorization module, code adopted from Nick Kew's Apache Modules Book, 2007, p. 190f */
 int cas_authorize(request_rec *r)
@@ -2344,6 +2390,8 @@ int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const
 
 	return HTTP_UNAUTHORIZED;
 }
+
+#endif
 
 #if (defined(OPENSSL_THREADS) && APR_HAS_THREADS)
 
@@ -2563,12 +2611,15 @@ apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode
 
 void cas_register_hooks(apr_pool_t *p)
 {
-	/* make sure we run before mod_authz_user so that a "require valid-user"
-         *  directive doesn't just automatically pass us. */
-	static const char *const authzSucc[] = { "mod_authz_user.c", NULL };
-
 	ap_hook_post_config(cas_post_config, NULL, NULL, APR_HOOK_LAST);
-#if MODULE_MAGIC_NUMBER_MAJOR >= 20100714
+#if MODULE_MAGIC_NUMBER_MAJOR >= 20120211
+	ap_hook_check_access(
+		cas_authenticate,
+		NULL,
+		NULL,
+		APR_HOOK_MIDDLE,
+		AP_AUTH_INTERNAL_PER_URI);
+#elif MODULE_MAGIC_NUMBER_MAJOR >= 20100714
 	ap_hook_check_access_ex(
 		cas_authenticate,
 		NULL,
@@ -2578,7 +2629,16 @@ void cas_register_hooks(apr_pool_t *p)
 #else
 	ap_hook_check_user_id(cas_authenticate, NULL, NULL, APR_HOOK_MIDDLE);
 #endif
-ap_hook_auth_checker(cas_authorize, NULL, authzSucc, APR_HOOK_MIDDLE);
+#if MODULE_MAGIC_NUMBER_MAJOR >= 20120211
+	ap_register_auth_provider(p, AUTHZ_PROVIDER_GROUP, "cas-attribute",
+		AUTHZ_PROVIDER_VERSION,
+		&authz_cas_provider, AP_AUTH_INTERNAL_PER_CONF);
+#else
+	/* make sure we run before mod_authz_user so that a "require valid-user"
+	 *  directive doesn't just automatically pass us. */
+	static const char *const authzSucc[] = { "mod_authz_user.c", NULL };
+	ap_hook_auth_checker(cas_authorize, NULL, authzSucc, APR_HOOK_MIDDLE);
+#endif
 	ap_register_input_filter("CAS", cas_in_filter, NULL, AP_FTYPE_RESOURCE);
 }
 

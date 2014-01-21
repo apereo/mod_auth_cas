@@ -22,6 +22,9 @@
  *
  */
 
+#include <error.h>
+#include <string.h>
+#include <sys/file.h>
 #include <sys/types.h>
 
 #include <openssl/crypto.h>
@@ -72,6 +75,24 @@
 static apr_thread_mutex_t **ssl_locks;
 static int ssl_num_locks;
 #endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
+
+int cas_flock(apr_file_t *fileHandle, int lockOperation, request_rec *r)
+{
+	apr_os_file_t osFileHandle;
+	int flockErr;
+
+	apr_os_file_get(&osFileHandle, fileHandle);
+
+	do {
+		flockErr = flock(osFileHandle, lockOperation);
+	} while(flockErr == -1 && errno == EINTR);
+
+	if(r != NULL && flockErr) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Failed to apply locking operation (%s)", strerror(errno));
+	}
+
+	return flockErr;
+}
 
 /* mod_auth_cas configuration specific functions */
 void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
@@ -907,7 +928,13 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 		return FALSE;
 	}
 
-	apr_file_lock(f, APR_FLOCK_SHARED);
+	if(cas_flock(f, LOCK_SH, r)) {
+		if(c->CASDebug) {
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not obtain shared lock on %s", name);
+		}
+		apr_file_close(f);
+		return FALSE;
+	}
 
 	/* read the various values we store */
 	apr_file_seek(f, APR_SET, &begin);
@@ -927,6 +954,12 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 		}
 
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Error parsing XML content (%s)", errbuf);
+		if(cas_flock(f, LOCK_UN, r)) {
+			if(c->CASDebug) {
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release shared lock on %s", name);
+			}
+		}
+		apr_file_close(f);
 		return FALSE;
 	}
 
@@ -958,11 +991,25 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 		if (apr_strnatcasecmp(e->name, "user") == 0)
 			cache->user = apr_pstrndup(r->pool, val, strlen(val));
 		else if (apr_strnatcasecmp(e->name, "issued") == 0) {
-			if(sscanf(val, "%" APR_TIME_T_FMT, &(cache->issued)) != 1)
+			if(sscanf(val, "%" APR_TIME_T_FMT, &(cache->issued)) != 1) {
+				if(cas_flock(f, LOCK_UN, r)) {
+					if(c->CASDebug) {
+						ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release shared lock on %s", name);
+					}
+				}
+				apr_file_close(f);
 				return FALSE;
+			}
 		} else if (apr_strnatcasecmp(e->name, "lastactive") == 0) {
-			if(sscanf(val, "%" APR_TIME_T_FMT, &(cache->lastactive)) != 1)
+			if(sscanf(val, "%" APR_TIME_T_FMT, &(cache->lastactive)) != 1) {
+				if(cas_flock(f, LOCK_UN, r)) {
+					if(c->CASDebug) {
+						ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release shared lock on %s", name);
+					}
+				}
+				apr_file_close(f);
 				return FALSE;
+			}
 		} else if (apr_strnatcasecmp(e->name, "path") == 0)
 			cache->path = apr_pstrndup(r->pool, val, strlen(val));
 		else if (apr_strnatcasecmp(e->name, "renewed") == 0)
@@ -992,7 +1039,11 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 		e = e->next;
 	} while (e != NULL);
 
-	apr_file_unlock(f);
+	if(cas_flock(f, LOCK_UN, r)) {
+		if(c->CASDebug) {
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release shared lock on %s", name);
+		}
+	}
 	apr_file_close(f);
 	return TRUE;
 }
@@ -1024,14 +1075,24 @@ void CASCleanCache(request_rec *r, cas_cfg *c)
 		}
 	}
 
-	apr_file_lock(metaFile, APR_FLOCK_EXCLUSIVE);
+	if(cas_flock(metaFile, LOCK_EX, r)) {
+		if(c->CASDebug) {
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not obtain exclusive lock on %s", path);
+		}
+		apr_file_close(metaFile);
+		return;
+	}
 	apr_file_seek(metaFile, APR_SET, &begin);
 
 	/* if the file was not created on this method invocation (APR_FOPEN_READ is not used above during creation) see if it is time to clean the cache */
 	if((apr_file_flags_get(metaFile) & APR_FOPEN_READ) != 0) {
 		apr_file_gets(line, sizeof(line), metaFile);
 		if(sscanf(line, "%" APR_TIME_T_FMT, &lastClean) != 1) { /* corrupt file */
-			apr_file_unlock(metaFile);
+			if(cas_flock(metaFile, LOCK_UN, r)) {
+				if(c->CASDebug) {
+					ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release exclusive lock on %s", path);
+				}
+			}
 			apr_file_close(metaFile);
 			apr_file_remove(path, r->pool);
 			if(c->CASDebug)
@@ -1040,7 +1101,11 @@ void CASCleanCache(request_rec *r, cas_cfg *c)
 		}
 		if(lastClean > (apr_time_now()-(c->CASCacheCleanInterval*((apr_time_t) APR_USEC_PER_SEC)))) { /* not enough time has elapsed */
 			/* release the locks and file descriptors that we no longer need */
-			apr_file_unlock(metaFile);
+			if(cas_flock(metaFile, LOCK_UN, r)) {
+				if(c->CASDebug) {
+					ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release exclusive lock on %s", path);
+				}
+			}
 			apr_file_close(metaFile);
 			if(c->CASDebug)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Insufficient time elapsed since last cache clean");
@@ -1055,7 +1120,12 @@ void CASCleanCache(request_rec *r, cas_cfg *c)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Beginning cache clean");
 
 	apr_file_printf(metaFile, "%" APR_TIME_T_FMT "\n", apr_time_now());
-	apr_file_unlock(metaFile);
+	if(cas_flock(metaFile, LOCK_UN, r)) {
+		if(c->CASDebug) {
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release exclusive lock on %s", path);
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Continuing with cache clean...");
+		}
+	}
 	apr_file_close(metaFile);
 
 	/* read all the files in the directory */
@@ -1131,8 +1201,10 @@ apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache
 		}
 
 		/* update the file with a new idle time if a write lock can be obtained */
-		if(apr_file_lock(f, APR_FLOCK_EXCLUSIVE) != APR_SUCCESS) {
-			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: could not obtain an exclusive lock on %s", path);
+		if(cas_flock(f, LOCK_EX, r)) {
+			if(c->CASDebug) {
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not obtain exclusive lock on %s", name);
+			}
 			apr_file_close(f);
 			return FALSE;
 		} else
@@ -1169,8 +1241,13 @@ apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache
 		apr_file_printf(f, "<secure />\n");
 	apr_file_printf(f, "</cacheEntry>\n");
 
-	if(lock != FALSE)
-		apr_file_unlock(f);
+	if(lock != FALSE) {
+		if(cas_flock(f, LOCK_UN, r)) {
+			if(c->CASDebug) {
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release exclusive lock on %s", name);
+			}
+		}
+	}
 
 	apr_file_close(f);
 

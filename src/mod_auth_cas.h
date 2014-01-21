@@ -235,6 +235,8 @@ int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const 
 int cas_authorize(request_rec *r);
 int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const require_line *const reqs, int nelts, const cas_cfg *const c);
 
+/* Fancy wrapper around flock() */
+int cas_flock(apr_file_t *fileHandle, int lockOperation, request_rec *r);
 
 /* apr forward compatibility */
 #ifndef APR_FOPEN_READ

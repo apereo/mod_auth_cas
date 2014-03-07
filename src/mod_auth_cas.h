@@ -45,6 +45,10 @@
 #define LIBCURL_NO_CURLPROTO
 #endif
 
+#if MODULE_MAGIC_NUMBER_MAJOR >= 20120211
+#include "mod_auth.h"
+#endif
+
 #include "cas_saml_attr.h"
 
 #ifndef AP_SERVER_MAJORVERSION_NUMBER
@@ -232,9 +236,12 @@ const cas_saml_attr *cas_get_attributes(request_rec *r);
 int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const attributes, struct request_rec *r);
 
 /* Authorization check */
+#if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 int cas_authorize(request_rec *r);
 int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const require_line *const reqs, int nelts, const cas_cfg *const c);
-
+#else
+authz_status cas_check_authorization(request_rec *r, const char *require_line, const void *parsed_require_line);
+#endif
 
 /* apr forward compatibility */
 #ifndef APR_FOPEN_READ

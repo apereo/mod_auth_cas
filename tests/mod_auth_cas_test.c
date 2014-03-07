@@ -932,6 +932,7 @@ START_TEST(cas_register_hooks_test) {
 }
 END_TEST
 
+#if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 START_TEST(cas_attribute_authz_test) {
   int should_fail1, should_fail2, should_succeed1, should_succeed2,
       should_succeed3, should_succeed4, should_succeed5, should_decline1,
@@ -1055,6 +1056,83 @@ START_TEST(cas_attribute_authz_test) {
               (should_decline2 == DECLINED));
 }
 END_TEST
+
+#else
+
+START_TEST(cas_attribute_authz_test) {
+  int should_fail1, should_fail2, should_succeed1, should_succeed2,
+      should_succeed3;
+  cas_saml_attr *attrs = NULL;
+  cas_attr_builder *builder;
+  int i;
+
+  const char *old_method;
+  int old_method_number;
+
+  /* Manually create some SAML attributes.  These attributes represent
+   * a CAS attribute payload returned by CAS.  This test will apply an
+   * authorization policy to these attributes to test its behavior.
+   */
+  struct test_data {
+      const char *const k;
+      const char *const v;
+  } test_data_list[] = {
+      {"key1", "val1"},
+      {"key1", "val2"},
+      {"key2", "val3"},
+      {"should", "succeed"},
+      {"regexAttribute", "urn:mace:example.edu:testing?placeholder=there&success=true"},
+      {0, 0} /* NULL terminator */
+  };
+
+  const char *r[] = {
+	  "hopefully:fail should:fail",
+	  "hopefully:fail should:succeed",
+	  "regexAttribute~.+:testing\?.*success=true.*",
+	  "regexAttribute~.+:testing\?.*success=TRUE.*",
+	  "regexAttribute~.+:testing\?.*(?i:success=TRUE).*",
+	  NULL
+  };
+  
+  // Build a CAS attribute structure.
+  builder = cas_attr_builder_new(pool, &attrs);
+  i = 0;
+  while (1) {
+      struct test_data d = test_data_list[i];
+      if (d.v == NULL) break;
+
+      cas_attr_builder_add(builder, d.k, d.v);
+      i++;
+  }
+
+  cas_set_attributes(request, attrs);
+  
+  /* Allow these tests to pass - simulate a GET request. */
+  old_method = request->method;
+  old_method_number = request->method_number;
+  request->method = "GET";
+  request->method_number = M_GET;
+
+  should_fail1 = cas_check_authorization(request, r[0], (const void*)0);
+  should_fail2 = cas_check_authorization(request, r[3], (const void*)0);
+  should_succeed1 = cas_check_authorization(request, r[1], (const void*)0);
+  should_succeed2 = cas_check_authorization(request, r[2], (const void*)0);
+  should_succeed3 = cas_check_authorization(request, r[4], (const void*)0);
+
+  /* Restore the request object */
+  request->method = old_method;
+  request->method_number = old_method_number;
+
+  fail_unless((should_fail1 == AUTHZ_DENIED) &&
+              (should_fail2 == AUTHZ_DENIED) &&
+              (should_succeed1 == AUTHZ_GRANTED) &&
+              (should_succeed2 == AUTHZ_GRANTED) &&
+              (should_succeed3 == AUTHZ_GRANTED));
+}
+END_TEST
+
+#endif
+
 
 /* Generate a null-terminated string of random bytes between one and
  * length_limit characters */
@@ -1233,6 +1311,8 @@ void core_setup(void) {
 
   d_cfg = cas_create_dir_config(request->pool, NULL);
 
+  request->request_config = apr_pcalloc(request->pool,
+                                      sizeof(ap_conf_vector_t *)*kEls);  
   request->server->module_config = apr_pcalloc(request->pool,
                                                sizeof(ap_conf_vector_t *)*kEls);
   request->per_dir_config = apr_pcalloc(request->pool,

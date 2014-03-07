@@ -50,10 +50,6 @@
 #include "apr_strings.h"
 #include "apr_xml.h"
 
-#if MODULE_MAGIC_NUMBER_MAJOR >= 20120211
-#include "mod_auth.h"
-#endif
-
 #include "cas_saml_attr.h"
 
 /* Apache is NOT a well-behaved citizen. It unconditionally
@@ -2219,17 +2215,19 @@ int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const 
 }
 #if MODULE_MAGIC_NUMBER_MAJOR >= 20120211
 
-static authz_status cas_check_authorization(request_rec *r,
+authz_status cas_check_authorization(request_rec *r,
 						const char *require_line,
 						const void *parsed_require_line)
 {
+	const cas_cfg *const c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 	const cas_saml_attr *const attrs = cas_get_attributes(r);
 
 	const char *t, *w;
 	int count_casattr = 0;
     
-	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-			"Entering cas_check_authorization.");
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+			      "Entering cas_check_authorization.");
 
 	t = require_line;
 	while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
@@ -2238,17 +2236,18 @@ static authz_status cas_check_authorization(request_rec *r,
 			/* If *any* attribute matches, then
 			 * authorization has succeeded and all
 			 * of the others are ignored. */
-			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-					"Require cas-attribute "
-					"'%s' matched", w);
+			if(c->CASDebug)
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+					      "Require cas-attribute "
+					      "'%s' matched", w);
 			return AUTHZ_GRANTED;
 		}
 	}
     
 	if (count_casattr == 0) {
-		ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-			  "'Require cas-attribute' missing specification(s) in configuration. Declining.");
-		return DECLINED;
+		if(c->CASDebug)	
+			ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+				      "'Require cas-attribute' missing specification(s) in configuration. Declining.");
 	}
 	return AUTHZ_DENIED;
 }
@@ -2273,11 +2272,13 @@ int cas_authorize(request_rec *r)
 		ap_get_module_config(r->server->module_config,
 				     &auth_cas_module);
 
-	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
 		      "Entering cas_authorize.");
 
 	if (!reqs_arr) {
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
 			      "No require statements found, "
 			      "so declining to perform authorization.");
 		return DECLINED;
@@ -2337,7 +2338,8 @@ int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const
 			token = ap_getword_conf(r->pool, &requirement);
 			count_casattr++;
 
-			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+			if(c->CASDebug)
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
 				     "Evaluating attribute specification: %s",
 				     token);
 
@@ -2347,7 +2349,8 @@ int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const
 				/* If *any* attribute matches, then
 				 * authorization has succeeded and all
 				 * of the others are ignored. */
-				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+				if(c->CASDebug)
+					ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
 					      "Require cas-attribute "
 					      "'%s' matched", token);
 				return OK;
@@ -2359,7 +2362,8 @@ int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const
 	 * we're irrelevant.
 	 */
 	if (!have_casattr) {
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
 			      "No cas-attribute statements found. "
                               "Not performing authZ.");
 		return DECLINED;
@@ -2368,14 +2372,16 @@ int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const
 	 * that's cause to warn the admin of an iffy configuration.
 	 */
 	if (count_casattr == 0) {
-		ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
 			      "'Require cas-attribute' missing specification(s) in configuration. Declining.");
 		return DECLINED;
 	}
 
 	/* If we're not authoritative, hand over to other authz modules */
 	if (!c->CASAuthoritative) {
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
 			      "Authorization failed, but we are not "
 			      "authoritative, thus handing over to other "
 			      "module(s).");
@@ -2383,7 +2389,8 @@ int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const
 	}
 
 	/* OK, our decision is final and binding */
-	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
 		      "Authorization denied for client session");
 
 	ap_note_auth_failure(r);

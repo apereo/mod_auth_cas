@@ -1060,7 +1060,7 @@ END_TEST
 #else
 
 START_TEST(cas_attribute_authz_test) {
-  int should_fail1, should_fail2, should_succeed1, should_succeed2,
+  int should_fail1, should_fail2, should_fail3 ,should_fail4 ,should_fail5 ,should_fail6, should_succeed1, should_succeed2,
       should_succeed3;
   cas_saml_attr *attrs = NULL;
   cas_attr_builder *builder;
@@ -1091,6 +1091,10 @@ START_TEST(cas_attribute_authz_test) {
 	  "regexAttribute~.+:testing\?.*success=true.*",
 	  "regexAttribute~.+:testing\?.*success=TRUE.*",
 	  "regexAttribute~.+:testing\?.*(?i:success=TRUE).*",
+	  "",
+	  "novalue:",
+	  ":noattribute",
+	  "fail",
 	  NULL
   };
   
@@ -1115,6 +1119,11 @@ START_TEST(cas_attribute_authz_test) {
 
   should_fail1 = cas_check_authorization(request, r[0], (const void*)0);
   should_fail2 = cas_check_authorization(request, r[3], (const void*)0);
+  should_fail3 = cas_check_authorization(request, r[5], (const void*)0);
+  should_fail4 = cas_check_authorization(request, r[6], (const void*)0);
+  should_fail5 = cas_check_authorization(request, r[7], (const void*)0);
+  should_fail6 = cas_check_authorization(request, r[8], (const void*)0);
+
   should_succeed1 = cas_check_authorization(request, r[1], (const void*)0);
   should_succeed2 = cas_check_authorization(request, r[2], (const void*)0);
   should_succeed3 = cas_check_authorization(request, r[4], (const void*)0);
@@ -1125,6 +1134,10 @@ START_TEST(cas_attribute_authz_test) {
 
   fail_unless((should_fail1 == AUTHZ_DENIED) &&
               (should_fail2 == AUTHZ_DENIED) &&
+              (should_fail3 == AUTHZ_DENIED) &&
+              (should_fail4 == AUTHZ_DENIED) &&
+              (should_fail5 == AUTHZ_DENIED) &&
+              (should_fail6 == AUTHZ_DENIED) &&
               (should_succeed1 == AUTHZ_GRANTED) &&
               (should_succeed2 == AUTHZ_GRANTED) &&
               (should_succeed3 == AUTHZ_GRANTED));

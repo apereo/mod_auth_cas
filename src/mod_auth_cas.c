@@ -2223,7 +2223,7 @@ authz_status cas_check_authorization(request_rec *r,
 	const cas_saml_attr *const attrs = cas_get_attributes(r);
 
 	const char *t, *w;
-	int count_casattr = 0;
+	unsigned int count_casattr = 0;
     
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,

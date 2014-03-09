@@ -96,8 +96,9 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASValidateSAML = CAS_DEFAULT_VALIDATE_SAML;
 	c->CASAttributeDelimiter = CAS_DEFAULT_ATTRIBUTE_DELIMITER;
 	c->CASAttributePrefix = CAS_DEFAULT_ATTRIBUTE_PREFIX;
+#if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	c->CASAuthoritative = CAS_DEFAULT_AUTHORITATIVE;
-
+#endif
 	cas_setURL(pool, &(c->CASLoginURL), CAS_DEFAULT_LOGIN_URL);
 	cas_setURL(pool, &(c->CASValidateURL), CAS_DEFAULT_VALIDATE_URL);
 	cas_setURL(pool, &(c->CASProxyValidateURL), CAS_DEFAULT_PROXY_VALIDATE_URL);
@@ -130,7 +131,9 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASCookieHttpOnly = (add->CASCookieHttpOnly != CAS_DEFAULT_COOKIE_HTTPONLY ? add->CASCookieHttpOnly : base->CASCookieHttpOnly);
 	c->CASSSOEnabled = (add->CASSSOEnabled != CAS_DEFAULT_SSO_ENABLED ? add->CASSSOEnabled : base->CASSSOEnabled);
 	c->CASValidateSAML = (add->CASValidateSAML != CAS_DEFAULT_VALIDATE_SAML ? add->CASValidateSAML : base->CASValidateSAML);
+#if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	c->CASAuthoritative = (add->CASAuthoritative != CAS_DEFAULT_AUTHORITATIVE ? add->CASAuthoritative : base->CASAuthoritative);
+#endif
 	c->CASAttributeDelimiter = (apr_strnatcasecmp(add->CASAttributeDelimiter, CAS_DEFAULT_ATTRIBUTE_DELIMITER) != 0 ? add->CASAttributeDelimiter : base->CASAttributeDelimiter);
 	c->CASAttributePrefix = (apr_strnatcasecmp(add->CASAttributePrefix, CAS_DEFAULT_ATTRIBUTE_PREFIX) != 0 ? add->CASAttributePrefix : base->CASAttributePrefix);
 
@@ -378,6 +381,7 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASSSOEnabled - must be 'On' or 'Off'"));
 		break;
+#if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 		case cmd_authoritative:
 			if(apr_strnatcasecmp(value, "On") == 0)
 				c->CASAuthoritative = TRUE;
@@ -386,6 +390,7 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASAuthoritative - must be 'On' or 'Off'"));
 		break;
+#endif
 		default:
 			/* should not happen */
 			return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: invalid command '%s'", cmd->directive->directive));
@@ -2618,7 +2623,17 @@ apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode
 
 void cas_register_hooks(apr_pool_t *p)
 {
-	ap_hook_post_config(cas_post_config, NULL, NULL, APR_HOOK_LAST);
+#if MODULE_MAGIC_NUMBER_MAJOR >= 20120211
+	ap_register_auth_provider(p, AUTHZ_PROVIDER_GROUP, "cas-attribute",
+		AUTHZ_PROVIDER_VERSION,
+		&authz_cas_provider, AP_AUTH_INTERNAL_PER_CONF);
+#else
+	/* make sure we run before mod_authz_user so that a "require valid-user"
+	 *  directive doesn't just automatically pass us. */
+	static const char *const authzSucc[] = { "mod_authz_user.c", NULL };
+	ap_hook_auth_checker(cas_authorize, NULL, authzSucc, APR_HOOK_MIDDLE);
+#endif
+
 #if MODULE_MAGIC_NUMBER_MAJOR >= 20120211
 	ap_hook_check_access(
 		cas_authenticate,
@@ -2636,16 +2651,7 @@ void cas_register_hooks(apr_pool_t *p)
 #else
 	ap_hook_check_user_id(cas_authenticate, NULL, NULL, APR_HOOK_MIDDLE);
 #endif
-#if MODULE_MAGIC_NUMBER_MAJOR >= 20120211
-	ap_register_auth_provider(p, AUTHZ_PROVIDER_GROUP, "cas-attribute",
-		AUTHZ_PROVIDER_VERSION,
-		&authz_cas_provider, AP_AUTH_INTERNAL_PER_CONF);
-#else
-	/* make sure we run before mod_authz_user so that a "require valid-user"
-	 *  directive doesn't just automatically pass us. */
-	static const char *const authzSucc[] = { "mod_authz_user.c", NULL };
-	ap_hook_auth_checker(cas_authorize, NULL, authzSucc, APR_HOOK_MIDDLE);
-#endif
+	ap_hook_post_config(cas_post_config, NULL, NULL, APR_HOOK_LAST);
 	ap_register_input_filter("CAS", cas_in_filter, NULL, AP_FTYPE_RESOURCE);
 }
 
@@ -2688,8 +2694,9 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASRootProxiedAs", cfg_readCASParameter, (void *) cmd_root_proxied_as, RSRC_CONF, "URL used to access the root of the virtual server (only needed when the server is proxied)"),
  	AP_INIT_TAKE1("CASScrubRequestHeaders", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASScrubRequestHeaders), ACCESS_CONF, "Scrub CAS user name and SAML attribute headers from the user's request."),
 	/* authorization options */
+#if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	AP_INIT_TAKE1("CASAuthoritative", cfg_readCASParameter, (void *) cmd_authoritative, RSRC_CONF, "Set 'On' to reject if access isn't allowed based on our rules; 'Off' (default) to allow checking against other modules too."),
-
+#endif
 	AP_INIT_TAKE1(0, 0, 0, 0, 0)
 };
 

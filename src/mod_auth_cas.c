@@ -754,8 +754,7 @@ char *getCASCookie(request_rec *r, char *cookieName)
 
 void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure, apr_time_t expireTime)
 {
-	char *headerString, *currentCookies, *pathPrefix = "", *expireTimeString = NULL, *errString;
-	char *domainString = "";
+	char *headerString, *currentCookies, *pathPrefix = "", *expireTimeString = NULL, *errString, *domainString = "";
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 	apr_status_t retVal;
 
@@ -765,7 +764,7 @@ void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_
 	if(c->CASRootProxiedAs.is_initialized)
 		pathPrefix = urlEncode(r, c->CASRootProxiedAs.path, " ");
 
-	if(CAS_SESSION_EXPIRE_COOKIE_TIMEOUT != expireTime) {
+	if(CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT != expireTime) {
 		expireTimeString = (char *)apr_pcalloc(r->pool, APR_RFC822_DATE_LEN);
 		retVal = apr_rfc822_date(expireTimeString, expireTime);
 		if(APR_SUCCESS != retVal) {
@@ -1990,7 +1989,7 @@ int cas_authenticate(request_rec *r)
 		if(cookieString == NULL) { /* they have not made a gateway trip yet */
 			if(c->CASDebug)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Gateway initial access (%s)", r->parsed_uri.path);
-			setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl, CAS_SESSION_EXPIRE_COOKIE_TIMEOUT);
+			setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT);
 			redirectRequest(r, c);
 			return HTTP_MOVED_TEMPORARILY;
 		} else {
@@ -2010,7 +2009,7 @@ int cas_authenticate(request_rec *r)
 			if(cookieString == NULL)
 				return HTTP_INTERNAL_SERVER_ERROR;
 
-			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), cookieString, ssl, CAS_SESSION_EXPIRE_COOKIE_TIMEOUT);
+			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), cookieString, ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT);
 			r->user = remoteUser;
 			if(d->CASAuthNHeader != NULL)
 				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);

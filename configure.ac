@@ -131,7 +131,7 @@ AC_ARG_WITH(
 	[openssl],
 	[AS_HELP_STRING([--with-openssl],[/absolute/path/to/openssl-base])],
 	[ LDFLAGS="$LDFLAGS -L$with_openssl/lib";
-	  CPPLAGS="$CPPLAGS -I$with_openssl/include/";
+	  CPPFLAGS="$CPPFLAGS -I$with_openssl/include/";
 	  LIBS="-lssl";
 	  AC_MSG_RESULT([$with_openssl])
 	],

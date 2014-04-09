@@ -773,10 +773,11 @@ char *getCASCookie(request_rec *r, char *cookieName)
 	return rv;
 }
 
-void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure)
+void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure, apr_time_t expireTime)
 {
-	char *headerString, *currentCookies, *pathPrefix = "";
+	char *headerString, *currentCookies, *pathPrefix = "", *expireTimeString = NULL, *errString, *domainString = "";
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
+	apr_status_t retVal;
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering setCASCookie()");
@@ -784,7 +785,27 @@ void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_
 	if(c->CASRootProxiedAs.is_initialized)
 		pathPrefix = urlEncode(r, c->CASRootProxiedAs.path, " ");
 
-	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s%s%s%s%s", cookieName, cookieValue, (secure ? ";Secure" : ""), pathPrefix, urlEncode(r, getCASScope(r), " "), (c->CASCookieDomain != NULL ? ";Domain=" : ""), (c->CASCookieDomain != NULL ? c->CASCookieDomain : ""), (c->CASCookieHttpOnly != FALSE ? "; HttpOnly" : ""));
+	if(CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT != expireTime) {
+		expireTimeString = (char *)apr_pcalloc(r->pool, APR_RFC822_DATE_LEN);
+		retVal = apr_rfc822_date(expireTimeString, expireTime);
+		if(APR_SUCCESS != retVal) {
+			errString = (char *)apr_pcalloc(r->pool, CAS_MAX_ERROR_SIZE);
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "Problem setting cookie expiry date: %s", apr_strerror(retVal, errString, CAS_MAX_ERROR_SIZE));
+		}
+	}
+
+	if(NULL != c->CASCookieDomain) {
+		domainString = apr_psprintf(r->pool, ";Domain=%s", c->CASCookieDomain);
+	}
+	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s%s%s%s%s",
+		cookieName,
+		cookieValue,
+		(secure ? ";Secure" : ""),
+		pathPrefix,
+		urlEncode(r, getCASScope(r), " "),
+		(c->CASCookieDomain != NULL ? domainString : ""),
+		(c->CASCookieHttpOnly != FALSE ? "; HttpOnly" : ""),
+		(NULL == expireTimeString) ? "" : apr_psprintf(r->pool, "; expires=%s", expireTimeString));
 
 	/* use r->err_headers_out so we always print our headers (even on 302 redirect) - headers_out only prints on 2xx responses */
 	apr_table_add(r->err_headers_out, "Set-Cookie", headerString);
@@ -2045,7 +2066,7 @@ int cas_authenticate(request_rec *r)
 		if(cookieString == NULL) { /* they have not made a gateway trip yet */
 			if(c->CASDebug)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Gateway initial access (%s)", r->parsed_uri.path);
-			setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl);
+			setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT);
 			redirectRequest(r, c);
 			return HTTP_MOVED_TEMPORARILY;
 		} else {
@@ -2065,7 +2086,7 @@ int cas_authenticate(request_rec *r)
 			if(cookieString == NULL)
 				return HTTP_INTERNAL_SERVER_ERROR;
 
-			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), cookieString, ssl);
+			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), cookieString, ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT);
 			r->user = remoteUser;
 			if(d->CASAuthNHeader != NULL)
 				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);
@@ -2160,6 +2181,7 @@ int cas_authenticate(request_rec *r)
 		} else {
 			/* maybe the cookie expired, have the user get a new service ticket */
 			redirectRequest(r, c);
+			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), "", ssl, CAS_SESSION_EXPIRE_COOKIE_NOW);
 			return HTTP_MOVED_TEMPORARILY;
 		}
 	}

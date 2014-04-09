@@ -519,12 +519,35 @@ START_TEST(setCASCookie_test) {
   const char *expected = "cookie_name=cookie_value;Path=/";
   const char *rv;
   fail_if (apr_table_get(request->err_headers_out, "Set-Cookie") != NULL);
-  setCASCookie(request, "cookie_name", "cookie_value", FALSE);
+  setCASCookie(request, "cookie_name", "cookie_value", FALSE, CAS_SESSION_EXPIRE_COOKIE_TIMEOUT);
   rv = apr_table_get(request->err_headers_out, "Set-Cookie");
   fail_unless(strcmp(rv, expected) == 0);
 
   /* TODO(pames): test with CASRootProxiedAs */
   /* TODO(pames): test with secure, domain, httponly, a specific path... */
+}
+END_TEST
+
+START_TEST(setCASCookieExpiryNow_test) {
+	const char *expected = "cookie_name=cookie_value;Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+	const char *ernVal, *eeVal;
+
+  fail_if (apr_table_get(request->err_headers_out, "Set-Cookie") != NULL);
+	setCASCookie(request, "cookie_name", "cookie_value", FALSE, CAS_SESSION_EXPIRE_COOKIE_NOW);
+	ernVal = apr_table_get(request->err_headers_out, "Set-Cookie");
+	fail_unless(0 == strcmp(ernVal, expected), ernVal);
+}
+END_TEST
+
+START_TEST(setCASCookieExpiryFiveSeconds_test) {
+  const char *expected = "cookie_name=cookie_value;Path=/; expires=Thu, 01 Jan 1970 00:00:05 GMT";
+  const char *eeVal;
+  apr_time_t fiveSecPastEpoch = 5000000;
+
+  fail_if (apr_table_get(request->err_headers_out, "Set-Cookie") != NULL);
+  setCASCookie(request, "cookie_name", "cookie_value", FALSE, fiveSecPastEpoch);
+  eeVal = apr_table_get(request->err_headers_out, "Set-Cookie");
+  fail_unless(0 == strcmp(eeVal, expected), eeVal);
 }
 END_TEST
 
@@ -1286,6 +1309,8 @@ Suite *mod_auth_cas_suite(void) {
   tcase_add_test(tc_core, getCASTicket_test);
   tcase_add_test(tc_core, getCASCookie_test);
   tcase_add_test(tc_core, setCASCookie_test);
+  tcase_add_test(tc_core, setCASCookieExpiryNow_test);
+  tcase_add_test(tc_core, setCASCookieExpiryFiveSeconds_test);
   tcase_add_test(tc_core, urlEncode_test);
   tcase_add_test(tc_core, readCASCacheFile_test);
   tcase_add_test(tc_core, CASCleanCache_test);

@@ -103,7 +103,6 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASVersion = CAS_DEFAULT_VERSION;
 	c->CASDebug = CAS_DEFAULT_DEBUG;
 	c->CASValidateDepth = CAS_DEFAULT_VALIDATE_DEPTH;
-	c->CASAllowWildcardCert = CAS_DEFAULT_ALLOW_WILDCARD_CERT;
 	c->CASCertificatePath = CAS_DEFAULT_CA_PATH;
 	c->CASCookiePath = CAS_DEFAULT_COOKIE_PATH;
 	c->CASCookieEntropy = CAS_DEFAULT_COOKIE_ENTROPY;
@@ -138,7 +137,6 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASVersion = (add->CASVersion != CAS_DEFAULT_VERSION ? add->CASVersion : base->CASVersion);
 	c->CASDebug = (add->CASDebug != CAS_DEFAULT_DEBUG ? add->CASDebug : base->CASDebug);
 	c->CASValidateDepth = (add->CASValidateDepth != CAS_DEFAULT_VALIDATE_DEPTH ? add->CASValidateDepth : base->CASValidateDepth);
-	c->CASAllowWildcardCert = (add->CASAllowWildcardCert != CAS_DEFAULT_ALLOW_WILDCARD_CERT ? add->CASAllowWildcardCert : base->CASAllowWildcardCert);
 	c->CASCertificatePath = (apr_strnatcasecmp(add->CASCertificatePath,CAS_DEFAULT_CA_PATH) != 0 ? add->CASCertificatePath : base->CASCertificatePath);
 	c->CASCookiePath = (apr_strnatcasecmp(add->CASCookiePath, CAS_DEFAULT_COOKIE_PATH) != 0 ? add->CASCookiePath : base->CASCookiePath);
 	c->CASCookieEntropy = (add->CASCookieEntropy != CAS_DEFAULT_COOKIE_ENTROPY ? add->CASCookieEntropy : base->CASCookieEntropy);
@@ -275,17 +273,6 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 		case cmd_attribute_prefix:
 			c->CASAttributePrefix = apr_pstrdup(cmd->pool, value);
 		break;
-		case cmd_wildcard_cert:
-			// XXX this feature is broken now
-			/* if atoi() is used on value here with AP_INIT_FLAG, it works but results in a compile warning, so we use TAKE1 to avoid it */
-			if(apr_strnatcasecmp(value, "On") == 0)
-				c->CASAllowWildcardCert = TRUE;
-			else if(apr_strnatcasecmp(value, "Off") == 0)
-				c->CASAllowWildcardCert = FALSE;
-			else
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASAllowWildcardCert - must be 'On' or 'Off'"));
-		break;
-
 		case cmd_ca_path:
 			if(apr_stat(&f, value, APR_FINFO_TYPE, cmd->temp_pool) == APR_INCOMPLETE)
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Could not find Certificate Authority file '%s'", value));
@@ -2682,7 +2669,6 @@ const command_rec cas_cmds [] = {
 
 	/* ssl related options */
 	AP_INIT_TAKE1("CASValidateDepth", cfg_readCASParameter, (void *) cmd_validate_depth, RSRC_CONF, "Define the number of chained certificates required for a successful validation"),
-	AP_INIT_TAKE1("CASAllowWildcardCert", cfg_readCASParameter, (void *) cmd_wildcard_cert, RSRC_CONF, "Allow wildcards in certificates when performing validation (e.g. *.example.com) (On or Off)"),
 	AP_INIT_TAKE1("CASCertificatePath", cfg_readCASParameter, (void *) cmd_ca_path, RSRC_CONF, "Path to the X509 certificate for the CASServer Certificate Authority"),
 
 	/* pertinent CAS urls */

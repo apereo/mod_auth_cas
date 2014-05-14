@@ -72,7 +72,6 @@
 #define CAS_DEFAULT_ATTRIBUTE_DELIMITER ","
 #define CAS_DEFAULT_ATTRIBUTE_PREFIX "CAS_"
 #define CAS_DEFAULT_VALIDATE_DEPTH 9
-#define CAS_DEFAULT_ALLOW_WILDCARD_CERT 0
 #define CAS_DEFAULT_CA_PATH "/etc/ssl/certs/"
 #define CAS_DEFAULT_COOKIE_PATH "/dev/null"
 #define CAS_DEFAULT_LOGIN_URL NULL
@@ -113,7 +112,6 @@ typedef struct cas_cfg {
 	unsigned int CASVersion;
 	unsigned int CASDebug;
 	unsigned int CASValidateDepth;
-	unsigned int CASAllowWildcardCert;
 	unsigned int CASCacheCleanInterval;
 	unsigned int CASCookieEntropy;
 	unsigned int CASTimeout;
@@ -161,11 +159,11 @@ typedef struct cas_curl_buffer {
 } cas_curl_buffer;
 
 typedef enum {
-	cmd_version, cmd_debug, cmd_validate_depth, cmd_wildcard_cert,
-	cmd_ca_path, cmd_cookie_path, cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy,
-	cmd_session_timeout, cmd_idle_timeout, cmd_cache_interval, cmd_cookie_domain, cmd_cookie_httponly,
-	cmd_sso, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix, cmd_root_proxied_as,
-	cmd_authoritative
+	cmd_version, cmd_debug, cmd_validate_depth, cmd_ca_path, cmd_cookie_path,
+	cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy, cmd_session_timeout,
+	cmd_idle_timeout, cmd_cache_interval, cmd_cookie_domain, cmd_cookie_httponly,
+	cmd_sso, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix,
+	cmd_root_proxied_as, cmd_authoritative
 } valid_cmds;
 
 module AP_MODULE_DECLARE_DATA auth_cas_module;

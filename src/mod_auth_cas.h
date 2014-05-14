@@ -102,6 +102,9 @@
 #define CAS_ATTR_MATCH 0
 #define CAS_ATTR_NO_MATCH 1
 
+#define CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT -1
+#define CAS_SESSION_EXPIRE_COOKIE_NOW 0
+
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
 typedef struct cas_cfg {
@@ -199,7 +202,7 @@ char *getCASPath(request_rec *r);
 void CASSAMLLogout(request_rec *r, char *body);
 apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes);
 void deleteCASCacheFile(request_rec *r, char *cookieName);
-void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure);
+void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure, apr_time_t expireTime);
 char *escapeString(const request_rec *r, const char *str);
 char *urlEncode(const request_rec *r, const char *str, const char *charsToEncode);
 char *getCASGateway(request_rec *r);
@@ -239,6 +242,8 @@ int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const 
 int cas_authorize(request_rec *r);
 int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const require_line *const reqs, int nelts, const cas_cfg *const c);
 
+/* Fancy wrapper around flock() */
+int cas_flock(apr_file_t *fileHandle, int lockOperation, request_rec *r);
 
 /* apr forward compatibility */
 #ifndef APR_FOPEN_READ

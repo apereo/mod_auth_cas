@@ -22,6 +22,9 @@
  *
  */
 
+#include <error.h>
+#include <string.h>
+#include <sys/file.h>
 #include <sys/types.h>
 
 #include <openssl/crypto.h>
@@ -73,6 +76,24 @@
 static apr_thread_mutex_t **ssl_locks;
 static int ssl_num_locks;
 #endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
+
+int cas_flock(apr_file_t *fileHandle, int lockOperation, request_rec *r)
+{
+	apr_os_file_t osFileHandle;
+	int flockErr;
+
+	apr_os_file_get(&osFileHandle, fileHandle);
+
+	do {
+		flockErr = flock(osFileHandle, lockOperation);
+	} while(flockErr == -1 && errno == EINTR);
+
+	if(r != NULL && flockErr) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Failed to apply locking operation (%s)", strerror(errno));
+	}
+
+	return flockErr;
+}
 
 /* mod_auth_cas configuration specific functions */
 void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
@@ -724,10 +745,11 @@ char *getCASCookie(request_rec *r, char *cookieName)
 	return rv;
 }
 
-void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure)
+void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure, apr_time_t expireTime)
 {
-	char *headerString, *currentCookies, *pathPrefix = "";
+	char *headerString, *currentCookies, *pathPrefix = "", *expireTimeString = NULL, *errString, *domainString = "";
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
+	apr_status_t retVal;
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering setCASCookie()");
@@ -735,7 +757,27 @@ void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_
 	if(c->CASRootProxiedAs.is_initialized)
 		pathPrefix = urlEncode(r, c->CASRootProxiedAs.path, " ");
 
-	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s%s%s%s%s", cookieName, cookieValue, (secure ? ";Secure" : ""), pathPrefix, urlEncode(r, getCASScope(r), " "), (c->CASCookieDomain != NULL ? ";Domain=" : ""), (c->CASCookieDomain != NULL ? c->CASCookieDomain : ""), (c->CASCookieHttpOnly != FALSE ? "; HttpOnly" : ""));
+	if(CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT != expireTime) {
+		expireTimeString = (char *)apr_pcalloc(r->pool, APR_RFC822_DATE_LEN);
+		retVal = apr_rfc822_date(expireTimeString, expireTime);
+		if(APR_SUCCESS != retVal) {
+			errString = (char *)apr_pcalloc(r->pool, CAS_MAX_ERROR_SIZE);
+			ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "Problem setting cookie expiry date: %s", apr_strerror(retVal, errString, CAS_MAX_ERROR_SIZE));
+		}
+	}
+
+	if(NULL != c->CASCookieDomain) {
+		domainString = apr_psprintf(r->pool, ";Domain=%s", c->CASCookieDomain);
+	}
+	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s%s%s%s%s",
+		cookieName,
+		cookieValue,
+		(secure ? ";Secure" : ""),
+		pathPrefix,
+		urlEncode(r, getCASScope(r), " "),
+		(c->CASCookieDomain != NULL ? domainString : ""),
+		(c->CASCookieHttpOnly != FALSE ? "; HttpOnly" : ""),
+		(NULL == expireTimeString) ? "" : apr_psprintf(r->pool, "; expires=%s", expireTimeString));
 
 	/* use r->err_headers_out so we always print our headers (even on 302 redirect) - headers_out only prints on 2xx responses */
 	apr_table_add(r->err_headers_out, "Set-Cookie", headerString);
@@ -879,7 +921,13 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 		return FALSE;
 	}
 
-	apr_file_lock(f, APR_FLOCK_SHARED);
+	if(cas_flock(f, LOCK_SH, r)) {
+		if(c->CASDebug) {
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not obtain shared lock on %s", name);
+		}
+		apr_file_close(f);
+		return FALSE;
+	}
 
 	/* read the various values we store */
 	apr_file_seek(f, APR_SET, &begin);
@@ -899,6 +947,12 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 		}
 
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Error parsing XML content (%s)", errbuf);
+		if(cas_flock(f, LOCK_UN, r)) {
+			if(c->CASDebug) {
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release shared lock on %s", name);
+			}
+		}
+		apr_file_close(f);
 		return FALSE;
 	}
 
@@ -930,11 +984,25 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 		if (apr_strnatcasecmp(e->name, "user") == 0)
 			cache->user = apr_pstrndup(r->pool, val, strlen(val));
 		else if (apr_strnatcasecmp(e->name, "issued") == 0) {
-			if(sscanf(val, "%" APR_TIME_T_FMT, &(cache->issued)) != 1)
+			if(sscanf(val, "%" APR_TIME_T_FMT, &(cache->issued)) != 1) {
+				if(cas_flock(f, LOCK_UN, r)) {
+					if(c->CASDebug) {
+						ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release shared lock on %s", name);
+					}
+				}
+				apr_file_close(f);
 				return FALSE;
+			}
 		} else if (apr_strnatcasecmp(e->name, "lastactive") == 0) {
-			if(sscanf(val, "%" APR_TIME_T_FMT, &(cache->lastactive)) != 1)
+			if(sscanf(val, "%" APR_TIME_T_FMT, &(cache->lastactive)) != 1) {
+				if(cas_flock(f, LOCK_UN, r)) {
+					if(c->CASDebug) {
+						ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release shared lock on %s", name);
+					}
+				}
+				apr_file_close(f);
 				return FALSE;
+			}
 		} else if (apr_strnatcasecmp(e->name, "path") == 0)
 			cache->path = apr_pstrndup(r->pool, val, strlen(val));
 		else if (apr_strnatcasecmp(e->name, "renewed") == 0)
@@ -964,7 +1032,11 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 		e = e->next;
 	} while (e != NULL);
 
-	apr_file_unlock(f);
+	if(cas_flock(f, LOCK_UN, r)) {
+		if(c->CASDebug) {
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release shared lock on %s", name);
+		}
+	}
 	apr_file_close(f);
 	return TRUE;
 }
@@ -996,14 +1068,24 @@ void CASCleanCache(request_rec *r, cas_cfg *c)
 		}
 	}
 
-	apr_file_lock(metaFile, APR_FLOCK_EXCLUSIVE);
+	if(cas_flock(metaFile, LOCK_EX, r)) {
+		if(c->CASDebug) {
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not obtain exclusive lock on %s", path);
+		}
+		apr_file_close(metaFile);
+		return;
+	}
 	apr_file_seek(metaFile, APR_SET, &begin);
 
 	/* if the file was not created on this method invocation (APR_FOPEN_READ is not used above during creation) see if it is time to clean the cache */
 	if((apr_file_flags_get(metaFile) & APR_FOPEN_READ) != 0) {
 		apr_file_gets(line, sizeof(line), metaFile);
 		if(sscanf(line, "%" APR_TIME_T_FMT, &lastClean) != 1) { /* corrupt file */
-			apr_file_unlock(metaFile);
+			if(cas_flock(metaFile, LOCK_UN, r)) {
+				if(c->CASDebug) {
+					ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release exclusive lock on %s", path);
+				}
+			}
 			apr_file_close(metaFile);
 			apr_file_remove(path, r->pool);
 			if(c->CASDebug)
@@ -1012,7 +1094,11 @@ void CASCleanCache(request_rec *r, cas_cfg *c)
 		}
 		if(lastClean > (apr_time_now()-(c->CASCacheCleanInterval*((apr_time_t) APR_USEC_PER_SEC)))) { /* not enough time has elapsed */
 			/* release the locks and file descriptors that we no longer need */
-			apr_file_unlock(metaFile);
+			if(cas_flock(metaFile, LOCK_UN, r)) {
+				if(c->CASDebug) {
+					ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release exclusive lock on %s", path);
+				}
+			}
 			apr_file_close(metaFile);
 			if(c->CASDebug)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Insufficient time elapsed since last cache clean");
@@ -1027,7 +1113,12 @@ void CASCleanCache(request_rec *r, cas_cfg *c)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Beginning cache clean");
 
 	apr_file_printf(metaFile, "%" APR_TIME_T_FMT "\n", apr_time_now());
-	apr_file_unlock(metaFile);
+	if(cas_flock(metaFile, LOCK_UN, r)) {
+		if(c->CASDebug) {
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release exclusive lock on %s", path);
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Continuing with cache clean...");
+		}
+	}
 	apr_file_close(metaFile);
 
 	/* read all the files in the directory */
@@ -1103,8 +1194,10 @@ apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache
 		}
 
 		/* update the file with a new idle time if a write lock can be obtained */
-		if(apr_file_lock(f, APR_FLOCK_EXCLUSIVE) != APR_SUCCESS) {
-			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: could not obtain an exclusive lock on %s", path);
+		if(cas_flock(f, LOCK_EX, r)) {
+			if(c->CASDebug) {
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not obtain exclusive lock on %s", name);
+			}
 			apr_file_close(f);
 			return FALSE;
 		} else
@@ -1141,8 +1234,13 @@ apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache
 		apr_file_printf(f, "<secure />\n");
 	apr_file_printf(f, "</cacheEntry>\n");
 
-	if(lock != FALSE)
-		apr_file_unlock(f);
+	if(lock != FALSE) {
+		if(cas_flock(f, LOCK_UN, r)) {
+			if(c->CASDebug) {
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: Could not release exclusive lock on %s", name);
+			}
+		}
+	}
 
 	apr_file_close(f);
 
@@ -1327,7 +1425,6 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 	apr_xml_attr *attr;
 	apr_xml_parser *parser = apr_xml_parser_create(r->pool);
 	const char *response = getResponseFromServer(r, c, ticket);
-	const char *value = NULL;
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering isValidCASTicket()");
@@ -1379,93 +1476,98 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 			return FALSE;
 		}
 		if(c->CASValidateSAML == TRUE) {
-			int success = 0;
-			node = doc->root->first_child;
-			// Header
-			if(node != NULL) {
+			int success = FALSE;
+			node = doc->root;
+			while(node != NULL && apr_strnatcmp(node->name, "Envelope") != 0) {
 				node = node->next;
-				// Body
+			}
+			if(node != NULL) {
+				node = node->first_child;
+				while(node != NULL && apr_strnatcmp(node->name, "Body") != 0) {
+					node = node->next;
+				}
 				if(node != NULL) {
 					node = node->first_child;
-					// Response
+					while(node != NULL && apr_strnatcmp(node->name, "Response") != 0) {
+						node = node->next;
+					}
 					if(node != NULL) {
-						apr_xml_elem *aNode = NULL;
-						node = node->first_child;
-						aNode = node->next;
-						// Status
+						// Save node so we can search for both Status and Assertion starting with Response->first_child
+						apr_xml_elem *response_node = node = node->first_child;
+						while(node != NULL && apr_strnatcmp(node->name, "Status") != 0) {
+							node = node->next;
+						}
 						if(node != NULL) {
 							node = node->first_child;
-							// StatusCode
+							while(node != NULL && apr_strnatcmp(node->name, "StatusCode") != 0) {
+								node = node->next;
+							}
 							if(node != NULL) {
-								apr_xml_attr *attr = node->attr;
-								while(attr != NULL) {
-									if(apr_strnatcmp(attr->name, "Value") == 0) {
-										if(apr_strnatcmp(attr->value, "samlp:Success") == 0) {
-											success = 1;
-										}
-										break;
-									}
+								attr = node->attr;
+								while(attr != NULL && apr_strnatcmp(attr->name, "Value") != 0) {
 									attr = attr->next;
+								}
+								if(attr != NULL) {
+									const char *value = strchr(attr->value, ':');
+									value = (value == NULL ? attr->value : value + 1);
+									if(apr_strnatcmp(value, "Success") == 0) {
+										success = TRUE;
+									}
 								}
 							}
 						}
-						// Assertion
-						if(success && aNode != NULL) {
-							aNode = aNode->first_child;
-							// Conditions
-							if(aNode != NULL) {
-								aNode = aNode->next;
-								// AttributeStatement
-								if(aNode != NULL) {
-									apr_xml_elem *bNode = aNode;
-									aNode = aNode->first_child;
-									// Subject
-									if(aNode != NULL) {
-										aNode = aNode->first_child;
-										// NameIdentifier
-										if(aNode != NULL) {
-											apr_xml_to_text(r->pool, aNode, APR_XML_X2T_INNER,
-												NULL, NULL, (const char **)user, NULL);
-										}
-									}
-									if(bNode != NULL) {
-										cas_attr_builder *builder = cas_attr_builder_new(r->pool, attrs);
-										apr_xml_elem *as = bNode->first_child;
-										while(as != NULL) {
-											if(apr_strnatcmp(as->name, "Attribute") == 0) {
-												apr_xml_attr *attr = as->attr;
-												while(attr != NULL) {
-													if(apr_strnatcmp(attr->name, "AttributeName") == 0) {
-														const char *attr_name = attr->value;
-														apr_xml_elem *a = as->first_child;
-														while(a != NULL) {
-															char *attr_value;
-															apr_xml_to_text(r->pool, a, APR_XML_X2T_INNER,
-																	NULL, NULL, (const char**)&attr_value, NULL);
+						if(success) {
+							node = response_node;
+							while(node != NULL && apr_strnatcmp(node->name, "Assertion") != 0) {
+								node = node->next;
+							}
+							if(node != NULL) {
+								cas_attr_builder *builder = cas_attr_builder_new(r->pool, attrs);
+								int found_user = FALSE;
+								node = node->first_child;
+								while(node != NULL) {  // For each child element...
+									if(apr_strnatcmp(node->name, "AttributeStatement") == 0) {
+										apr_xml_elem *as_node = node->first_child;
+										while(as_node != NULL) {  // For each child element...
+											if(!found_user && apr_strnatcmp(as_node->name, "Subject") == 0) {
+												apr_xml_elem *subject_node = as_node->first_child;
+												while(subject_node != NULL && apr_strnatcmp(subject_node->name, "NameIdentifier") != 0) {
+													subject_node = subject_node->next;
+												}
+												if(subject_node != NULL) {
+													found_user = TRUE;
+													apr_xml_to_text(r->pool, subject_node, APR_XML_X2T_INNER, NULL, NULL, (const char **)user, NULL);
+												}
+											} else if(apr_strnatcmp(as_node->name, "Attribute") == 0) {
+												attr = as_node->attr;
+												while(attr != NULL && apr_strnatcmp(attr->name, "AttributeName") != 0) {
+													attr = attr->next;
+												}
+												if(attr != NULL) {
+													const char *attr_name = attr->value;
+													apr_xml_elem *attr_node = as_node->first_child;
+													while(attr_node != NULL) {  // For each child element...
+														if(apr_strnatcmp(attr_node->name, "AttributeValue") == 0) {
+															const char *attr_value = NULL;
+															apr_xml_to_text(r->pool, attr_node, APR_XML_X2T_INNER, NULL, NULL, &attr_value, NULL);
 															cas_attr_builder_add(builder, attr_name, attr_value);
-															a = a->next;
 														}
+														attr_node = attr_node->next;
 													}
-													attr = attr->next;
 												}
 											}
-											as = as->next;
+											as_node = as_node->next;
 										}
-										bNode = bNode->next;
-										while(bNode != NULL) {
-											if(apr_strnatcmp(bNode->name, "AuthenticationStatement") == 0) {
-												apr_xml_attr *attr = bNode->attr;
-												while(attr != NULL) {
-													if(apr_strnatcmp(attr->name, "AuthenticationMethod") == 0) {
-														const char *attr_value = attr->value;
-														cas_attr_builder_add(builder, "AuthenticationMethod", attr_value);
-													}
-													attr = attr->next;
-												}
-											}
-											bNode = bNode->next;
+									} else if(apr_strnatcmp(node->name, "AuthenticationStatement") == 0) {
+										attr = node->attr;
+										while(attr != NULL && apr_strnatcmp(attr->name, "AuthenticationMethod") != 0) {
+											attr = attr->next;
+										}
+										if(attr != NULL) {
+											cas_attr_builder_add(builder, attr->name, attr->value);
 										}
 									}
+									node = node->next;
 								}
 							}
 						}
@@ -1476,31 +1578,32 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 				return TRUE;
 			}
 		} else {
-			/* XML tree:
-			 * ServiceResponse
-			 *  ->authenticationSuccess
-			 *      ->user
-			 *      ->proxyGrantingTicket
-			 *  ->authenticationFailure (code)
-			 */
-			node = doc->root->first_child;
-			if(apr_strnatcmp(node->name, "authenticationSuccess") == 0) {
+			node = doc->root;
+			while(node != NULL && apr_strnatcmp(node->name, "serviceResponse") != 0) {
+				node = node->next;
+			}
+			if(node != NULL) {
 				node = node->first_child;
-				while(node != NULL && apr_strnatcmp(node->name, "user") != 0)
+				while(node != NULL) {  // For each child element...
+					if(apr_strnatcmp(node->name, "authenticationSuccess") == 0) {
+						node = node->first_child;
+						while(node != NULL && apr_strnatcmp(node->name, "user") != 0) {
+							node = node->next;
+						}
+						if(node != NULL) {
+							apr_xml_to_text(r->pool, node, APR_XML_X2T_INNER, NULL, NULL, (const char **)user, NULL);
+							return TRUE;
+						}
+					} else if(apr_strnatcmp(node->name, "authenticationFailure") == 0) {
+						attr = node->attr;
+						while(attr != NULL && apr_strnatcmp(attr->name, "code") != 0) {
+							attr = attr->next;
+						}
+						ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: %s", (attr == NULL ? "Unknown Error" : attr->value));
+						return FALSE;
+					}
 					node = node->next;
-				if(node != NULL) {
-					apr_xml_to_text(r->pool, node, APR_XML_X2T_INNER, NULL, NULL, &value, NULL);
-					*user = apr_pstrndup(r->pool, value, strlen(value));
-					return TRUE;
 				}
-			} else if (apr_strnatcmp(node->name, "authenticationFailure") == 0) {
-				attr = node->attr;
-				while(attr != NULL && apr_strnatcmp(attr->name, "code") != 0)
-					attr = attr->next;
-
-				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: %s", (attr == NULL ? "Unknown Error" : attr->value));
-
-				return FALSE;
 			}
 		}
 	}
@@ -1957,7 +2060,7 @@ int cas_authenticate(request_rec *r)
 		if(cookieString == NULL) { /* they have not made a gateway trip yet */
 			if(c->CASDebug)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Gateway initial access (%s)", r->parsed_uri.path);
-			setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl);
+			setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT);
 			redirectRequest(r, c);
 			return HTTP_MOVED_TEMPORARILY;
 		} else {
@@ -1977,7 +2080,7 @@ int cas_authenticate(request_rec *r)
 			if(cookieString == NULL)
 				return HTTP_INTERNAL_SERVER_ERROR;
 
-			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), cookieString, ssl);
+			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), cookieString, ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT);
 			r->user = remoteUser;
 			if(d->CASAuthNHeader != NULL)
 				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);
@@ -2072,6 +2175,7 @@ int cas_authenticate(request_rec *r)
 		} else {
 			/* maybe the cookie expired, have the user get a new service ticket */
 			redirectRequest(r, c);
+			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), "", ssl, CAS_SESSION_EXPIRE_COOKIE_NOW);
 			return HTTP_MOVED_TEMPORARILY;
 		}
 	}

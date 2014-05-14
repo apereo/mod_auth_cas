@@ -68,7 +68,6 @@
 #define CAS_DEFAULT_SCOPE NULL
 #define CAS_DEFAULT_RENEW NULL
 #define CAS_DEFAULT_GATEWAY NULL
-#define CAS_DEFAULT_VALIDATE_SERVER 1
 #define CAS_DEFAULT_VALIDATE_SAML 0
 #define CAS_DEFAULT_ATTRIBUTE_DELIMITER ","
 #define CAS_DEFAULT_ATTRIBUTE_PREFIX "CAS_"
@@ -113,7 +112,6 @@ typedef struct cas_cfg {
 	unsigned int merged;
 	unsigned int CASVersion;
 	unsigned int CASDebug;
-	unsigned int CASValidateServer;
 	unsigned int CASValidateDepth;
 	unsigned int CASAllowWildcardCert;
 	unsigned int CASCacheCleanInterval;
@@ -163,7 +161,7 @@ typedef struct cas_curl_buffer {
 } cas_curl_buffer;
 
 typedef enum {
-	cmd_version, cmd_debug, cmd_validate_server, cmd_validate_depth, cmd_wildcard_cert,
+	cmd_version, cmd_debug, cmd_validate_depth, cmd_wildcard_cert,
 	cmd_ca_path, cmd_cookie_path, cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy,
 	cmd_session_timeout, cmd_idle_timeout, cmd_cache_interval, cmd_cookie_domain, cmd_cookie_httponly,
 	cmd_sso, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix, cmd_root_proxied_as,

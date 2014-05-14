@@ -84,6 +84,35 @@ START_TEST(cas_merge_dir_config_test) {
 }
 END_TEST
 
+START_TEST(cas_read_onoff_test) {
+  unsigned int u = 0;
+  fail_unless(cas_read_onoff(request->pool, "CASFoo",
+                             "On", &u) == NULL);
+  fail_unless(u == 1);
+
+  fail_unless(cas_read_onoff(request->pool, "CASFoo",
+                             "Off", &u) == NULL);
+  fail_unless(u == 0);
+
+  fail_unless(cas_read_onoff(request->pool, "CASFoo",
+                             "Qwe", &u) != NULL);
+}
+END_TEST
+
+START_TEST(cas_read_int_test) {
+  unsigned int i = 0;
+  fail_unless(cas_read_int(request->pool, "CASFoo",
+                             "1", &i) == NULL);
+  fail_unless(i == 1);
+
+  fail_unless(cas_read_int(request->pool, "CASFoo",
+                           "Qwe", &i) != NULL);
+
+  fail_unless(cas_read_int(request->pool, "CASFoo",
+                           "12Qwe", &i) != NULL);
+}
+END_TEST
+
 START_TEST(cas_setURL_test) {
   const char *url1 = "http://www.example.com/";
   const char *url2 = "http://www.example.com:8080/foo.html";
@@ -109,6 +138,22 @@ START_TEST(isSSL_test) {
   fail_unless(isSSL(request) == TRUE);
   apr_pool_userdata_set("http", "scheme", NULL, request->pool);
   fail_unless(isSSL(request) == FALSE);
+}
+END_TEST
+
+
+START_TEST(cas_isalnum_test) {
+  fail_unless(cas_isalnum('a') == TRUE);
+  fail_unless(cas_isalnum('A') == TRUE);
+  fail_unless(cas_isalnum('5') == TRUE);
+  fail_if(cas_isalnum('^') == TRUE);
+}
+END_TEST
+
+START_TEST(cas_valid_domain_test) {
+  fail_unless(cas_valid_domain("example.com") == TRUE);
+  fail_unless(cas_valid_domain("") == FALSE);
+  fail_unless(cas_valid_domain("http://www.example.com") == FALSE);
 }
 END_TEST
 
@@ -1067,15 +1112,15 @@ START_TEST(cas_attribute_authz_test) {
   request->method = old_method;
   request->method_number = old_method_number;
 
-  fail_unless((should_fail1 == HTTP_UNAUTHORIZED) &&
-              (should_fail2 == HTTP_UNAUTHORIZED) &&
-              (should_succeed1 == OK) &&
-              (should_succeed2 == OK) &&
-              (should_succeed3 == OK) &&
-              (should_succeed4 == OK) &&
-              (should_succeed5 == OK) &&
-              (should_decline1 == DECLINED) &&
-              (should_decline2 == DECLINED));
+  fail_unless(should_fail1 == HTTP_UNAUTHORIZED);
+  fail_unless(should_fail2 == HTTP_UNAUTHORIZED);
+  fail_unless(should_succeed1 == OK);
+  fail_unless(should_succeed2 == OK);
+  fail_unless(should_succeed3 == OK);
+  fail_unless(should_succeed4 == OK);
+  fail_unless(should_succeed5 == OK);
+  fail_unless(should_decline1 == DECLINED);
+  fail_unless(should_decline2 == DECLINED);
 }
 END_TEST
 
@@ -1218,6 +1263,7 @@ void core_setup(void) {
   apr_pool_create(&pool, NULL);
   request->pool = pool;
   /* set up the request */
+  request->method_number = M_POST;
   request->headers_in = apr_table_make(request->pool, 0);
   request->headers_out = apr_table_make(request->pool, 0);
   request->err_headers_out = apr_table_make(request->pool, 0);
@@ -1284,12 +1330,16 @@ Suite *mod_auth_cas_suite(void) {
   tcase_add_checked_fixture(tc_core, core_setup, core_teardown);
   tcase_add_test(tc_core, escapeString_test);
   tcase_add_test(tc_core, isSSL_test);
+  tcase_add_test(tc_core, cas_isalnum_test);
+  tcase_add_test(tc_core, cas_valid_domain_test);
   tcase_add_test(tc_core, cas_char_to_env_test);
   tcase_add_test(tc_core, cas_scrub_headers_test);
   tcase_add_test(tc_core, cas_strnenvcmp_test);
   tcase_add_test(tc_core, normalizeHeaderName_test);
   tcase_add_test(tc_core, cas_merge_server_config_test);
   tcase_add_test(tc_core, cas_merge_dir_config_test);
+  tcase_add_test(tc_core, cas_read_onoff_test);
+  tcase_add_test(tc_core, cas_read_int_test);
   tcase_add_test(tc_core, cas_setURL_test);
   tcase_add_test(tc_core, getCASPath_test);
   tcase_add_test(tc_core, getCASScope_test);

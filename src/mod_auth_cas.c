@@ -34,6 +34,7 @@
 #include <openssl/err.h>
 
 #include <curl/curl.h>
+#include <errno.h>
 
 #include "httpd.h"
 #include "http_config.h"
@@ -102,9 +103,7 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->merged = FALSE;
 	c->CASVersion = CAS_DEFAULT_VERSION;
 	c->CASDebug = CAS_DEFAULT_DEBUG;
-	c->CASValidateServer = CAS_DEFAULT_VALIDATE_SERVER;
 	c->CASValidateDepth = CAS_DEFAULT_VALIDATE_DEPTH;
-	c->CASAllowWildcardCert = CAS_DEFAULT_ALLOW_WILDCARD_CERT;
 	c->CASCertificatePath = CAS_DEFAULT_CA_PATH;
 	c->CASCookiePath = CAS_DEFAULT_COOKIE_PATH;
 	c->CASCookieEntropy = CAS_DEFAULT_COOKIE_ENTROPY;
@@ -138,9 +137,7 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->merged = TRUE;
 	c->CASVersion = (add->CASVersion != CAS_DEFAULT_VERSION ? add->CASVersion : base->CASVersion);
 	c->CASDebug = (add->CASDebug != CAS_DEFAULT_DEBUG ? add->CASDebug : base->CASDebug);
-	c->CASValidateServer = (add->CASValidateServer != CAS_DEFAULT_VALIDATE_SERVER ? add->CASValidateServer : base->CASValidateServer);
 	c->CASValidateDepth = (add->CASValidateDepth != CAS_DEFAULT_VALIDATE_DEPTH ? add->CASValidateDepth : base->CASValidateDepth);
-	c->CASAllowWildcardCert = (add->CASAllowWildcardCert != CAS_DEFAULT_ALLOW_WILDCARD_CERT ? add->CASAllowWildcardCert : base->CASAllowWildcardCert);
 	c->CASCertificatePath = (apr_strnatcasecmp(add->CASCertificatePath,CAS_DEFAULT_CA_PATH) != 0 ? add->CASCertificatePath : base->CASCertificatePath);
 	c->CASCookiePath = (apr_strnatcasecmp(add->CASCookiePath, CAS_DEFAULT_COOKIE_PATH) != 0 ? add->CASCookiePath : base->CASCookiePath);
 	c->CASCookieEntropy = (add->CASCookieEntropy != CAS_DEFAULT_COOKIE_ENTROPY ? add->CASCookieEntropy : base->CASCookieEntropy);
@@ -237,182 +234,157 @@ void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 	return(c);
 }
 
+const char *cas_read_onoff(apr_pool_t *pool, const char *directive,
+                           const char *value, unsigned int *cfg) {
+  if (apr_strnatcasecmp(value, "On") == 0)
+    *cfg = TRUE;
+  else if (apr_strnatcasecmp(value, "Off") == 0)
+    *cfg = FALSE;
+  else
+    return apr_psprintf(pool,
+                        "MOD_AUTH_CAS: Invalid argument to %s (must be"
+                        "\"On\" or \"Off\")", directive);
+  return NULL;
+}
+
+const char *cas_read_int(apr_pool_t *pool, const char *directive,
+                        const char *value, unsigned int *cfg) {
+  long l;
+  char *eptr;
+
+  errno = 0;
+  l = strtol(value, &eptr, 10);
+
+  if (errno != 0 || *eptr != '\0' || l < 0) {
+    return apr_psprintf(pool, "MOD_AUTH_CAS: Invalid argument to %s (must be "
+                        "greater than zero", directive);
+  }
+
+  *cfg = (unsigned int) l;
+
+  return NULL;
+}
+
 const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 {
-	cas_cfg *c = (cas_cfg *) ap_get_module_config(cmd->server->module_config, &auth_cas_module);
-	apr_finfo_t f;
-	size_t sz, limit;
-	int i;
-	char d;
+  cas_cfg *c =
+      ap_get_module_config(cmd->server->module_config, &auth_cas_module);
+  apr_finfo_t f;
+  const char *rv;
+  /*
+   * cases determined from valid_cmds in mod_auth_cas.h
+   */
+  switch((valid_cmds) cmd->info) {
+    case cmd_version:
+      rv = cas_read_int(cmd->pool, cmd->directive->directive, value,
+                        &c->CASVersion);
+      if (rv)
+        return rv;
+      else if (c->CASVersion != 1 && c->CASVersion != 2)
+        return(apr_psprintf(cmd->pool,
+                            "MOD_AUTH_CAS: Invalid CAS version (%s) specified",
+                            value));
+      break;
+    case cmd_debug:
+      return cas_read_onoff(cmd->pool, cmd->directive->directive,
+                            value, &c->CASDebug);
+    case cmd_validate_saml:
+      return cas_read_onoff(cmd->pool, cmd->directive->directive,
+                            value, &c->CASValidateSAML);
+    case cmd_attribute_delimiter:
+      c->CASAttributeDelimiter = apr_pstrdup(cmd->pool, value);
+      break;
+    case cmd_attribute_prefix:
+      c->CASAttributePrefix = apr_pstrdup(cmd->pool, value);
+      break;
+    case cmd_ca_path:
+      if(apr_stat(&f, value, APR_FINFO_TYPE, cmd->temp_pool) != APR_SUCCESS)
+        return(apr_psprintf(cmd->pool,
+                            "MOD_AUTH_CAS: Could not find Certificate "
+                            "Authority file '%s'", value));
 
-	/* cases determined from valid_cmds in mod_auth_cas.h - the config at this point is initialized to default values */
-	switch((size_t) cmd->info) {
-		case cmd_version:
-			i = atoi(value);
-			if(i > 0)
-				c->CASVersion = i;
-			else
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid CAS version (%s) specified", value));
-		break;
-		case cmd_debug:
-			/* if atoi() is used on value here with AP_INIT_FLAG, it works but results in a compile warning, so we use TAKE1 to avoid it */
-			if(apr_strnatcasecmp(value, "On") == 0)
-				c->CASDebug = TRUE;
-			else if(apr_strnatcasecmp(value, "Off") == 0)
-				c->CASDebug = FALSE;
-			else
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASDebug - must be 'On' or 'Off'"));
-		break;
-		case cmd_validate_server:
-			/* if atoi() is used on value here with AP_INIT_FLAG, it works but results in a compile warning, so we use TAKE1 to avoid it */
-			if(apr_strnatcasecmp(value, "On") == 0)
-				c->CASValidateServer = TRUE;
-			else if(apr_strnatcasecmp(value, "Off") == 0)
-				c->CASValidateServer = FALSE;
-			else
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASValidateServer - must be 'On' or 'Off'"));
-		break;
-		case cmd_validate_saml:
-			if(apr_strnatcasecmp(value, "On") == 0)
-				c->CASValidateSAML = TRUE;
-			else if(apr_strnatcasecmp(value, "Off") == 0)
-				c->CASValidateSAML = FALSE;
-			else
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASValidateSAML - must be 'On' or 'Off'"));
-		break;
-		case cmd_attribute_delimiter:
-			c->CASAttributeDelimiter = apr_pstrdup(cmd->pool, value);
-		break;
-		case cmd_attribute_prefix:
-			c->CASAttributePrefix = apr_pstrdup(cmd->pool, value);
-		break;
-		case cmd_wildcard_cert:
-			// XXX this feature is broken now
-			/* if atoi() is used on value here with AP_INIT_FLAG, it works but results in a compile warning, so we use TAKE1 to avoid it */
-			if(apr_strnatcasecmp(value, "On") == 0)
-				c->CASAllowWildcardCert = TRUE;
-			else if(apr_strnatcasecmp(value, "Off") == 0)
-				c->CASAllowWildcardCert = FALSE;
-			else
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASAllowWildcardCert - must be 'On' or 'Off'"));
-		break;
+      if(f.filetype != APR_REG && f.filetype != APR_DIR)
+        return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Certificate "
+                            "Authority file '%s' is not a regular file "
+                            "or directory", value));
+      c->CASCertificatePath = apr_pstrdup(cmd->pool, value);
+      break;
+    case cmd_validate_depth:
+      rv = cas_read_int(cmd->pool, cmd->directive->directive, value,
+                        &c->CASValidateDepth);
+      if (rv)
+        return rv;
+      break;
+    case cmd_cookie_path:
+      /*
+       * this is probably redundant since the same check is performed in
+       * cas_post_config
+       */
+      if(apr_stat(&f, value, APR_FINFO_TYPE, cmd->temp_pool) != APR_SUCCESS)
+        return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Could not find "
+                            "CASCookiePath '%s'", value));
 
-		case cmd_ca_path:
-			if(apr_stat(&f, value, APR_FINFO_TYPE, cmd->temp_pool) == APR_INCOMPLETE)
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Could not find Certificate Authority file '%s'", value));
-
-			if(f.filetype != APR_REG && f.filetype != APR_DIR)
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Certificate Authority file '%s' is not a regular file or directory", value));
-			c->CASCertificatePath = apr_pstrdup(cmd->pool, value);
-		break;
-		case cmd_validate_depth:
-			i = atoi(value);
-			if(i > 0)
-				c->CASValidateDepth = i;
-			else
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid CASValidateDepth (%s) specified", value));
-		break;
-
-		case cmd_cookie_path:
-			/* this is probably redundant since the same check is performed in cas_post_config */
-			if(apr_stat(&f, value, APR_FINFO_TYPE, cmd->temp_pool) == APR_INCOMPLETE)
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Could not find CASCookiePath '%s'", value));
-
-			if(f.filetype != APR_DIR || value[strlen(value)-1] != '/')
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: CASCookiePath '%s' is not a directory or does not end in a trailing '/'!", value));
-
-			c->CASCookiePath = apr_pstrdup(cmd->pool, value);
-		break;
-
+      if(f.filetype != APR_DIR || value[strlen(value)-1] != '/')
+        return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: CASCookiePath '%s' "
+                            "is not a directory or does not end in a "
+                            "trailing '/'!", value));
+      c->CASCookiePath = apr_pstrdup(cmd->pool, value);
+      break;
 		case cmd_loginurl:
-			if(cas_setURL(cmd->pool, &(c->CASLoginURL), value) != TRUE)
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Login URL '%s' could not be parsed!", value));
-		break;
+      if(cas_setURL(cmd->pool, &(c->CASLoginURL), value) != TRUE)
+        return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Login URL '%s' "
+                            "could not be parsed!", value));
+      break;
 		case cmd_validateurl:
-			if(cas_setURL(cmd->pool, &(c->CASValidateURL), value) != TRUE)
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Validation URL '%s' could not be parsed!", value));
+      if(cas_setURL(cmd->pool, &(c->CASValidateURL), value) != TRUE)
+        return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Validation URL '%s' "
+                            "could not be parsed!", value));
 		break;
-		case cmd_proxyurl:
-			if(cas_setURL(cmd->pool, &(c->CASProxyValidateURL), value) != TRUE)
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Proxy Validation URL '%s' could not be parsed!", value));
-		break;
-		case cmd_root_proxied_as:
-			if(cas_setURL(cmd->pool, &(c->CASRootProxiedAs), value) != TRUE)
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Root Proxy URL '%s' could not be parsed!", value));
-		break;
-		case cmd_cookie_entropy:
-			i = atoi(value);
-			if(i > 0)
-				c->CASCookieEntropy = i;
-			else
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid CASCookieEntropy (%s) specified - must be numeric", value));
-		break;
-		case cmd_session_timeout:
-			i = atoi(value);
-			if(i >= 0)
-				c->CASTimeout = i;
-			else
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid CASTimeout (%s) specified - must be numeric", value));
-		break;
-		case cmd_idle_timeout:
-			i = atoi(value);
-			if(i > 0)
-				c->CASIdleTimeout = i;
-			else
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid CASIdleTimeout (%s) specified - must be numeric", value));
-		break;
-
-		case cmd_cache_interval:
-			i = atoi(value);
-			if(i > 0)
-				c->CASCacheCleanInterval = i;
-			else
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid CASCacheCleanInterval (%s) specified - must be numeric", value));
-		break;
-		case cmd_cookie_domain:
-			limit = strlen(value);
-			for(sz = 0; sz < limit; sz++) {
-				d = value[sz];
-				if( (d < '0' || d > '9') &&
-					(d < 'a' || d > 'z') &&
-					(d < 'A' || d > 'Z') &&
-					d != '.' && d != '-') {
-						return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid character (%c) in CASCookieDomain", d));
-				}
-			}
-			c->CASCookieDomain = apr_pstrdup(cmd->pool, value);
-		break;
-		case cmd_cookie_httponly:
-			if(apr_strnatcasecmp(value, "On") == 0)
-				c->CASCookieHttpOnly = TRUE;
-			else if(apr_strnatcasecmp(value, "Off") == 0)
-				c->CASCookieHttpOnly = FALSE;
-			else
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASCookieHttpOnly - must be 'On' or 'Off'"));
-
-		break;
-		case cmd_sso:
-			if(apr_strnatcasecmp(value, "On") == 0)
-				c->CASSSOEnabled = TRUE;
-			else if(apr_strnatcasecmp(value, "Off") == 0)
-				c->CASSSOEnabled = FALSE;
-			else
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASSSOEnabled - must be 'On' or 'Off'"));
-		break;
-		case cmd_authoritative:
-			if(apr_strnatcasecmp(value, "On") == 0)
-				c->CASAuthoritative = TRUE;
-			else if(apr_strnatcasecmp(value, "Off") == 0)
-				c->CASAuthoritative = FALSE;
-			else
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASAuthoritative - must be 'On' or 'Off'"));
-		break;
-		default:
-			/* should not happen */
-			return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: invalid command '%s'", cmd->directive->directive));
-		break;
-	}
-	return NULL;
+    case cmd_proxyurl:
+      if(cas_setURL(cmd->pool, &(c->CASProxyValidateURL), value) != TRUE)
+        return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Proxy Validation URL "
+                            "'%s' could not be parsed!", value));
+      break;
+    case cmd_root_proxied_as:
+      if(cas_setURL(cmd->pool, &(c->CASRootProxiedAs), value) != TRUE)
+        return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Root Proxy URL '%s' "
+                            "could not be parsed!", value));
+      break;
+    case cmd_cookie_entropy:
+      return cas_read_int(cmd->pool, cmd->directive->directive, value,
+                          &c->CASCookieEntropy);
+    case cmd_session_timeout:
+      return cas_read_int(cmd->pool, cmd->directive->directive, value,
+                          &c->CASTimeout);
+    case cmd_idle_timeout:
+      return cas_read_int(cmd->pool, cmd->directive->directive, value,
+                          &c->CASIdleTimeout);
+    case cmd_cache_interval:
+      return cas_read_int(cmd->pool, cmd->directive->directive, value,
+                          &c->CASCacheCleanInterval);
+      break;
+    case cmd_cookie_domain:
+      if (!cas_valid_domain(value))
+        return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid character in "
+                            "CASCookieDomain"));
+      c->CASCookieDomain = apr_pstrdup(cmd->pool, value);
+      break;
+    case cmd_cookie_httponly:
+      return cas_read_onoff(cmd->pool, cmd->directive->directive,
+                            value, &c->CASCookieHttpOnly);
+    case cmd_sso:
+      return cas_read_onoff(cmd->pool, cmd->directive->directive,
+                            value, &c->CASSSOEnabled);
+    case cmd_authoritative:
+      return cas_read_onoff(cmd->pool, cmd->directive->directive,
+                            value, &c->CASAuthoritative);
+    default:
+    /* should not happen */
+    return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: invalid command '%s'",
+                        cmd->directive->directive));
+    break;
+  }
+  return NULL;
 }
 
 /* utility functions to set/retrieve values from the configuration */
@@ -706,7 +678,7 @@ apr_byte_t validCASTicketFormat(const char *ticket)
         state = postfix;
         break;
       case postfix:
-        if (*ticket != '-' && *ticket != '.' && !isalnum(*ticket))
+        if (*ticket != '-' && *ticket != '.' && !cas_isalnum(*ticket))
           goto bail;
         break;
       default:
@@ -1728,13 +1700,12 @@ size_t cas_curl_write(const void *ptr, size_t size, size_t nmemb, void *stream)
 
 CURLcode cas_curl_ssl_ctx(CURL *curl, void *sslctx, void *parm)
 {
-	SSL_CTX *ctx = (SSL_CTX *) sslctx;
-	cas_cfg *c = (cas_cfg *)parm;
+  SSL_CTX *ctx = (SSL_CTX *) sslctx;
+  cas_cfg *c = (cas_cfg *) parm;
 
-	if(c->CASValidateServer != FALSE)
-		SSL_CTX_set_verify_depth(ctx, c->CASValidateDepth);
+  SSL_CTX_set_verify_depth(ctx, c->CASValidateDepth);
 
-	return CURLE_OK;
+  return CURLE_OK;
 }
 
 char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
@@ -1779,7 +1750,7 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	curl_easy_setopt(curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP|CURLPROTO_HTTPS);
 #endif
 
-	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, (c->CASValidateServer != FALSE ? 1L : 0L));
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
 
 	if(apr_stat(&f, c->CASCertificatePath, APR_FINFO_TYPE, r->pool) == APR_INCOMPLETE) {
 		ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: Could not load CA certificate: %s", c->CASCertificatePath);
@@ -1794,8 +1765,7 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 		goto out;
 	}
 
-	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, (c->CASValidateServer != FALSE ? 2L : 0L));
-
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
 	curl_easy_setopt(curl, CURLOPT_USERAGENT, "mod_auth_cas 1.0.10");
 
 	if(c->CASValidateSAML == TRUE) {
@@ -1838,13 +1808,37 @@ out:
 	return rv;
 }
 
+/* locale independent version of isalnum() */
+apr_byte_t cas_isalnum(char c) {
+  if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') ||
+      (c >= 'a' && c <= 'z'))
+    return TRUE;
+  return FALSE;
+}
+
+apr_byte_t cas_valid_domain(const char *test) {
+  char c;
+  if (!*test)
+    return FALSE;
+
+  while (*test) {
+    c = *test++;
+    if((c < '0' || c > '9') &&
+       (c < 'a' || c > 'z') &&
+       (c < 'A' || c > 'Z') &&
+       c != '.' && c != '-')
+      return FALSE;
+  }
+  return TRUE;
+}
+
 /* convert a character to a normalized representation, as for using as
  * an environment variable. Perform the same character transformation
  * as http2env() from server/util_script.c at e.g.
  * <http://svn.apache.org/viewvc/httpd/httpd/tags/2.2.19/
  * server/util_script.c?revision=1125468&view=markup#l56> */
 int cas_char_to_env(int c) {
-	return apr_isalnum(c) ? apr_toupper(c) : '_';
+	return cas_isalnum(c) ? apr_toupper(c) : '_';
 }
 
 /* Compare two strings based on how they would be converted to an
@@ -2341,7 +2335,9 @@ int cas_authorize(request_rec *r)
 
 /* Pulled out from cas_authorize to enable unit-testing */
 
-int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const require_line *const reqs, int nelts, const cas_cfg *const c)
+int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs,
+                         const require_line *const reqs, int nelts,
+                         const cas_cfg *const c)
 {
 	const int m = r->method_number;
 	const char *token;
@@ -2694,9 +2690,7 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASAttributePrefix", cfg_readCASParameter, (void *) cmd_attribute_prefix, RSRC_CONF, "The prefix to use when setting attributes in the HTTP headers"),
 
 	/* ssl related options */
-	AP_INIT_TAKE1("CASValidateServer", cfg_readCASParameter, (void *) cmd_validate_server, RSRC_CONF, "Require validation of CAS server SSL certificate for successful authentication (On or Off)"),
 	AP_INIT_TAKE1("CASValidateDepth", cfg_readCASParameter, (void *) cmd_validate_depth, RSRC_CONF, "Define the number of chained certificates required for a successful validation"),
-	AP_INIT_TAKE1("CASAllowWildcardCert", cfg_readCASParameter, (void *) cmd_wildcard_cert, RSRC_CONF, "Allow wildcards in certificates when performing validation (e.g. *.example.com) (On or Off)"),
 	AP_INIT_TAKE1("CASCertificatePath", cfg_readCASParameter, (void *) cmd_ca_path, RSRC_CONF, "Path to the X509 certificate for the CASServer Certificate Authority"),
 
 	/* pertinent CAS urls */

@@ -86,6 +86,14 @@ NEW FEATURES AND FUNCTIONS IN THIS RELEASE
 
 * Improved automake suport.
 
+* CASValidateServer functionality has been removed.  Users must
+  either fix their SSL certificate configuration using the
+  CASCertificatePath directive, or switch to communicating with
+  the CAS server over standard HTTP.
+
+* CASAllowWildcardCert has been removed, as this has been a no-op for
+  some time (libcurl handles all validation).
+
 ====================================================================
 BUG FIXES
 ====================================================================
@@ -218,25 +226,10 @@ Description:	Enable or disable debugging mode for troubleshooting.  Please
               note that LogLevel must be set to Debug for the VirtualHost in
               order for these logs to be visible.
 
-Directive: 	CASValidateServer
-Default:	On
-Description:	If set to 'On', mod_auth_cas will validate that the certificate
-		presented by the server specified in CASLoginURL is both
-		signed by the Certificate Authority specified in CASCertificatePath
-		and that the hostname matches the Common Name of the certificate.
-
 Directive:	CASValidateDepth
 Default:	9
 Description:	This directive will set the maximum depth for chained certificate
 		validation.  The default (according to OpenSSL documentation) is 9.
-
-Directive:	CASAllowWildcardCert
-Default:	Off
-Description:	This directive determines whether a wildcard certificate can be trusted
-		to verify the CAS server.  For instance, if the CAS server presents a
-		certificate for *.example.com and the hostname portion of the CASValidateURL
-		is 'cas.login.example.com', this directive (if enabled) will accept that
-		certificate.
 
 Directive: 	CASCertificatePath
 Default:	/etc/ssl/certs/

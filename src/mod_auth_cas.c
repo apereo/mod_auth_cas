@@ -2061,6 +2061,10 @@ int cas_authenticate(request_rec *r)
 				return HTTP_INTERNAL_SERVER_ERROR;
 
 			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), cookieString, ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT);
+			/* remove gateway cookie so they can reauthenticate later */
+			if (getCASCookie(r, d->CASGatewayCookie)) {
+				setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl, CAS_SESSION_EXPIRE_COOKIE_NOW);
+			}
 			r->user = remoteUser;
 			if(d->CASAuthNHeader != NULL)
 				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);

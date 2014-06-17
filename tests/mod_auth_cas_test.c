@@ -519,7 +519,7 @@ START_TEST(setCASCookie_test) {
   const char *expected = "cookie_name=cookie_value;Path=/";
   const char *rv;
   fail_if (apr_table_get(request->err_headers_out, "Set-Cookie") != NULL);
-  setCASCookie(request, "cookie_name", "cookie_value", FALSE, CAS_SESSION_EXPIRE_COOKIE_TIMEOUT);
+  setCASCookie(request, "cookie_name", "cookie_value", FALSE, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT);
   rv = apr_table_get(request->err_headers_out, "Set-Cookie");
   fail_unless(strcmp(rv, expected) == 0);
 
@@ -530,7 +530,7 @@ END_TEST
 
 START_TEST(setCASCookieExpiryNow_test) {
 	const char *expected = "cookie_name=cookie_value;Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-	const char *ernVal, *eeVal;
+	const char *ernVal;
 
   fail_if (apr_table_get(request->err_headers_out, "Set-Cookie") != NULL);
 	setCASCookie(request, "cookie_name", "cookie_value", FALSE, CAS_SESSION_EXPIRE_COOKIE_NOW);
@@ -548,6 +548,56 @@ START_TEST(setCASCookieExpiryFiveSeconds_test) {
   setCASCookie(request, "cookie_name", "cookie_value", FALSE, fiveSecPastEpoch);
   eeVal = apr_table_get(request->err_headers_out, "Set-Cookie");
   fail_unless(0 == strcmp(eeVal, expected), eeVal);
+}
+END_TEST
+
+START_TEST(removeGatewayCookie_test) {
+  const char *expected = "MOD_CAS_G=TRUE;Secure;Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  const char *ernVal;
+  const char *response =
+	"<cas:serviceResponse xmlns:cas=\"http://www.yale.edu/tp/cas\">"
+	"<cas:authenticationSuccess>"
+	"<cas:user>good</cas:user>"
+	"</cas:authenticationSuccess>"
+	"</cas:serviceResponse>";
+  int rv;
+  cas_cfg *c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+  c->CASCookiePath = "/tmp/";
+
+  /*
+   * setup request as if we've just returned from a gateway trip,
+   * with a gateway cookie and a cas ticket
+   */
+  apr_table_set(request->headers_in, "Cookie", "MOD_CAS_G=TRUE; cookie_name=cookie_value ");
+  request->unparsed_uri = "/foo?ticket=ST-1234";
+  request->uri = "/foo";
+  request->args = apr_pstrdup(request->pool, "ticket=ST-1234");
+  request->connection->local_addr->port = 443;
+  request->ap_auth_type = "cas";
+  fail_unless(strcmp(request->args, "ticket=ST-1234") == 0, request->args);
+  apr_uri_parse(request->pool, "http://foo.example.com/foo?ticket=ST-12345",
+                &request->parsed_uri);
+
+  /*
+   * setup fake serviceValidate response from cas server
+   */
+  set_curl_response(response);
+
+  /*
+   * authenticate the user
+   */
+  c->CASCertificatePath = "/";
+  rv = cas_authenticate(request);
+  fail_unless(rv == HTTP_MOVED_TEMPORARILY, "cas_authenticate failed");
+  fail_unless(strcmp(request->user, "good") == 0, request->user);
+
+  /*
+   * verify that the Set-Cookie header removes the gateway cookie
+   */
+  apr_table_compress(request->err_headers_out, APR_OVERLAP_TABLES_MERGE);
+  ernVal = apr_table_get(request->err_headers_out, "Set-Cookie");
+  fail_unless(strstr(ernVal, expected) != NULL, ernVal);
 }
 END_TEST
 
@@ -1311,6 +1361,7 @@ Suite *mod_auth_cas_suite(void) {
   tcase_add_test(tc_core, setCASCookie_test);
   tcase_add_test(tc_core, setCASCookieExpiryNow_test);
   tcase_add_test(tc_core, setCASCookieExpiryFiveSeconds_test);
+  tcase_add_test(tc_core, removeGatewayCookie_test);
   tcase_add_test(tc_core, urlEncode_test);
   tcase_add_test(tc_core, readCASCacheFile_test);
   tcase_add_test(tc_core, CASCleanCache_test);

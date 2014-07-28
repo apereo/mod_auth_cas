@@ -63,6 +63,16 @@
 	#endif
 #endif
 
+ #ifndef APACHE2_4
+	#ifdef AP_SERVER_MAJORVERSION_NUMBER
+		#ifdef AP_SERVER_MINORVERSION_NUMBER
+			#if ((AP_SERVER_MAJORVERSION_NUMBER == 2) && (AP_SERVER_MINORVERSION_NUMBER >= 4))
+				#define APACHE2_4
+			#endif
+		#endif
+	#endif
+#endif
+
 #define CAS_DEFAULT_VERSION 2
 #define CAS_DEFAULT_DEBUG FALSE
 #define CAS_DEFAULT_SCOPE NULL
@@ -93,6 +103,7 @@
 #define CAS_DEFAULT_SCRUB_REQUEST_HEADERS NULL
 #define CAS_DEFAULT_SSO_ENABLED FALSE
 #define CAS_DEFAULT_AUTHORITATIVE FALSE
+#define CAS_DEFAULT_SECURE_SESSION TRUE
 
 #define CAS_MAX_RESPONSE_SIZE 65536
 #define CAS_MAX_ERROR_SIZE 1024
@@ -120,6 +131,7 @@ typedef struct cas_cfg {
 	unsigned int CASSSOEnabled;
 	unsigned int CASAuthoritative;
 	unsigned int CASValidateSAML;
+	unsigned int CASSecureSession;
 	char *CASCertificatePath;
 	char *CASCookiePath;
 	char *CASCookieDomain;
@@ -151,6 +163,7 @@ typedef struct cas_cache_entry {
 	apr_byte_t secure;
 	char *ticket;
 	cas_saml_attr *attrs;
+	char *session;
 } cas_cache_entry;
 
 typedef struct cas_curl_buffer {
@@ -221,6 +234,8 @@ apr_status_t cas_cleanup(void *data);
 int check_merged_vhost_configs(apr_pool_t *pool, server_rec *s);
 int check_vhost_config(apr_pool_t *pool, server_rec *s);
 int merged_vhost_configs_exist(server_rec *s);
+
+char *cas_secure_session(request_rec *r);
 
 #if (defined(OPENSSL_THREADS) && APR_HAS_THREADS)
 void cas_ssl_locking_callback(int mode, int type, const char *file, int line);

@@ -53,6 +53,8 @@
 #include "apr_strings.h"
 #include "apr_xml.h"
 
+#include "mod_ssl.h"
+
 #include "cas_saml_attr.h"
 
 /* Apache is NOT a well-behaved citizen. It unconditionally
@@ -75,6 +77,9 @@
 static apr_thread_mutex_t **ssl_locks;
 static int ssl_num_locks;
 #endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
+
+static APR_OPTIONAL_FN_TYPE(ssl_var_lookup) *mod_ssl_var_lookup;
+static APR_OPTIONAL_FN_TYPE(ssl_is_https) *mod_ssl_is_https;
 
 int cas_flock(apr_file_t *fileHandle, int lockOperation, request_rec *r)
 {
@@ -116,6 +121,7 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASAttributeDelimiter = CAS_DEFAULT_ATTRIBUTE_DELIMITER;
 	c->CASAttributePrefix = CAS_DEFAULT_ATTRIBUTE_PREFIX;
 	c->CASAuthoritative = CAS_DEFAULT_AUTHORITATIVE;
+	c->CASSecureSession = CAS_DEFAULT_SECURE_SESSION;
 
 	cas_setURL(pool, &(c->CASLoginURL), CAS_DEFAULT_LOGIN_URL);
 	cas_setURL(pool, &(c->CASValidateURL), CAS_DEFAULT_VALIDATE_URL);
@@ -414,14 +420,16 @@ apr_byte_t cas_setURL(apr_pool_t *pool, apr_uri_t *uri, const char *url)
 
 apr_byte_t isSSL(const request_rec *r)
 {
-
+	if (mod_ssl_is_https) {
+		return mod_ssl_is_https(r->connection) != 0;
+	} else {
 #ifdef APACHE2_0
 	if(apr_strnatcasecmp("https", ap_http_method(r)) == 0)
 #else
 	if(apr_strnatcasecmp("https", ap_http_scheme(r)) == 0)
 #endif
 		return TRUE;
-
+	}
 	return FALSE;
 }
 
@@ -977,6 +985,7 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 	cache->secure = FALSE;
 	cache->ticket = NULL;
 	cache->attrs = NULL;
+	cache->session = NULL;
 
 	do {
 		if(e == NULL)
@@ -1015,6 +1024,8 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 			cache->secure = TRUE;
 		else if (apr_strnatcasecmp(e->name, "ticket") == 0)
 			cache->ticket = apr_pstrndup(r->pool, val, strlen(val));
+		else if (apr_strnatcasecmp(e->name, "session") == 0)
+			cache->session = apr_pstrndup(r->pool, val, strlen(val));
 		else if (apr_strnatcasecmp(e->name, "attributes") == 0) {
 			cas_attr_builder *builder = cas_attr_builder_new(r->pool, &(cache->attrs));
 			apr_xml_elem *attrs;
@@ -1217,6 +1228,7 @@ apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache
 	apr_file_printf(f, "<lastactive>%" APR_TIME_T_FMT "</lastactive>\n", cache->lastactive);
 	apr_file_printf(f, "<path>%s</path>\n", apr_xml_quote_string(r->pool, cache->path, TRUE));
 	apr_file_printf(f, "<ticket>%s</ticket>\n", apr_xml_quote_string(r->pool, cache->ticket, TRUE));
+	apr_file_printf(f, "<session>%s</session>\n", apr_xml_quote_string(r->pool, cache->session, TRUE));
 	if(cache->attrs != NULL) {
 		cas_saml_attr *a = cache->attrs;
 		apr_file_printf(f, "<attributes>\n");
@@ -1251,6 +1263,87 @@ apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache
 	return TRUE;
 }
 
+/* 
+ *  hook function to retrieve the mod_ssl optional functions for looking up ssl state data	
+ *   ssl_var_lookup allows us to fetch the ssl environment variables (used for accessing the SSL_SESSION_ID)
+ *   ssl_is_https is the mod_ssl to achieve the equivalent of isSSL
+ */
+static void retrieve_mod_ssl_functions(void) {
+
+	mod_ssl_var_lookup = APR_RETRIEVE_OPTIONAL_FN(ssl_var_lookup);
+	mod_ssl_is_https   = APR_RETRIEVE_OPTIONAL_FN(ssl_is_https);
+
+}
+
+/*
+ * cas_secure_session()
+ *
+ * 	Build an internal session identifier for mod_auth_cas to use in session hijacking mitigation. 
+ * 	existing mitigations neglect full cookie theft and instead rely on cookie modifications. 
+ *  The preferred method of session id generation is to borrow the SSL Session from mod_ssl
+ * 		given that the SSL Session is not exposed to browser javascript engines we can assert 
+ *		with a high degree of confidence that SSL_SESSION_ID will not likely be stolen.
+ * 	In the event we negotiating via HTTP we attempt to create as secure an id as we can.
+ *  An HTTP id is comprised of the user's IP address which is acquired either via the useragent_ip 
+ * 		field of the apache request (if available in our current version) or from the apr_get_remote_host
+ * 		function (which should be available in apache 2.x). This value is concatenated with the 
+ *		user-agent header to create a semi unique internal identifier which should not change 
+ * 		during the session.
+ * 	
+ *  Known issues: 
+ * 		In the event the apache server is running behind NAT or a load-balancer the ip address
+ * 		obtained by ap_get_remote_host may be the same for all users. it is for this reason we 
+ * 		would rather obtain useragent_ip when available. 
+ * 	
+ *		In the event the above takes place theft of the user-agent can be used to spoof our users
+ * 		''' navigator.userAgent + document.cookie '''
+ * 
+ *		In order to address these we would need other internal identifier similar to the SSL
+ *		session id which is unique and not exposed to the end-user
+ * 	
+ */
+char *cas_secure_session(request_rec *r) {
+
+	static const char kNULL_ID[] = "[NULL]";
+
+	char *secure_id = NULL;
+
+	// first pass (our preferred method)
+	if (mod_ssl_var_lookup) {
+		secure_id = mod_ssl_var_lookup(r->pool, r->server, r->connection, r, "SSL_SESSION_ID");
+	}
+
+	if (!secure_id || !strlen(secure_id)) {
+
+		char *ip_addr    = NULL;
+		char *user_agent = NULL;
+		char *plaintext  = NULL;
+
+		// in apache 2.4 we are able to use the useragent_ip which should be the conneting host
+		//  this is a much better solution as it will not be covered by natted requests.
+#ifdef APACHE2_4
+		ip_addr = (char *)r->useragent_ip; 
+#endif
+
+		// if we are less than apache 2.4 or the useragent_ip field is NULL we can fallback to
+		// 	fetching the ip from the ap_get_remote_host function
+		if (!ip_addr)
+			ip_addr = (char *)ap_get_remote_host(r->connection, r->connection->base_server->lookup_defaults, REMOTE_NOLOOKUP, NULL);
+	
+		user_agent = (char *)apr_table_get(r->headers_in, "User-Agent");
+
+		plaintext = apr_pstrcat(r->pool, ip_addr, user_agent, NULL);
+
+		secure_id = ap_md5(r->pool, (unsigned char *)plaintext);
+	}
+
+	// If everything else has failed up to this point we are going to unfortunately use "[NULL]"
+	if (!secure_id)
+		secure_id = (char *)apr_pstrdup(r->pool, kNULL_ID);
+
+	return (char *)secure_id;
+}
+
 char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ticket)
 {
 	char *path, *buf, *rv;
@@ -1275,6 +1368,7 @@ char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ti
 	e.secure = (isSSL(r) == TRUE ? 1 : 0);
 	e.ticket = ticket;
 	e.attrs = attrs;
+	e.session = cas_secure_session(r);
 
 	/* this may block since this reads from /dev/random - however, it hasn't been a problem in testing */
 	apr_generate_random_bytes((unsigned char *) buf, c->CASCookieEntropy);
@@ -1627,6 +1721,23 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
 		if(c->CASDebug)
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' is corrupt or invalid", cookie);
 		return FALSE;
+	}
+
+	/* 
+	 * session hijacking mitigation through the cas entry "session" variable. 
+	 *	when possible we check for SSL_SESSION_ID matching (most secure) otherwise a number of other 
+	 *  session idenifiers are used. cas_secure_session() 
+	 */	
+	if (c->CASSecureSession) {
+
+		if (apr_strnatcmp(cas_secure_session(r), cache.session) != 0) {
+
+			deleteCASCacheFile(r, cookie);
+			if(c->CASDebug)
+				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' originated from invalid source.", cookie);
+			CASCleanCache(r, c);
+			return FALSE;
+		}
 	}
 
 	/*
@@ -2301,7 +2412,7 @@ int cas_authorize(request_rec *r)
 				     &auth_cas_module);
 
 	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-		      "Entering cas_authorize.");
+		      "Entering cas_authorize()");
 
 	if (!reqs_arr) {
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
@@ -2651,8 +2762,10 @@ void cas_register_hooks(apr_pool_t *p)
 #else
 	ap_hook_check_user_id(cas_authenticate, NULL, NULL, APR_HOOK_MIDDLE);
 #endif
-ap_hook_auth_checker(cas_authorize, NULL, authzSucc, APR_HOOK_MIDDLE);
+	ap_hook_auth_checker(cas_authorize, NULL, authzSucc, APR_HOOK_MIDDLE);
 	ap_register_input_filter("CAS", cas_in_filter, NULL, AP_FTYPE_RESOURCE);
+	// mod_ssl_hook retrieve
+	ap_hook_optional_fn_retrieve(retrieve_mod_ssl_functions, NULL, NULL, APR_HOOK_MIDDLE);
 }
 
 const command_rec cas_cmds [] = {

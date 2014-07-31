@@ -318,12 +318,10 @@ Default:	NULL
 Description:	Specify the value for the 'Domain=' parameter in the Set-Cookie header.
 
 Directive:	CASCookieHttpOnly
-Default:	Off
+Default:	On
 Description:	Set the optional 'HttpOnly' flag for cookies issues by mod_auth_cas.
-		This parameter may break RFC compliance since HttpOnly is not defined
-		in RFC 2109.  See http://msdn2.microsoft.com/en-us/library/ms533046.aspx
-		for more information.  Please note this feature is not honored by all
-		browsers.
+		Set the HttpOnly flag as described in in RFC 6265.  This flag prevents the
+		mod_auth_cas cookies from being accessed by client side Javascript.
 
 Directive:	CASAuthoritative
 Default:	Off

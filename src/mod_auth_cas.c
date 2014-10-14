@@ -731,7 +731,10 @@ char *getCASCookie(request_rec *r, char *cookieName)
 		/* tokenize on ; to find the cookie we want */
 		cookie = apr_strtok(cookies, ";", &tokenizerCtx);
 		do {
-			while (cookie != NULL && *cookie == ' ')
+			/* no more parameters */
+			if(cookie == NULL)
+				break;
+			while (*cookie == ' ')
 				cookie++;
 			if(strncmp(cookie, cookieName, strlen(cookieName)) == 0) {
 				cookieFound = TRUE;
@@ -740,9 +743,6 @@ char *getCASCookie(request_rec *r, char *cookieName)
 				rv = apr_pstrdup(r->pool, cookie);
 			}
 			cookie = apr_strtok(NULL, ";", &tokenizerCtx);
-		/* no more parameters */
-		if(cookie == NULL)
-			break;
 		} while (cookieFound == FALSE);
 	}
 

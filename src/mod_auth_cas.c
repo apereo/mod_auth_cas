@@ -1514,9 +1514,19 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 								if(attr != NULL) {
 									const char *value = strchr(attr->value, ':');
 									value = (value == NULL ? attr->value : value + 1);
+									// TO DO: This is very, very minimal support for SAML1.1 StatusCodes..
+									//  Consult https://www.oasis-open.org/committees/download.php/3406/oasis-sstc-saml-core-1.1.pdf
 									if(apr_strnatcmp(value, "Success") == 0) {
 										success = TRUE;
-									}
+									} else if(apr_strnatcmp(value, "Responder") == 0) {
+										ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: SAML StatusCode 'samlp:Responder' - service not authorized for attribute release during attempted validation.");
+										// We can proceed no further, so bail.
+										return FALSE;
+									} else  {
+										ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: unsupported SAML StatusCode");
+										// We can proceed no further, so bail.
+										return FALSE;
+									} 
 								}
 							}
 						}
@@ -1563,6 +1573,7 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 											as_node = as_node->next;
 										}
 									} else if(apr_strnatcmp(node->name, "AuthenticationStatement") == 0) {
+										apr_xml_elem *as_node = node->first_child;
 										attr = node->attr;
 										while(attr != NULL && apr_strnatcmp(attr->name, "AuthenticationMethod") != 0) {
 											attr = attr->next;
@@ -1570,8 +1581,26 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 										if(attr != NULL) {
 											cas_attr_builder_add(builder, attr->name, attr->value);
 										}
+										// AuthenticationStatement lacks attribute data, but may contain username info
+										while(as_node != NULL) {
+											if(!found_user && apr_strnatcmp(as_node->name, "Subject") == 0) {
+												apr_xml_elem *subject_node = as_node->first_child;
+												while(subject_node != NULL && apr_strnatcmp(subject_node->name, "NameIdentifier") != 0) {
+													subject_node = subject_node->next;
+												}
+												if(subject_node != NULL) {
+													found_user = TRUE;
+													apr_xml_to_text(r->pool, subject_node, APR_XML_X2T_INNER, NULL, NULL, (const char **)user, NULL);
+												}
+											}
+											as_node = as_node->next;
+										}
 									}
 									node = node->next;
+								}
+								if (!found_user) {
+									// If we have not found a user at this point, returning false is the only sensible thing to do here
+									return FALSE;
 								}
 							}
 						}
@@ -2054,6 +2083,11 @@ int cas_authenticate(request_rec *r)
 	/* now, handle when a ticket is present (this will also catch gateway users since ticket != NULL on their trip back) */
 	if(ticket != NULL) {
 		if(isValidCASTicket(r, c, ticket, &remoteUser, &attrs)) {
+
+			/* if we could not find remote user at this point, we have bigger problems */
+			if(remoteUser == NULL)
+				return HTTP_INTERNAL_SERVER_ERROR;
+
 			cookieString = createCASCookie(r, remoteUser, attrs, ticket);
 
 			/* if there was an error writing the cookie info to the file system */

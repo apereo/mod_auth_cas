@@ -1574,13 +1574,6 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 										}
 									} else if(apr_strnatcmp(node->name, "AuthenticationStatement") == 0) {
 										apr_xml_elem *as_node = node->first_child;
-										attr = node->attr;
-										while(attr != NULL && apr_strnatcmp(attr->name, "AuthenticationMethod") != 0) {
-											attr = attr->next;
-										}
-										if(attr != NULL) {
-											cas_attr_builder_add(builder, attr->name, attr->value);
-										}
 										// AuthenticationStatement lacks attribute data, but may contain username info
 										while(as_node != NULL) {
 											if(!found_user && apr_strnatcmp(as_node->name, "Subject") == 0) {
@@ -2429,6 +2422,15 @@ int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const
                               "Not performing authZ.");
 		return DECLINED;
 	}
+
+	/* If we have no attributes to evaluate, it's worth reporting (may be attribute release upstream has yet to be approved)
+	 */
+	if (have_casattr && !attrs) {
+		ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+			      "'Require cas-attribute' cannot be satisfied; no attributes were available for authorization.");
+		return DECLINED;
+	}
+
 	/* If there was a "Require cas-attribute", but no actual attributes,
 	 * that's cause to warn the admin of an iffy configuration.
 	 */

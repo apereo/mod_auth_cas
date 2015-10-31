@@ -58,6 +58,19 @@ AP_DECLARE(int) ap_is_initial_req(request_rec *r) {
   return 0;
 }
 
+#if MODULE_MAGIC_NUMBER_MAJOR >= 20120211
+
+AP_DECLARE(void) ap_log_error_(const char *file, int line, int module_index,
+                               int level, apr_status_t status,
+                               const server_rec *s, const char *fmt, ...) {
+}
+
+AP_DECLARE(void) ap_log_rerror(const char *file, int line, int module_index,
+                               int level, apr_status_t status,
+                               const request_rec *r, const char *fmt, ...) {
+}
+#else
+
 AP_DECLARE(void) ap_log_error(const char *file, int line, int level,
                               apr_status_t status, const server_rec *s,
                               const char *fmt, ...) {
@@ -69,6 +82,7 @@ AP_DECLARE(void) ap_log_rerror(const char *file, int line, int level,
                               const char *fmt, ...) {
 
 }
+#endif
 
 AP_DECLARE(char *) ap_md5_binary(apr_pool_t *a, const unsigned char *buf,
                                  int len)
@@ -208,6 +222,24 @@ AP_DECLARE(char *) ap_getword_conf(apr_pool_t *p, const char **line) {
     return res;
 }
 
+#if MODULE_MAGIC_NUMBER_MAJOR >= 20120211
+
+AP_DECLARE(void) ap_hook_check_access(ap_HOOK_access_checker_t *pf,
+                                      const char * const *aszPre,
+                                      const char * const *aszSucc,
+                                      int nOrder, int type) {
+}
+
+AP_DECLARE(apr_status_t) ap_register_auth_provider(apr_pool_t *pool,
+                                                   const char *provider_group,
+                                                   const char *provider_name,
+                                                   const char *provider_version,
+                                                   const void *provider,
+                                                   int type) {
+  return APR_SUCCESS;
+}
+#else
+
 AP_DECLARE(void) ap_note_auth_failure(request_rec *r) {
 
   return;
@@ -217,3 +249,4 @@ AP_DECLARE(const apr_array_header_t *) ap_requires(request_rec *r) {
 
   return NULL;
 }
+#endif

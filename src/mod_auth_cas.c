@@ -730,20 +730,18 @@ char *getCASCookie(request_rec *r, char *cookieName)
 	if(cookies != NULL) {
 		/* tokenize on ; to find the cookie we want */
 		cookie = apr_strtok(cookies, ";", &tokenizerCtx);
-		do {
-			/* no more parameters */
-			if(cookie == NULL)
-				break;
-			while (*cookie == ' ')
+		while (cookie != NULL) {
+			while (*cookie == ' ') {
 				cookie++;
-			if(strncmp(cookie, cookieName, strlen(cookieName)) == 0) {
-				cookieFound = TRUE;
-				/* skip to the meat of the parameter (the value after the '=') */
+			}
+			if (strncmp(cookie, cookieName, strlen(cookieName)) == 0) {
+			  /* skip to the meat of the parameter (the value after the '=') */
 				cookie += (strlen(cookieName)+1);
 				rv = apr_pstrdup(r->pool, cookie);
+				break;
 			}
 			cookie = apr_strtok(NULL, ";", &tokenizerCtx);
-		} while (cookieFound == FALSE);
+		}
 	}
 
 	return rv;

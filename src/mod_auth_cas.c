@@ -724,7 +724,6 @@ char *getCASTicket(request_rec *r)
 char *getCASCookie(request_rec *r, char *cookieName)
 {
 	char *cookie, *tokenizerCtx, *rv = NULL;
-	apr_byte_t cookieFound = FALSE;
 	char *cookies = apr_pstrdup(r->pool, (char *) apr_table_get(r->headers_in, "Cookie"));
 
 	if(cookies != NULL) {

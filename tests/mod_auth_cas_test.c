@@ -900,6 +900,49 @@ START_TEST(isValidCASTicket_OpenSAML2_test) {
 }
 END_TEST
 
+/* Test retrieving the user(name) from the AuthenticationStatement */
+START_TEST(isValidCASTicket_username_in_AuthenticationStatement) {
+  const char *response =
+      "<?xml version='1.0' encoding='UTF-8'?>"
+      "<SOAP-ENV:Envelope xmlns:SOAP-ENV='http://schemas.xmlsoap.org/soap/envelope/'>"
+      "<SOAP-ENV:Body>"
+      "<saml1p:Response xmlns:saml1p='urn:oasis:names:tc:SAML:1.0:protocol'"
+      " IssueInstant='2011-01-01T01:01:01.001Z'"
+      " MajorVersion='1' MinorVersion='1'"
+      " Recipient='https://example.com/example_app'"
+      " ResponseID='_0123456789abcdef0123456789abcdef'>"
+      "<saml1p:Status><saml1p:StatusCode Value='saml1p:Success'/></saml1p:Status>"
+      "<saml1:Assertion xmlns:saml1='urn:oasis:names:tc:SAML:1.0:assertion'"
+      " AssertionID='_0123456789abcdef0123456789abcdef'"
+      " IssueInstant='2011-01-01T01:01:01.001Z' Issuer='localhost'"
+      " MajorVersion='1' MinorVersion='1'>"
+      "<saml1:Conditions NotBefore='2011-01-01T12:00:00.000Z' NotOnOrAfter='2011-01-01T12:01:00.000Z'>"
+      "<saml1:AudienceRestrictionCondition>"
+      "<saml1:Audience>https://example.com/example_app</saml1:Audience>"
+      "</saml1:AudienceRestrictionCondition>"
+      "</saml1:Conditions>"
+      "<saml1:AuthenticationStatement AuthenticationMethod='urn:oasis:names:tc:SAML:1.0:am:password'>"
+      "<saml1:Subject><saml1:NameIdentifier>username</saml1:NameIdentifier></saml1:Subject>"
+      "</saml1:AuthenticationStatement>"
+      "</saml1:Assertion>"
+      "</saml1p:Response>"
+      "</SOAP-ENV:Body>"
+      "</SOAP-ENV:Envelope>";
+  char *remoteUser = NULL;
+  cas_saml_attr *attrs = NULL;
+  apr_byte_t rv;
+  cas_cfg *c = ap_get_module_config(request->server->module_config,
+                                    &auth_cas_module);
+  set_curl_response(response);
+  c->CASCertificatePath = "/";
+  c->CASValidateSAML = TRUE;
+  rv = isValidCASTicket(request, c, "ST-1234", &remoteUser, &attrs);
+  fail_if(rv == FALSE);
+  fail_if(remoteUser == NULL);
+  fail_unless(strcmp(remoteUser, "username") == 0);
+}
+END_TEST
+
 START_TEST(isValidCASCookie_test) {
   fail();
 }
@@ -1373,6 +1416,7 @@ Suite *mod_auth_cas_suite(void) {
   tcase_add_test(tc_core, getResponseFromServer_test);
   tcase_add_test(tc_core, isValidCASTicket_OpenSAML1_test);
   tcase_add_test(tc_core, isValidCASTicket_OpenSAML2_test);
+  tcase_add_test(tc_core, isValidCASTicket_username_in_AuthenticationStatement);
   tcase_add_test(tc_core, isValidCASCookie_test);
   tcase_add_test(tc_core, cas_curl_write_test);
   tcase_add_test(tc_core, cas_curl_ssl_ctx_test);

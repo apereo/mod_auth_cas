@@ -551,6 +551,18 @@ START_TEST(setCASCookieExpiryFiveSeconds_test) {
 }
 END_TEST
 
+START_TEST(getCASCookie_empty_test) {
+  const char *expected = "";
+  cas_dir_cfg *d = ap_get_module_config(request->per_dir_config,
+                                        &auth_cas_module);
+  /*
+   * setup request with empty cookie header
+   */
+  apr_table_set(request->headers_in, "Cookie", "");
+  fail_unless(getCASCookie(request, d->CASCookie) == NULL);
+}
+END_TEST
+
 START_TEST(removeGatewayCookie_test) {
   const char *expected = "MOD_CAS_G=TRUE;Secure;Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
   const char *ernVal;
@@ -1497,6 +1509,7 @@ Suite *mod_auth_cas_suite(void) {
   tcase_add_test(tc_core, setCASCookie_test);
   tcase_add_test(tc_core, setCASCookieExpiryNow_test);
   tcase_add_test(tc_core, setCASCookieExpiryFiveSeconds_test);
+  tcase_add_test(tc_core, getCASCookie_empty_test);
   tcase_add_test(tc_core, removeGatewayCookie_test);
   tcase_add_test(tc_core, urlEncode_test);
   tcase_add_test(tc_core, readCASCacheFile_test);

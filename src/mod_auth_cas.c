@@ -729,26 +729,23 @@ char *getCASTicket(request_rec *r)
 char *getCASCookie(request_rec *r, char *cookieName)
 {
 	char *cookie, *tokenizerCtx, *rv = NULL;
-	apr_byte_t cookieFound = FALSE;
 	char *cookies = apr_pstrdup(r->pool, (char *) apr_table_get(r->headers_in, "Cookie"));
 
 	if(cookies != NULL) {
 		/* tokenize on ; to find the cookie we want */
 		cookie = apr_strtok(cookies, ";", &tokenizerCtx);
-		do {
-			while (cookie != NULL && *cookie == ' ')
+		while (cookie != NULL) {
+			while (*cookie == ' ') {
 				cookie++;
-			if(strncmp(cookie, cookieName, strlen(cookieName)) == 0) {
-				cookieFound = TRUE;
-				/* skip to the meat of the parameter (the value after the '=') */
+			}
+			if (strncmp(cookie, cookieName, strlen(cookieName)) == 0) {
+			  /* skip to the meat of the parameter (the value after the '=') */
 				cookie += (strlen(cookieName)+1);
 				rv = apr_pstrdup(r->pool, cookie);
+				break;
 			}
 			cookie = apr_strtok(NULL, ";", &tokenizerCtx);
-		/* no more parameters */
-		if(cookie == NULL)
-			break;
-		} while (cookieFound == FALSE);
+		}
 	}
 
 	return rv;

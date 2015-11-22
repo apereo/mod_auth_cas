@@ -3,6 +3,9 @@ README.win32
 
 !!! Please read the README file first !!!
 
+### THIS README IS MAINTAINED FOR HISTORICAL REFERENCE ONLY AND
+### HAS NOT BEEN KNOWN TO WORK SINCE v1.0.8
+
 This is a *very* rough and dirty description of how to build
 mod_auth_cas for Apache on Windows.  If you are not familiar with
 building DLLs in Visual Studio for Windows, I suggest you wait

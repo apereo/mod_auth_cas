@@ -13,7 +13,7 @@ AC_CANONICAL_HOST
 AC_GNU_SOURCE
 AC_ISC_POSIX
 
-AM_INIT_AUTOMAKE([foreign 1.7])
+AM_INIT_AUTOMAKE([foreign 1.7 subdir-objects])
 #Backward compatability, allows for silent-rules in AM<1.11
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES])
 

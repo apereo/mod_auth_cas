@@ -1575,8 +1575,16 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 											as_node = as_node->next;
 										}
 									} else if(apr_strnatcmp(node->name, "AuthenticationStatement") == 0) {
+										// Get the AuthenticationMethod
 										apr_xml_elem *as_node = node->first_child;
-										// AuthenticationStatement lacks attribute data, but may contain username info
+										attr = node->attr;
+										while(attr != NULL && apr_strnatcmp(attr->name, "AuthenticationMethod") != 0) {
+											attr = attr->next;
+										}
+										if(attr != NULL) {
+											cas_attr_builder_add(builder, attr->name, attr->value);
+										}
+										// Get the username
 										while(as_node != NULL) {
 											if(!found_user && apr_strnatcmp(as_node->name, "Subject") == 0) {
 												apr_xml_elem *subject_node = as_node->first_child;

@@ -113,7 +113,8 @@ am__check_mac_SOURCES_DIST = ap_stubs.c curl_stubs.c openssl_stubs.c \
 @CHECK_TRUE@	check_mac-mod_auth_cas_test.$(OBJEXT) \
 @CHECK_TRUE@	check_mac-cas_saml_attr_test.$(OBJEXT)
 check_mac_OBJECTS = $(am_check_mac_OBJECTS)
-check_mac_DEPENDENCIES =
+@CHECK_TRUE@check_mac_DEPENDENCIES = ../src/mod_auth_cas.o \
+@CHECK_TRUE@	../src/cas_saml_attr.o
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
@@ -539,7 +540,7 @@ AM_LIBS = @LIBCURL@ @APXS_LIBS@
 AM_CFLAGS = @TEST_COVERAGE_CFLAGS@ 
 AM_LDFLAGS = @APXS_LDFLAGS@ @APR_LDFLAGS@
 @CHECK_TRUE@check_mac_SOURCES = ap_stubs.c curl_stubs.c openssl_stubs.c  mod_auth_cas_test.c cas_saml_attr_test.c #../src/mod_auth_cas.c ../src/cas_saml_attr.c
-@CHECK_TRUE@check_mac_LDADD = -lcheck -lapr-1 -laprutil-1
+@CHECK_TRUE@check_mac_LDADD = -lcheck -lapr-1 -laprutil-1 ../src/mod_auth_cas.o ../src/cas_saml_attr.o
 @CHECK_TRUE@check_mac_CFLAGS = @CHECK_CFLAGS@ ${AM_CFLAGS}
 @CHECK_TRUE@check_mac_LIBS = @CHECK_LIBS@ ${AM_LIBS}
 @CHECK_TRUE@check_mac_LDFLAGS = ${AM_LDFLAGS}

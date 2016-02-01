@@ -6,6 +6,7 @@ AC_INIT([mod_auth_cas], [1.1], [cas-user@apereo.org])
 AC_CONFIG_SRCDIR([Makefile.am])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS([config.h])
+AM_MAINTAINER_MODE([disable])
 
 AC_LIBTOOL_DLOPEN
 AC_CANONICAL_BUILD

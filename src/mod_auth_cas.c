@@ -2343,6 +2343,8 @@ authz_status cas_check_authorization(request_rec *r,
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
 			      "Entering cas_check_authorization.");
 
+	if(!r->user) return AUTHZ_DENIED_NO_USER;
+
 	t = require_line;
 	while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
 		count_casattr++;
@@ -2753,7 +2755,7 @@ void cas_register_hooks(apr_pool_t *p)
 #endif
 
 #if MODULE_MAGIC_NUMBER_MAJOR >= 20120211
-	ap_hook_check_access(
+	ap_hook_check_authn(
 		cas_authenticate,
 		NULL,
 		NULL,

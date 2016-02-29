@@ -230,6 +230,12 @@ AP_DECLARE(void) ap_hook_check_access(ap_HOOK_access_checker_t *pf,
                                       int nOrder, int type) {
 }
 
+AP_DECLARE(void) ap_hook_check_authn(ap_HOOK_access_checker_t *pf,
+                                     const char * const *aszPre,
+                                     const char * const *aszSucc,
+                                     int nOrder, int type) {
+}
+
 AP_DECLARE(apr_status_t) ap_register_auth_provider(apr_pool_t *pool,
                                                    const char *provider_group,
                                                    const char *provider_name,

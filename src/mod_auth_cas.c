@@ -145,8 +145,8 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASVersion = (add->CASVersion != CAS_DEFAULT_VERSION ? add->CASVersion : base->CASVersion);
 	c->CASDebug = (add->CASDebug != CAS_DEFAULT_DEBUG ? add->CASDebug : base->CASDebug);
 	c->CASValidateDepth = (add->CASValidateDepth != CAS_DEFAULT_VALIDATE_DEPTH ? add->CASValidateDepth : base->CASValidateDepth);
-	c->CASCertificatePath = (apr_strnatcasecmp(add->CASCertificatePath, CAS_DEFAULT_CA_PATH) != 0 ? add->CASCertificatePath : base->CASCertificatePath);
-	c->CASCookiePath = (apr_strnatcasecmp(add->CASCookiePath, CAS_DEFAULT_COOKIE_PATH) != 0 ? add->CASCookiePath : base->CASCookiePath);
+	c->CASCertificatePath = (strcasecmp(add->CASCertificatePath, CAS_DEFAULT_CA_PATH) != 0 ? add->CASCertificatePath : base->CASCertificatePath);
+	c->CASCookiePath = (strcasecmp(add->CASCookiePath, CAS_DEFAULT_COOKIE_PATH) != 0 ? add->CASCookiePath : base->CASCookiePath);
 	c->CASCookieEntropy = (add->CASCookieEntropy != CAS_DEFAULT_COOKIE_ENTROPY ? add->CASCookieEntropy : base->CASCookieEntropy);
 	c->CASTimeout = (add->CASTimeout != CAS_DEFAULT_COOKIE_TIMEOUT ? add->CASTimeout : base->CASTimeout);
 	c->CASIdleTimeout = (add->CASIdleTimeout != CAS_DEFAULT_COOKIE_IDLE_TIMEOUT ? add->CASIdleTimeout : base->CASIdleTimeout);
@@ -160,8 +160,8 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASAuthoritative = (add->CASAuthoritative != CAS_DEFAULT_AUTHORITATIVE ? add->CASAuthoritative : base->CASAuthoritative);
 #endif
 	c->CASPreserveTicket = (add->CASPreserveTicket != CAS_DEFAULT_PRESERVE_TICKET ? add->CASPreserveTicket : base->CASPreserveTicket);
-	c->CASAttributeDelimiter = (apr_strnatcasecmp(add->CASAttributeDelimiter, CAS_DEFAULT_ATTRIBUTE_DELIMITER) != 0 ? add->CASAttributeDelimiter : base->CASAttributeDelimiter);
-	c->CASAttributePrefix = (apr_strnatcasecmp(add->CASAttributePrefix, CAS_DEFAULT_ATTRIBUTE_PREFIX) != 0 ? add->CASAttributePrefix : base->CASAttributePrefix);
+	c->CASAttributeDelimiter = (strcasecmp(add->CASAttributeDelimiter, CAS_DEFAULT_ATTRIBUTE_DELIMITER) != 0 ? add->CASAttributeDelimiter : base->CASAttributeDelimiter);
+	c->CASAttributePrefix = (strcasecmp(add->CASAttributePrefix, CAS_DEFAULT_ATTRIBUTE_PREFIX) != 0 ? add->CASAttributePrefix : base->CASAttributePrefix);
 
 	/* if add->CASLoginURL == NULL, we want to copy base -- otherwise, copy the one from add, and so on and so forth */
 	if(memcmp(&add->CASLoginURL, &test, sizeof(apr_uri_t)) == 0)
@@ -210,35 +210,35 @@ void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 	/* inherit the previous directory's setting if applicable */
 	c->CASScope = (add->CASScope != CAS_DEFAULT_SCOPE ?
 		add->CASScope : base->CASScope);
-	if(add->CASScope != NULL && apr_strnatcasecmp(add->CASScope, "Off") == 0)
+	if(add->CASScope != NULL && strcasecmp(add->CASScope, "Off") == 0)
 		c->CASScope = NULL;
 
 	c->CASRenew = (add->CASRenew != CAS_DEFAULT_RENEW ?
 		add->CASRenew : base->CASRenew);
-	if(add->CASRenew != NULL && apr_strnatcasecmp(add->CASRenew, "Off") == 0)
+	if(add->CASRenew != NULL && strcasecmp(add->CASRenew, "Off") == 0)
 		c->CASRenew = NULL;
 
 	c->CASGateway = (add->CASGateway != CAS_DEFAULT_GATEWAY ?
 		add->CASGateway : base->CASGateway);
-	if(add->CASGateway != NULL && apr_strnatcasecmp(add->CASGateway, "Off") == 0)
+	if(add->CASGateway != NULL && strcasecmp(add->CASGateway, "Off") == 0)
 		c->CASGateway = NULL;
 
-	c->CASCookie = (apr_strnatcasecmp(add->CASCookie, CAS_DEFAULT_COOKIE) != 0 ?
+	c->CASCookie = (strcasecmp(add->CASCookie, CAS_DEFAULT_COOKIE) != 0 ?
 		add->CASCookie : base->CASCookie);
-	c->CASSecureCookie = (apr_strnatcasecmp(add->CASSecureCookie, CAS_DEFAULT_SCOOKIE) != 0 ?
+	c->CASSecureCookie = (strcasecmp(add->CASSecureCookie, CAS_DEFAULT_SCOOKIE) != 0 ?
 		add->CASSecureCookie : base->CASSecureCookie);
-	c->CASGatewayCookie = (apr_strnatcasecmp(add->CASGatewayCookie, CAS_DEFAULT_GATEWAY_COOKIE) != 0 ?
+	c->CASGatewayCookie = (strcasecmp(add->CASGatewayCookie, CAS_DEFAULT_GATEWAY_COOKIE) != 0 ?
 		add->CASGatewayCookie : base->CASGatewayCookie);
 
 	c->CASAuthNHeader = (add->CASAuthNHeader != CAS_DEFAULT_AUTHN_HEADER ?
 		add->CASAuthNHeader : base->CASAuthNHeader);
-	if(add->CASAuthNHeader != NULL && apr_strnatcasecmp(add->CASAuthNHeader, "Off") == 0)
+	if(add->CASAuthNHeader != NULL && strcasecmp(add->CASAuthNHeader, "Off") == 0)
 		c->CASAuthNHeader = NULL;
 
 	c->CASScrubRequestHeaders = (add->CASScrubRequestHeaders != CAS_DEFAULT_SCRUB_REQUEST_HEADERS ?
 		 add->CASScrubRequestHeaders :
 		 base->CASScrubRequestHeaders);
-	if(add->CASScrubRequestHeaders != NULL && apr_strnatcasecmp(add->CASScrubRequestHeaders, "Off") == 0)
+	if(add->CASScrubRequestHeaders != NULL && strcasecmp(add->CASScrubRequestHeaders, "Off") == 0)
 		c->CASScrubRequestHeaders = NULL;
 
 	return(c);
@@ -263,17 +263,17 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 		break;
 		case cmd_debug:
 			/* if atoi() is used on value here with AP_INIT_FLAG, it works but results in a compile warning, so we use TAKE1 to avoid it */
-			if(apr_strnatcasecmp(value, "On") == 0)
+			if(strcasecmp(value, "On") == 0)
 				c->CASDebug = TRUE;
-			else if(apr_strnatcasecmp(value, "Off") == 0)
+			else if(strcasecmp(value, "Off") == 0)
 				c->CASDebug = FALSE;
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASDebug - must be 'On' or 'Off'"));
 		break;
 		case cmd_validate_saml:
-			if(apr_strnatcasecmp(value, "On") == 0)
+			if(strcasecmp(value, "On") == 0)
 				c->CASValidateSAML = TRUE;
-			else if(apr_strnatcasecmp(value, "Off") == 0)
+			else if(strcasecmp(value, "Off") == 0)
 				c->CASValidateSAML = FALSE;
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASValidateSAML - must be 'On' or 'Off'"));
@@ -383,36 +383,36 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 			c->CASGatewayCookieDomain = apr_pstrdup(cmd->pool, value);
 		break;
 		case cmd_cookie_httponly:
-			if(apr_strnatcasecmp(value, "On") == 0)
+			if(strcasecmp(value, "On") == 0)
 				c->CASCookieHttpOnly = TRUE;
-			else if(apr_strnatcasecmp(value, "Off") == 0)
+			else if(strcasecmp(value, "Off") == 0)
 				c->CASCookieHttpOnly = FALSE;
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASCookieHttpOnly - must be 'On' or 'Off'"));
 
 		break;
 		case cmd_sso:
-			if(apr_strnatcasecmp(value, "On") == 0)
+			if(strcasecmp(value, "On") == 0)
 				c->CASSSOEnabled = TRUE;
-			else if(apr_strnatcasecmp(value, "Off") == 0)
+			else if(strcasecmp(value, "Off") == 0)
 				c->CASSSOEnabled = FALSE;
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASSSOEnabled - must be 'On' or 'Off'"));
 		break;
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 		case cmd_authoritative:
-			if(apr_strnatcasecmp(value, "On") == 0)
+			if(strcasecmp(value, "On") == 0)
 				c->CASAuthoritative = TRUE;
-			else if(apr_strnatcasecmp(value, "Off") == 0)
+			else if(strcasecmp(value, "Off") == 0)
 				c->CASAuthoritative = FALSE;
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASAuthoritative - must be 'On' or 'Off'"));
 		break;
 #endif
 		case cmd_preserve_ticket:
-			if(apr_strnatcasecmp(value, "On") == 0)
+			if(strcasecmp(value, "On") == 0)
 				c->CASPreserveTicket = TRUE;
-			else if(apr_strnatcasecmp(value, "Off") == 0)
+			else if(strcasecmp(value, "Off") == 0)
 				c->CASPreserveTicket = FALSE;
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASPreserveTicket - must be 'On' or 'Off'"));
@@ -449,9 +449,9 @@ apr_byte_t isSSL(const request_rec *r)
 {
 
 #ifdef APACHE2_0
-	if(apr_strnatcasecmp("https", ap_http_method(r)) == 0)
+	if(strcasecmp("https", ap_http_method(r)) == 0)
 #else
-	if(apr_strnatcasecmp("https", ap_http_scheme(r)) == 0)
+	if(strcasecmp("https", ap_http_scheme(r)) == 0)
 #endif
 		return TRUE;
 
@@ -1012,9 +1012,9 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 		/* determine textual content of this element */
 		apr_xml_to_text(r->pool, e, APR_XML_X2T_INNER, NULL, NULL, &val, NULL);
 
-		if(apr_strnatcasecmp(e->name, "user") == 0)
+		if(strcasecmp(e->name, "user") == 0)
 			cache->user = apr_pstrndup(r->pool, val, strlen(val));
-		else if(apr_strnatcasecmp(e->name, "issued") == 0) {
+		else if(strcasecmp(e->name, "issued") == 0) {
 			if(sscanf(val, "%" APR_TIME_T_FMT, &(cache->issued)) != 1) {
 				if(cas_flock(f, LOCK_UN, r)) {
 					if(c->CASDebug) {
@@ -1024,7 +1024,7 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 				apr_file_close(f);
 				return FALSE;
 			}
-		} else if(apr_strnatcasecmp(e->name, "lastactive") == 0) {
+		} else if(strcasecmp(e->name, "lastactive") == 0) {
 			if(sscanf(val, "%" APR_TIME_T_FMT, &(cache->lastactive)) != 1) {
 				if(cas_flock(f, LOCK_UN, r)) {
 					if(c->CASDebug) {
@@ -1034,15 +1034,15 @@ apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_en
 				apr_file_close(f);
 				return FALSE;
 			}
-		} else if(apr_strnatcasecmp(e->name, "path") == 0)
+		} else if(strcasecmp(e->name, "path") == 0)
 			cache->path = apr_pstrndup(r->pool, val, strlen(val));
-		else if(apr_strnatcasecmp(e->name, "renewed") == 0)
+		else if(strcasecmp(e->name, "renewed") == 0)
 			cache->renewed = TRUE;
-		else if(apr_strnatcasecmp(e->name, "secure") == 0)
+		else if(strcasecmp(e->name, "secure") == 0)
 			cache->secure = TRUE;
-		else if(apr_strnatcasecmp(e->name, "ticket") == 0)
+		else if(strcasecmp(e->name, "ticket") == 0)
 			cache->ticket = apr_pstrndup(r->pool, val, strlen(val));
-		else if(apr_strnatcasecmp(e->name, "attributes") == 0) {
+		else if(strcasecmp(e->name, "attributes") == 0) {
 			cas_attr_builder *builder = cas_attr_builder_new(r->pool, &(cache->attrs));
 			apr_xml_elem *attrs;
 			apr_xml_elem *v;
@@ -1412,7 +1412,7 @@ void CASSAMLLogout(request_rec *r, char *body)
 
 		node = doc->root->first_child;
 		while(node != NULL) {
-			if(apr_strnatcmp(node->name, "SessionIndex") == 0 && node->first_cdata.first != NULL) {
+			if(strcmp(node->name, "SessionIndex") == 0 && node->first_cdata.first != NULL) {
 				expireCASST(r, node->first_cdata.first->text);
 				return;
 			}
@@ -1476,9 +1476,9 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 				return FALSE;
 			}
 
-		} while(apr_strnatcmp(line, "no") != 0 && apr_strnatcmp(line, "yes") != 0);
+		} while(strcmp(line, "no") != 0 && strcmp(line, "yes") != 0);
 
-		if(apr_strnatcmp(line, "no") == 0) {
+		if(strcmp(line, "no") == 0) {
 			return FALSE;
 		}
 
@@ -1509,33 +1509,33 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 		if(c->CASValidateSAML == TRUE) {
 			int success = FALSE;
 			node = doc->root;
-			while(node != NULL && apr_strnatcmp(node->name, "Envelope") != 0) {
+			while(node != NULL && strcmp(node->name, "Envelope") != 0) {
 				node = node->next;
 			}
 			if(node != NULL) {
 				node = node->first_child;
-				while(node != NULL && apr_strnatcmp(node->name, "Body") != 0) {
+				while(node != NULL && strcmp(node->name, "Body") != 0) {
 					node = node->next;
 				}
 				if(node != NULL) {
 					node = node->first_child;
-					while(node != NULL && apr_strnatcmp(node->name, "Response") != 0) {
+					while(node != NULL && strcmp(node->name, "Response") != 0) {
 						node = node->next;
 					}
 					if(node != NULL) {
 						// Save node so we can search for both Status and Assertion starting with Response->first_child
 						apr_xml_elem *response_node = node = node->first_child;
-						while(node != NULL && apr_strnatcmp(node->name, "Status") != 0) {
+						while(node != NULL && strcmp(node->name, "Status") != 0) {
 							node = node->next;
 						}
 						if(node != NULL) {
 							node = node->first_child;
-							while(node != NULL && apr_strnatcmp(node->name, "StatusCode") != 0) {
+							while(node != NULL && strcmp(node->name, "StatusCode") != 0) {
 								node = node->next;
 							}
 							if(node != NULL) {
 								attr = node->attr;
-								while(attr != NULL && apr_strnatcmp(attr->name, "Value") != 0) {
+								while(attr != NULL && strcmp(attr->name, "Value") != 0) {
 									attr = attr->next;
 								}
 								if(attr != NULL) {
@@ -1543,9 +1543,9 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 									value = (value == NULL ? attr->value : value + 1);
 									// TO DO: This is very, very minimal support for SAML1.1 StatusCodes..
 									//  Consult https://www.oasis-open.org/committees/download.php/3406/oasis-sstc-saml-core-1.1.pdf
-									if(apr_strnatcmp(value, "Success") == 0) {
+									if(strcmp(value, "Success") == 0) {
 										success = TRUE;
-									} else if(apr_strnatcmp(value, "Responder") == 0) {
+									} else if(strcmp(value, "Responder") == 0) {
 										ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: SAML StatusCode 'samlp:Responder' - service not authorized for attribute release during attempted validation.");
 										// We can proceed no further, so bail.
 										return FALSE;
@@ -1559,7 +1559,7 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 						}
 						if(success) {
 							node = response_node;
-							while(node != NULL && apr_strnatcmp(node->name, "Assertion") != 0) {
+							while(node != NULL && strcmp(node->name, "Assertion") != 0) {
 								node = node->next;
 							}
 							if(node != NULL) {
@@ -1567,28 +1567,28 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 								int found_user = FALSE;
 								node = node->first_child;
 								while(node != NULL) {  // For each child element...
-									if(apr_strnatcmp(node->name, "AttributeStatement") == 0) {
+									if(strcmp(node->name, "AttributeStatement") == 0) {
 										apr_xml_elem *as_node = node->first_child;
 										while(as_node != NULL) {  // For each child element...
-											if(!found_user && apr_strnatcmp(as_node->name, "Subject") == 0) {
+											if(!found_user && strcmp(as_node->name, "Subject") == 0) {
 												apr_xml_elem *subject_node = as_node->first_child;
-												while(subject_node != NULL && apr_strnatcmp(subject_node->name, "NameIdentifier") != 0) {
+												while(subject_node != NULL && strcmp(subject_node->name, "NameIdentifier") != 0) {
 													subject_node = subject_node->next;
 												}
 												if(subject_node != NULL) {
 													found_user = TRUE;
 													apr_xml_to_text(r->pool, subject_node, APR_XML_X2T_INNER, NULL, NULL, (const char **)user, NULL);
 												}
-											} else if(apr_strnatcmp(as_node->name, "Attribute") == 0) {
+											} else if(strcmp(as_node->name, "Attribute") == 0) {
 												attr = as_node->attr;
-												while(attr != NULL && apr_strnatcmp(attr->name, "AttributeName") != 0) {
+												while(attr != NULL && strcmp(attr->name, "AttributeName") != 0) {
 													attr = attr->next;
 												}
 												if(attr != NULL) {
 													const char *attr_name = attr->value;
 													apr_xml_elem *attr_node = as_node->first_child;
 													while(attr_node != NULL) {  // For each child element...
-														if(apr_strnatcmp(attr_node->name, "AttributeValue") == 0) {
+														if(strcmp(attr_node->name, "AttributeValue") == 0) {
 															const char *attr_value = NULL;
 															apr_xml_to_text(r->pool, attr_node, APR_XML_X2T_INNER, NULL, NULL, &attr_value, NULL);
 															cas_attr_builder_add(builder, attr_name, attr_value);
@@ -1600,21 +1600,21 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 											}
 											as_node = as_node->next;
 										}
-									} else if(apr_strnatcmp(node->name, "AuthenticationStatement") == 0) {
+									} else if(strcmp(node->name, "AuthenticationStatement") == 0) {
 										// Get the AuthenticationMethod
 										apr_xml_elem *as_node = node->first_child;
 										attr = node->attr;
 										while(attr != NULL) {
-											if(apr_strnatcmp(attr->name, "AuthenticationMethod") != 0 || apr_strnatcmp(attr->name, "AuthenticationInstant") != 0) {
+											if(strcmp(attr->name, "AuthenticationMethod") != 0 || strcmp(attr->name, "AuthenticationInstant") != 0) {
 												cas_attr_builder_add(builder, attr->name, attr->value);
 											}
 											attr = attr->next;
 										}
 										// Get the username
 										while(as_node != NULL) {
-											if(!found_user && apr_strnatcmp(as_node->name, "Subject") == 0) {
+											if(!found_user && strcmp(as_node->name, "Subject") == 0) {
 												apr_xml_elem *subject_node = as_node->first_child;
-												while(subject_node != NULL && apr_strnatcmp(subject_node->name, "NameIdentifier") != 0) {
+												while(subject_node != NULL && strcmp(subject_node->name, "NameIdentifier") != 0) {
 													subject_node = subject_node->next;
 												}
 												if(subject_node != NULL) {
@@ -1641,18 +1641,18 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 			}
 		} else {
 			node = doc->root;
-			while(node != NULL && apr_strnatcmp(node->name, "serviceResponse") != 0) {
+			while(node != NULL && strcmp(node->name, "serviceResponse") != 0) {
 				node = node->next;
 			}
 			if(node != NULL) {
 				node = node->first_child;
 				while(node != NULL) {  // For each child element...
-					if(apr_strnatcmp(node->name, "authenticationSuccess") == 0) {
+					if(strcmp(node->name, "authenticationSuccess") == 0) {
 						node = node->first_child;
 						while(node != NULL ) {
-							if (apr_strnatcmp(node->name, "user") == 0) {
+							if (strcmp(node->name, "user") == 0) {
 								apr_xml_to_text(r->pool, node, APR_XML_X2T_INNER, NULL, NULL, (const char **)user, NULL);
-							} else if (apr_strnatcmp(node->name, "attributes") == 0){
+							} else if (strcmp(node->name, "attributes") == 0){
 								cas_attr_builder *builder = cas_attr_builder_new(r->pool, attrs);
 								apr_xml_elem *node_attr = node->first_child;
 								while (node_attr != NULL){
@@ -1668,9 +1668,9 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 						if(user != NULL) {
 							return TRUE;
 						}
-					} else if(apr_strnatcmp(node->name, "authenticationFailure") == 0) {
+					} else if(strcmp(node->name, "authenticationFailure") == 0) {
 						attr = node->attr;
-						while(attr != NULL && apr_strnatcmp(attr->name, "code") != 0) {
+						while(attr != NULL && strcmp(attr->name, "code") != 0) {
 							attr = attr->next;
 						}
 						ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: %s", (attr == NULL ? "Unknown Error" : attr->value));
@@ -2132,7 +2132,7 @@ int cas_authenticate(request_rec *r)
 	char *newLocation = NULL;
 
 	/* Do nothing if we are not the authenticator */
-	if(ap_auth_type(r) == NULL || apr_strnatcasecmp((const char *) ap_auth_type(r), "cas") != 0)
+	if(ap_auth_type(r) == NULL || strcasecmp((const char *) ap_auth_type(r), "cas") != 0)
 		return DECLINED;
 
 	c = ap_get_module_config(r->server->module_config, &auth_cas_module);
@@ -2516,7 +2516,7 @@ int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const
 
 		token = ap_getword_white(r->pool, &requirement);
 
-		if(apr_strnatcasecmp(token, "cas-attribute") != 0) {
+		if(strcasecmp(token, "cas-attribute") != 0) {
 			continue;
 		}
 

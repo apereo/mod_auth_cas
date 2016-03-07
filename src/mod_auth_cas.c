@@ -430,7 +430,7 @@ apr_byte_t cas_setURL(apr_pool_t *pool, apr_uri_t *uri, const char *url)
 {
 
 	if(url == NULL) {
-		uri = apr_pcalloc(pool, sizeof(apr_uri_t));
+		memset(uri, '\0', sizeof(apr_uri_t));
 		return FALSE;
 	}
 

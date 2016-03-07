@@ -274,6 +274,23 @@ Description:	This is the minimum amount of time that must pass inbetween cache
 Directive:	CASCookieDomain
 Default:	NULL
 Description:	Specify the value for the 'Domain=' parameter in the Set-Cookie header.
+		SECURITY WARNING:
+		The 'Domain=' parameter is used to expand the scope of a cookie.  In most
+		browsers, a cookie that was set without a 'Domain=' parameter will
+		only be sent to the hostname that set the cookie, while a cookie that was
+		set with a 'Domain=' parameter will be sent to the specified name and any
+		sub-domains of the specified name.  (A notable exception is Internet
+		Explorer, which will also send a cookie that was set without a 'Domain='
+		parameter to sub-domains of the hostname that set the cookie.)  If
+		CASCookieDomain is set and there are any sub-domains of the specified name
+		which are not hosted on this server, then it may be possible for another
+		server to receive our authentication cookie.  If that other server is
+		compromised, it would then be able to use that cookie to authenticate to
+		this server as if it were the user associated with that cookie.
+		Therefore, you should not use CASCookieDomain unless you control all
+		sub-domains of the specified name and you are willing to accept the risk
+		that the compromise of any one sub-domain under the specified name could
+		allow an attacker to authenticate to this service as a legitimate user.
 
 Directive:	CASCookieHttpOnly
 Default:	On

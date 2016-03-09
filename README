@@ -224,6 +224,17 @@ Description:	This URL represents the URL that end users may see in the event tha
 		setting CASRootProxiedAs to http://example.com would result in proper
 		service parameter generation.
 
+Directive:	CASForceHTTPS
+Default:	Off
+Description:	If 'On' then automatically generated service URLs and any CAS-related
+		redirects will always use https:// (regardless of the current protocol
+		being used by the client), and HTTP requests which contain a CAS ticket
+		will be redirected back to CAS again for re-authentication via HTTPS (to
+		ensure that all authenticated requests use HTTPS, and ensure that
+		authenticated session cookies are always created as "secure" cookies which
+		will only be transmitted via HTTPS).  This may be used to prevent some
+		HTTP downgrade attacks.
+
 Directive:	CASCookiePath
 Default:	/dev/null
 Description:	When users first authenticate to mod_auth_cas with a valid service ticket,

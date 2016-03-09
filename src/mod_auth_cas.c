@@ -119,6 +119,7 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASCookieHttpOnly = CAS_DEFAULT_COOKIE_HTTPONLY;
 	c->CASSSOEnabled = CAS_DEFAULT_SSO_ENABLED;
 	c->CASValidateSAML = CAS_DEFAULT_VALIDATE_SAML;
+	c->CASForceHTTPS = CAS_DEFAULT_FORCE_HTTPS;
 	c->CASAttributeDelimiter = CAS_DEFAULT_ATTRIBUTE_DELIMITER;
 	c->CASAttributePrefix = CAS_DEFAULT_ATTRIBUTE_PREFIX;
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
@@ -156,6 +157,7 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASCookieHttpOnly = (add->CASCookieHttpOnly != CAS_DEFAULT_COOKIE_HTTPONLY ? add->CASCookieHttpOnly : base->CASCookieHttpOnly);
 	c->CASSSOEnabled = (add->CASSSOEnabled != CAS_DEFAULT_SSO_ENABLED ? add->CASSSOEnabled : base->CASSSOEnabled);
 	c->CASValidateSAML = (add->CASValidateSAML != CAS_DEFAULT_VALIDATE_SAML ? add->CASValidateSAML : base->CASValidateSAML);
+	c->CASForceHTTPS = (add->CASForceHTTPS != CAS_DEFAULT_FORCE_HTTPS ? add->CASForceHTTPS : base->CASForceHTTPS);
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	c->CASAuthoritative = (add->CASAuthoritative != CAS_DEFAULT_AUTHORITATIVE ? add->CASAuthoritative : base->CASAuthoritative);
 #endif
@@ -277,6 +279,14 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 				c->CASValidateSAML = FALSE;
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASValidateSAML - must be 'On' or 'Off'"));
+		break;
+		case cmd_force_https:
+			if(strcasecmp(value, "On") == 0)
+				c->CASForceHTTPS = TRUE;
+			else if(strcasecmp(value, "Off") == 0)
+				c->CASForceHTTPS = FALSE;
+			else
+				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASForceHTTPS - must be 'On' or 'Off'"));
 		break;
 		case cmd_attribute_delimiter:
 			c->CASAttributeDelimiter = apr_pstrdup(cmd->pool, value);
@@ -585,10 +595,13 @@ char *getCASService(const request_rec *r, const cas_cfg *c)
 	} else {
 		memset(&service_uri, '\0', sizeof(apr_uri_t));
 		service_uri.is_initialized = 1;
+		if(c->CASForceHTTPS)
+			service_uri.scheme = "https";
+		else
 #ifdef APACHE2_0
-		service_uri.scheme = (char *) ap_http_method(r);
+			service_uri.scheme = (char *) ap_http_method(r);
 #else
-		service_uri.scheme = (char *) ap_http_scheme(r);
+			service_uri.scheme = (char *) ap_http_scheme(r);
 #endif
 		service_uri.hostname = r->server->server_hostname;
 		service_uri.port = r->connection->local_addr->port;
@@ -2183,6 +2196,12 @@ int cas_authenticate(request_rec *r)
 
 	/* now, handle when a ticket is present (this will also catch gateway users since ticket != NULL on their trip back) */
 	if(ticket != NULL) {
+		if(!ssl && c->CASForceHTTPS) {
+			ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "Rejecting HTTP authentication because CASForceHTTPS is On, redirecting to CAS again with HTTPS service URL");
+			redirectRequest(r, c);
+			return HTTP_MOVED_TEMPORARILY;
+		}
+
 		if(isValidCASTicket(r, c, ticket, &remoteUser, &attrs)) {
 
 			/* if we could not find remote user at this point, we have bigger problems */
@@ -2664,6 +2683,12 @@ int check_vhost_config(apr_pool_t *pool, server_rec *s)
 		}
 	}
 
+	if(c->CASForceHTTPS && c->CASRootProxiedAs.is_initialized &&
+	   strcasecmp("https", c->CASRootProxiedAs.scheme) != 0) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "MOD_AUTH_CAS: CASRootProxiedAs must use HTTPS if CASForceHTTPS is On");
+		return HTTP_INTERNAL_SERVER_ERROR;
+	}
+
 	return OK;
 }
 
@@ -2872,7 +2897,9 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASIdleTimeout", cfg_readCASParameter, (void *) cmd_idle_timeout, RSRC_CONF, "Maximum time (in seconds) a session can be idle for"),
 	AP_INIT_TAKE1("CASCacheCleanInterval", cfg_readCASParameter, (void *) cmd_cache_interval, RSRC_CONF, "Amount of time (in seconds) between cache cleanups.  This value is checked when a new local ticket is issued or when a ticket expires."),
 
+	/* service URL options */
 	AP_INIT_TAKE1("CASRootProxiedAs", cfg_readCASParameter, (void *) cmd_root_proxied_as, RSRC_CONF, "URL used to access the root of the virtual server (only needed when the server is proxied)"),
+	AP_INIT_TAKE1("CASForceHTTPS", cfg_readCASParameter, (void *) cmd_force_https, RSRC_CONF, "Whether HTTPS should be used for all service URLs (On or Off)"),
 
 	AP_INIT_TAKE1("CASScrubRequestHeaders", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASScrubRequestHeaders), ACCESS_CONF, "Scrub CAS user name and SAML attribute headers from the user's request."),
 	/* authorization options */

@@ -445,8 +445,13 @@ apr_byte_t cas_setURL(apr_pool_t *pool, apr_uri_t *uri, const char *url)
 	return TRUE;
 }
 
-apr_byte_t isSSL(const request_rec *r)
+apr_byte_t isSSL(const request_rec *r, const cas_cfg *c)
 {
+	if(c->CASRootProxiedAs.is_initialized) {
+		if(strcasecmp("https", c->CASRootProxiedAs.scheme) == 0)
+			return TRUE;
+		return FALSE;
+	}
 
 #ifdef APACHE2_0
 	if(strcasecmp("https", ap_http_method(r)) == 0)
@@ -1292,7 +1297,7 @@ char *createCASCookie(request_rec *r, char *user, cas_saml_attr *attrs, char *ti
 	e.lastactive = apr_time_now();
 	e.path = getCASPath(r);
 	e.renewed = (d->CASRenew == NULL ? 0 : 1);
-	e.secure = (isSSL(r) == TRUE ? 1 : 0);
+	e.secure = (isSSL(r, c) == TRUE ? 1 : 0);
 	e.ticket = ticket;
 	e.attrs = attrs;
 
@@ -1696,7 +1701,7 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
 	 * mitigate session hijacking by not allowing cookies transmitted in the clear to be submitted
 	 * for HTTPS URLs and by voiding HTTPS cookies sent in the clear
 	 */
-	if( (isSSL(r) == TRUE && cache.secure == FALSE) || (isSSL(r) == FALSE && cache.secure == TRUE) ) {
+	if( (isSSL(r, c) == TRUE && cache.secure == FALSE) || (isSSL(r, c) == FALSE && cache.secure == TRUE) ) {
 		/* delete this file since it is no longer valid */
 		deleteCASCacheFile(r, cookie);
 		if(c->CASDebug)
@@ -2139,7 +2144,7 @@ int cas_authenticate(request_rec *r)
 
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Entering cas_authenticate()");
-	ssl = isSSL(r);
+	ssl = isSSL(r, c);
 
 	/* the presence of a ticket overrides all */
 	ticket = getCASTicket(r);

@@ -565,44 +565,37 @@ char *getCASLoginURL(request_rec *r, cas_cfg *c)
 }
 
 /*
- * Responsible for creating the 'service=' parameter.  Constructs this
- * based on the contents of the request_rec because r->parsed_uri lacks
- * information like hostname, scheme, and port.
+ * Responsible for creating the 'service=' parameter, and the URL redirected to
+ * after authentication (to remove the ticket from the URL).  Constructed based
+ * on the contents of the request_rec because r->parsed_uri lacks information
+ * like hostname, scheme, and port.
  */
 char *getCASService(const request_rec *r, const cas_cfg *c)
 {
-	const apr_port_t port = r->connection->local_addr->port;
-	const apr_byte_t ssl = isSSL(r);
-	const apr_uri_t *root_proxy = &c->CASRootProxiedAs;
-	char *scheme, *port_str = "", *service;
-	apr_byte_t print_port = TRUE;
+	apr_uri_t service_uri;
+	char *service;
 
-#ifdef APACHE2_0
-	scheme = (char *) ap_http_method(r);
-#else
-	scheme = (char *) ap_http_scheme(r);
-#endif
-
-	if(root_proxy->is_initialized) {
-		service = apr_psprintf(r->pool, "%s%s%s%s",
-			escapeString(r, apr_uri_unparse(r->pool, root_proxy, 0)),
-			escapeString(r, r->uri),
-			(r->args != NULL ? "%3f" : ""),
-			escapeString(r, r->args));
+	if(c->CASRootProxiedAs.is_initialized) {
+		memcpy(&service_uri, &c->CASRootProxiedAs, sizeof(apr_uri_t));
 	} else {
-		if(ssl && port == 443)
-			print_port = FALSE;
-		else if(!ssl && port == 80)
-			print_port = FALSE;
-		if(print_port)
-			port_str = apr_psprintf(r->pool, "%%3a%u", port);
-
-		service = apr_pstrcat(r->pool, scheme, "%3a%2f%2f",
-			r->server->server_hostname,
-			port_str, escapeString(r, r->uri),
-			(r->args != NULL && *r->args != '\0' ? "%3f" : ""),
-			escapeString(r, r->args), NULL);
+		memset(&service_uri, '\0', sizeof(apr_uri_t));
+		service_uri.is_initialized = 1;
+#ifdef APACHE2_0
+		service_uri.scheme = (char *) ap_http_method(r);
+#else
+		service_uri.scheme = (char *) ap_http_scheme(r);
+#endif
+		service_uri.hostname = r->server->server_hostname;
+		service_uri.port = r->connection->local_addr->port;
+		service_uri.port_str = apr_itoa(r->pool, (int)service_uri.port);
+		/* service_uri.hostinfo and service_uri.hostent are not used by
+		 * apr_uri_unparse() and do not need to be populated here */
 	}
+	service_uri.path = r->uri;
+	service_uri.query = r->args;
+
+	service = apr_uri_unparse(r->pool, &service_uri, 0);
+
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "CAS Service '%s'", service);
 	return service;
@@ -612,7 +605,7 @@ char *getCASService(const request_rec *r, const cas_cfg *c)
 void redirectRequest(request_rec *r, cas_cfg *c)
 {
 	char *destination;
-	char *service = getCASService(r, c);
+	char *service = escapeString(r, getCASService(r, c));
 	char *loginURL = getCASLoginURL(r, c);
 	char *renew = getCASRenew(r);
 	char *gateway = getCASGateway(r);
@@ -1891,9 +1884,9 @@ char *getResponseFromServer(request_rec *r, cas_cfg *c, char *ticket)
 
 	memcpy(&validateURL, &c->CASValidateURL, sizeof(apr_uri_t));
 	if(c->CASValidateSAML == FALSE)
-		validateURL.query = apr_psprintf(r->pool, "service=%s&ticket=%s%s", getCASService(r, c), ticket, getCASRenew(r));
+		validateURL.query = apr_psprintf(r->pool, "service=%s&ticket=%s%s", escapeString(r, getCASService(r, c)), ticket, getCASRenew(r));
 	else
-		validateURL.query = apr_psprintf(r->pool, "TARGET=%s%s", getCASService(r, c), getCASRenew(r));
+		validateURL.query = apr_psprintf(r->pool, "TARGET=%s%s", escapeString(r, getCASService(r, c)), getCASRenew(r));
 
 	curl_easy_setopt(curl, CURLOPT_URL, apr_uri_unparse(r->pool, &validateURL, 0));
 
@@ -2126,10 +2119,6 @@ int cas_authenticate(request_rec *r)
 	cas_dir_cfg *d;
 	apr_byte_t ssl;
 	apr_byte_t parametersRemoved = FALSE;
-	apr_port_t port = r->connection->local_addr->port;
-	apr_byte_t printPort = FALSE;
-
-	char *newLocation = NULL;
 
 	/* Do nothing if we are not the authenticator */
 	if(ap_auth_type(r) == NULL || strcasecmp((const char *) ap_auth_type(r), "cas") != 0)
@@ -2211,27 +2200,7 @@ int cas_authenticate(request_rec *r)
 				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);
 
 			if(parametersRemoved == TRUE) {
-				if(ssl == TRUE && port != 443)
-					printPort = TRUE;
-				else if(port != 80)
-					printPort = TRUE;
-
-				if(c->CASRootProxiedAs.is_initialized) {
-						newLocation = apr_psprintf(r->pool, "%s%s%s%s", apr_uri_unparse(r->pool, &c->CASRootProxiedAs, 0), r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-				} else {
-#ifdef APACHE2_0
-					if(printPort == TRUE)
-						newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_method(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-					else
-						newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_method(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-#else
-					if(printPort == TRUE)
-						newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-					else
-						newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-#endif
-				}
-				apr_table_add(r->headers_out, "Location", newLocation);
+				apr_table_add(r->headers_out, "Location", getCASService(r, c));
 				return HTTP_MOVED_TEMPORARILY;
 			} else {
 				return OK;

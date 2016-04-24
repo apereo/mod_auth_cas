@@ -1,47 +1,63 @@
-====================================================================
-MOD_AUTH_CAS 1.1-RC1 README
-====================================================================
-Apache CAS Authentication Module
+========================================================================
+MOD_AUTH_CAS 1.1 README
+========================================================================
+Apache CAS Authentication Module for the JASIG/Apereo CAS Server.
 
-====================================================================
+========================================================================
 LICENSE
-====================================================================
+========================================================================
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-   http://www.apache.org/licenses/LICENSE-2.0
+ http://www.apache.org/licenses/LICENSE-2.0
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
 
-====================================================================
+========================================================================
 INTRODUCTION
-====================================================================
+========================================================================
 The purpose of this module is to allow an Apache web server to interact
 with an authentication server that conforms to the CAS version 1 or 2
-protocol as specified by Yale/JA-SIG.  At the time of this writing, the CAS
-protocol specification is here:
+protocol or SAML protocol as used by the JASIG/Apereo CAS Server.
+At the time of this writing, the CAS protocol specification is here:
 
-http://www.ja-sig.org/products/cas/overview/protocol/index.html
+http://jasig.github.io/cas/development/protocol/CAS-Protocol-Specification.html
+
+========================================================================
+Getting Started
+========================================================================
+
+--------------------------------------------------------------------
+Linux Distribution Packaging
+--------------------------------------------------------------------
+mod_auth_cas is available in most major Linux distributions, including
+Debian, Ubuntu, Fedora, and is available from EPEL for CentOS and RHEL.
 
 
-====================================================================
-QUICKSTART INSTALLATION
-====================================================================
+--------------------------------------------------------------------
+Building from Source
+--------------------------------------------------------------------
+
 The following development libraries and utilities must be installed:
-* OpenSSL - 0.9.8c
-* Apache Portable Runtime - 1.2.8
-* Apache Portable Runtime Utilities - 1.2.7
-* Apache Web Server - 2.2.3
-* libcurl - 7.18.2
-* libpcre - 7.8
+* OpenSSL - 0.9.8c or higher
+* Apache Portable Runtime - 1.2.8 or higher
+* Apache Portable Runtime Utilities - 1.2.7 or higher
+* Apache Web Server - 2.2.3 or higher
+* libcurl - 7.18.2 or higher
+* libpcre - 7.8 or higher
 
-Download the distribution via git or tarball, and use the standard
-Autoconf incantation:
+Download the distribution via git or tarball.  Because git does not
+preserve timestamps, autoconf may determine it is necessary to bootstrap
+the project.  If building from source, please start with:
+
+	autoreconf -ivf
+
+Build is performed with the standard Autoconf incantation:
 
 	./configure && make && sudo make install
 
@@ -79,32 +95,25 @@ If SAML-delivered attribute authorization is also desired, use the
      </Location>
 
 
-====================================================================
+========================================================================
 NEW FEATURES AND FUNCTIONS IN THIS RELEASE
-====================================================================
-* Unit tests added for a significant portion of functionality.
+========================================================================
+* Apache 2.4 support
+* Improved SAML support
+* New expanded Project Team - welcome David Hawes!  Many thanks to
+David for driving this release.
+* Many many bugs fixed since last official release in 2010.
+https://github.com/Jasig/mod_auth_cas/issues?q=is%3Aissue+is%3Aclosed
 
-* Improved automake suport.
+========================================================================
+KNOWN ISSUES
+========================================================================
+* Autoconf does not work well on code freshly checked out of git.  Autoconf
+ artifacts must be rebuilt using `autoreconf -ivf` .
 
-* CASValidateServer functionality has been removed.  Users must
-  either fix their SSL certificate configuration using the
-  CASCertificatePath directive, or switch to communicating with
-  the CAS server over standard HTTP.
-
-* CASAllowWildcardCert has been removed, as this has been a no-op for
-  some time (libcurl handles all validation).
-
-====================================================================
-BUG FIXES
-====================================================================
-* Fixed security bug impacting users of CAS attributes in a CGI
-  environment (MAS-62) reported by Josh Hoyt.
-
-* Assorted other stability fixes.
-
-====================================================================
+========================================================================
 KNOWN LIMITATIONS
-====================================================================
+========================================================================
 These limitations are known to exists in this release of the software:
 
 * CAS Proxy Validation is not implemented in this version.
@@ -135,68 +144,11 @@ These limitations are known to exists in this release of the software:
   development resources, and seemingly minimal community usage.
   You are welcome to try it, but YMMV for success.
 
-====================================================================
-GETTING STARTED
-====================================================================
-
-SOFTWARE DEPENDENCIES
---------------------------------------------------------------------
-The module was built and tested on the following libraries/versions:
-
-OpenSSL - 0.9.8c
-Apache Portable Runtime - 1.2.8
-Apache Portable Runtime Utilities - 1.2.7
-Apache Web Server - 2.2.3
-libcurl - 7.18.2
-
-Additionally, GNU Make and the auto* tools are necessary for building
-mod_auth_cas.
-
-Compatibility with other versions will depend on those other libraries.
-
-To develop/test mod_auth_cas, the following Debian packages are necessary:
-apache2-threaded-dev
-autoconf
-automake
-check
-libapr1-dev
-libaprutil1-dev
-libcurl4-openssl-dev
-make
-pkg-config
-
-(this list should not be considered exhaustive)
 
 
-INSTALLATION INSTRUCTIONS
---------------------------------------------------------------------
-Ensure that the follow files are in the working directory:
-mod_auth_cas.c
-mod_auth_cas.h
-
-COMPILE INSTRUCTIONS
---------------------------------------------------------------------
-Use the APache eXtenSion tool (APXS) to compile and install this
-object as a dynamically shared object (DSO), by either:
-
-apxs -i -lssl -lcurl -c mod_auth_cas.c
-or
-apxs2 -i -lssl -lcurl -c mod_auth_cas.c
-
-depending on your Linux distribution.
-
-This release of mod_auth_cas includes support for autoconf.  Note that
-you must use GNU Make - other Make implementations may work, but are
-untested and not recommended.  Use the standard commands below to
-compile and install:
-
-./configure; make; make install
-
-configure can take an optional --with-apxs=/path/to/apxs argument to
-specify the path to your APXS binary.
-
-CONFIGURING THE SOFTWARE
---------------------------------------------------------------------
+========================================================================
+Configuration
+========================================================================
 First, you must tell Apache to load the module.  In your httpd.conf,
 add:
 
@@ -429,13 +381,13 @@ Description:	Use this form of the directive to authorize based on SAML cas
 		Perl-Compatible Regular Expression (PCRE) using case-sensitive
 		matching. See also CASAuthoritative.
 
-====================================================================
+========================================================================
 CONTACT INFORMATION AND WEBSITE
-====================================================================
+========================================================================
 We welcome your feedback, suggestions and contributions. Contact us
 via email if you have questions, feedback, code submissions,
 and bug reports.  To reach the development team, send an e-mail to:
 
 cas-user [at] apereo [dot] org
 
-====================================================================
+========================================================================

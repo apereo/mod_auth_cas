@@ -76,6 +76,10 @@ static apr_thread_mutex_t **ssl_locks;
 static int ssl_num_locks;
 #endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
 
+#ifdef APLOG_USE_MODULE
+APLOG_USE_MODULE(auth_cas);
+#endif
+
 int cas_flock(apr_file_t *fileHandle, int lockOperation, request_rec *r)
 {
 	apr_os_file_t osFileHandle;

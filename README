@@ -281,6 +281,8 @@ Description:	This directive determines whether an optional authorization directi
 		(see 'Require cas-attribute') is authoritative and thus binding or
 		if other authorization modules will also be applied.
 		'On' means authoritative, 'Off' means not authoritative.
+		NOTE: This directive in unavailable with Apache 2.4. See the RequireAny,
+		RequireNone, and RequireAll directives instead.
 
 Valid Directory/.htaccess Directives
 ------------------------------------

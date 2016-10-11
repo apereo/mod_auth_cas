@@ -1678,7 +1678,9 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
 		return FALSE;
 	}
 
-	if(cache.issued < (apr_time_now()-(c->CASTimeout*((apr_time_t) APR_USEC_PER_SEC))) || cache.lastactive < (apr_time_now()-(c->CASIdleTimeout*((apr_time_t) APR_USEC_PER_SEC)))) {
+    if((c->CASTimeout > 0 &&
+       (cache.issued < (apr_time_now()-(c->CASTimeout*((apr_time_t) APR_USEC_PER_SEC))))) ||
+       cache.lastactive < (apr_time_now()-(c->CASIdleTimeout*((apr_time_t) APR_USEC_PER_SEC)))) {
 		/* delete this file since it is no longer valid */
 		deleteCASCacheFile(r, cookie);
 		if(c->CASDebug)

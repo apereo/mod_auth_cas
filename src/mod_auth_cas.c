@@ -22,7 +22,9 @@
  *
  */
 
+#ifdev HAVE_ERROR_H
 #include <error.h>
+#endif
 #include <string.h>
 #include <sys/file.h>
 #include <sys/types.h>

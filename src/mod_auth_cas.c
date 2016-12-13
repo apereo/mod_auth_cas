@@ -1627,11 +1627,23 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 				while(node != NULL) {  // For each child element...
 					if(apr_strnatcmp(node->name, "authenticationSuccess") == 0) {
 						node = node->first_child;
-						while(node != NULL && apr_strnatcmp(node->name, "user") != 0) {
+						while(node != NULL ) {
+							if (apr_strnatcmp(node->name, "user") == 0) {
+								apr_xml_to_text(r->pool, node, APR_XML_X2T_INNER, NULL, NULL, (const char **)user, NULL);
+							}else if (apr_strnatcmp(node->name, "attributes") == 0){
+								cas_attr_builder *builder = cas_attr_builder_new(r->pool, attrs);
+								apr_xml_elem *node_attr = node->first_child;
+								while (node_attr != NULL){
+									const char *attr_value = NULL;
+									apr_xml_to_text(r->pool, node_attr, APR_XML_X2T_INNER, NULL, NULL, &attr_value, NULL);
+									cas_attr_builder_add(builder, node_attr->name, attr_value);
+									ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: attribute %s %s", node_attr->name, attr_value);
+									node_attr = node_attr->next;
+								}
+							}
 							node = node->next;
 						}
-						if(node != NULL) {
-							apr_xml_to_text(r->pool, node, APR_XML_X2T_INNER, NULL, NULL, (const char **)user, NULL);
+						if(user != NULL) {
 							return TRUE;
 						}
 					} else if(apr_strnatcmp(node->name, "authenticationFailure") == 0) {

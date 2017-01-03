@@ -1999,7 +1999,7 @@ void cas_scrub_request_headers(
 	r->headers_in =
 		cas_scrub_headers(
 			r->pool,
-			c->CASValidateSAML ? c->CASAttributePrefix : NULL,
+			c->CASAttributePrefix,
 			d->CASAuthNHeader,
 			r->headers_in,
 			&dirty_headers);

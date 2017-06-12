@@ -26,7 +26,7 @@ with an authentication server that conforms to the CAS version 1 or 2
 protocol or SAML protocol as used by the JASIG/Apereo CAS Server.
 At the time of this writing, the CAS protocol specification is here:
 
-http://jasig.github.io/cas/development/protocol/CAS-Protocol-Specification.html
+http://apereo.github.io/cas/development/protocol/CAS-Protocol-Specification.html
 
 ========================================================================
 Getting Started

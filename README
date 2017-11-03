@@ -208,6 +208,11 @@ Default:	NULL
 Description:	The URL to use when performing a proxy validation.  This is currently
 		an unimplemented feature, so setting this will have no effect.
 
+Directive:	CASDisableRedirectAfterValidation
+Default:	On
+Description:	Whether to redirect to the same URL after ticket validation, but without the 
+		ticket in the parameter.  Defaults to on
+
 Directive: 	CASRootProxiedAs
 Default:	NULL
 Description:	This URL represents the URL that end users may see in the event that

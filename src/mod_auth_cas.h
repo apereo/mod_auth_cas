@@ -83,6 +83,7 @@
 #define CAS_DEFAULT_VALIDATE_V2_URL NULL
 #define CAS_DEFAULT_VALIDATE_URL CAS_DEFAULT_VALIDATE_V2_URL
 #define CAS_DEFAULT_PROXY_VALIDATE_URL NULL
+#define CAS_DEFAULT_REDIRECT_AFTER_VALIDATION NULL
 #define CAS_DEFAULT_ROOT_PROXIED_AS_URL NULL
 #define CAS_DEFAULT_COOKIE_ENTROPY 32
 #define CAS_DEFAULT_COOKIE_DOMAIN NULL
@@ -144,6 +145,7 @@ typedef struct cas_dir_cfg {
 	char *CASGatewayCookie;
 	char *CASAuthNHeader;
 	char *CASScrubRequestHeaders;
+	char *CASDisableRedirectAfterValidation;
 } cas_dir_cfg;
 
 typedef struct cas_cache_entry {
@@ -167,7 +169,7 @@ typedef enum {
 	cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy, cmd_session_timeout,
 	cmd_idle_timeout, cmd_cache_interval, cmd_cookie_domain, cmd_cookie_httponly,
 	cmd_sso, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix,
-	cmd_root_proxied_as, cmd_authoritative
+	cmd_root_proxied_as, cmd_authoritative, cmd_validate_after_redirect
 } valid_cmds;
 
 module AP_MODULE_DECLARE_DATA auth_cas_module;

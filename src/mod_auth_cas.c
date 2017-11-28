@@ -194,7 +194,7 @@ void *cas_create_dir_config(apr_pool_t *pool, char *path)
 	c->CASGatewayCookie = CAS_DEFAULT_GATEWAY_COOKIE;
 	c->CASAuthNHeader = CAS_DEFAULT_AUTHN_HEADER;
 	c->CASScrubRequestHeaders = CAS_DEFAULT_SCRUB_REQUEST_HEADERS;
-	c->CASDisableRedirectAfterValidation = CAS_DEFAULT_REDIRECT_AFTER_VALIDATION;
+	c->CASDisableRedirectAfterValidation = CAS_DEFAULT_DISABLE_REDIRECT_AFTER_VALIDATION;
 	return(c);
 }
 
@@ -238,7 +238,7 @@ void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 	if(add->CASScrubRequestHeaders != NULL && apr_strnatcasecmp(add->CASScrubRequestHeaders, "Off") == 0)
 		c->CASScrubRequestHeaders = NULL;
 
-	c->CASDisableRedirectAfterValidation = (add->CASDisableRedirectAfterValidation != CAS_DEFAULT_REDIRECT_AFTER_VALIDATION ?
+	c->CASDisableRedirectAfterValidation = (add->CASDisableRedirectAfterValidation != CAS_DEFAULT_DISABLE_REDIRECT_AFTER_VALIDATION ?
 		add->CASDisableRedirectAfterValidation :
 		base->CASDisableRedirectAfterValidation);
 	if(add->CASDisableRedirectAfterValidation != NULL && apr_strnatcasecmp(add->CASDisableRedirectAfterValidation, "Off") == 0)
@@ -1671,7 +1671,6 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 
 apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **user, cas_saml_attr **attrs)
 {
-	char *path;
 	cas_cache_entry cache;
 	cas_dir_cfg *d = ap_get_module_config(r->per_dir_config, &auth_cas_module);
 
@@ -1684,8 +1683,6 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Cookie '%s' is corrupt or invalid", cookie);
 		return FALSE;
 	}
-
-	path = apr_psprintf(r->pool, "%s%s", c->CASCookiePath, cookie);
 
 	/*
 	 * mitigate session hijacking by not allowing cookies transmitted in the clear to be submitted
@@ -1846,12 +1843,13 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 		curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
 
 	memcpy(&validateURL, &c->CASValidateURL, sizeof(apr_uri_t));
-	if(c->CASDebug)
-		ap_log_rerror(APLOG_MARK,APLOG_DEBUG,0,r,"MOD_AUTH_CAS: validateUrl: %s", apr_uri_unparse(r->pool, &validateURL, 0));
 	if(c->CASValidateSAML == FALSE)
 		validateURL.query = apr_psprintf(r->pool, "service=%s&ticket=%s%s", getCASService(r, c), ticket, getCASRenew(r));
 	else
 		validateURL.query = apr_psprintf(r->pool, "TARGET=%s%s", getCASService(r, c), getCASRenew(r));
+
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK,APLOG_DEBUG,0,r,"MOD_AUTH_CAS: validateUrl: %s", apr_uri_unparse(r->pool, &validateURL, 0));
 
 	curl_easy_setopt(curl, CURLOPT_URL, apr_uri_unparse(r->pool, &validateURL, 0));
 
@@ -2845,7 +2843,7 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASTimeout", cfg_readCASParameter, (void *) cmd_session_timeout, RSRC_CONF, "Maximum time (in seconds) a session cookie is valid for, regardless of idle time.  Set to 0 to allow non-idle sessions to never expire"),
 	AP_INIT_TAKE1("CASIdleTimeout", cfg_readCASParameter, (void *) cmd_idle_timeout, RSRC_CONF, "Maximum time (in seconds) a session can be idle for"),
 	AP_INIT_TAKE1("CASCacheCleanInterval", cfg_readCASParameter, (void *) cmd_cache_interval, RSRC_CONF, "Amount of time (in seconds) between cache cleanups.  This value is checked when a new local ticket is issued or when a ticket expires."),
-	AP_INIT_TAKE1("CASDisableRedirectAfterValidation", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASDisableRedirectAfterValidation), ACCESS_CONF, "Set 'Off' to not send a 302 redirect to remove the ticket parameter after ticket validation"),
+	AP_INIT_TAKE1("CASDisableRedirectAfterValidation", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASDisableRedirectAfterValidation), ACCESS_CONF, "Set 'On' to not send a 302 redirect to remove the ticket parameter after ticket validation"),
 	AP_INIT_TAKE1("CASRootProxiedAs", cfg_readCASParameter, (void *) cmd_root_proxied_as, RSRC_CONF, "URL used to access the root of the virtual server (only needed when the server is proxied)"),
  	AP_INIT_TAKE1("CASScrubRequestHeaders", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASScrubRequestHeaders), ACCESS_CONF, "Scrub CAS user name and SAML attribute headers from the user's request."),
 	/* authorization options */

@@ -1582,11 +1582,11 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 										// Get the AuthenticationMethod
 										apr_xml_elem *as_node = node->first_child;
 										attr = node->attr;
-										while(attr != NULL && apr_strnatcmp(attr->name, "AuthenticationMethod") != 0) {
+										while(attr != NULL) {
+											if(apr_strnatcmp(attr->name, "AuthenticationMethod") != 0 || apr_strnatcmp(attr->name, "AuthenticationInstant") != 0) {
+												cas_attr_builder_add(builder, attr->name, attr->value);
+											}
 											attr = attr->next;
-										}
-										if(attr != NULL) {
-											cas_attr_builder_add(builder, attr->name, attr->value);
 										}
 										// Get the username
 										while(as_node != NULL) {

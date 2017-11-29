@@ -2167,6 +2167,8 @@ int cas_authenticate(request_rec *r)
 				} else {
 					return OK;
 				}
+			} else {
+				return OK;
 			}
 		} else {
 			/* sometimes, pages that automatically refresh will re-send the ticket parameter, so let's check any cookies presented or return an error if none */

@@ -209,9 +209,12 @@ Description:	The URL to use when performing a proxy validation.  This is current
 		an unimplemented feature, so setting this will have no effect.
 
 Directive:	CASDisableRedirectAfterValidation
-Default:	On
-Description:	Whether to redirect to the same URL after ticket validation, but without the 
-		ticket in the parameter.  Defaults to on
+Default:	Off
+Description:	Normal requests that contain a ticket parameter have that removed by sending
+                a 302 redirect with ticket removed in the URL.  Turning this parameter On
+                disables the automatic/forced 302 redirects.  Turning this on is helpful when 
+                clients can't automatically follow the redirect, or this is a POST request with
+                a POST body already submitted.
 
 Directive: 	CASRootProxiedAs
 Default:	NULL

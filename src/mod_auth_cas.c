@@ -2114,7 +2114,7 @@ int cas_authenticate(request_rec *r)
 	}
 
 	/* now, handle when a ticket is present (this will also catch gateway users since ticket != NULL on their trip back) */
-	if(ticket != NULL && r->user == NULL) {
+	if(ticket != NULL) {
 		if(isValidCASTicket(r, c, ticket, &remoteUser, &attrs)) {
 
 			/* if we could not find remote user at this point, we have bigger problems */

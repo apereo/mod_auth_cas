@@ -1823,6 +1823,8 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	char *samlPayload;
 	CURL *curl;
 	char *rv;
+	char *requestId;
+	char buf[16];
 
 	rv = NULL;
 
@@ -1878,7 +1880,9 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 
 	if(c->CASValidateSAML == TRUE) {
 		curl_easy_setopt(curl, CURLOPT_POST, 1L);
-		samlPayload = apr_psprintf(r->pool, "<?xml version=\"1.0\" encoding=\"utf-8\"?><SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\"><SOAP-ENV:Header/><SOAP-ENV:Body><samlp:Request xmlns:samlp=\"urn:oasis:names:tc:SAML:1.0:protocol\"  MajorVersion=\"1\" MinorVersion=\"1\"><samlp:AssertionArtifact>%s</samlp:AssertionArtifact></samlp:Request></SOAP-ENV:Body></SOAP-ENV:Envelope>",ticket);
+		apr_generate_random_bytes((unsigned char *) buf, 16);
+		requestId = (char *) ap_md5_binary(r->pool, (unsigned char *) buf, 16);
+		samlPayload = apr_psprintf(r->pool, "<?xml version=\"1.0\" encoding=\"utf-8\"?><SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\"><SOAP-ENV:Header/><SOAP-ENV:Body><samlp:Request xmlns:samlp=\"urn:oasis:names:tc:SAML:1.0:protocol\"  MajorVersion=\"1\" MinorVersion=\"1\" RequestID=\"%s\"><samlp:AssertionArtifact>%s</samlp:AssertionArtifact></samlp:Request></SOAP-ENV:Body></SOAP-ENV:Envelope>", requestId, ticket);
 		headers = curl_slist_append(headers, "soapaction: http://www.oasis-open.org/committees/security");
 		headers = curl_slist_append(headers, "cache-control: no-cache");
 		headers = curl_slist_append(headers, "pragma: no-cache");
@@ -1886,6 +1890,9 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 		headers = curl_slist_append(headers, "content-type: text/xml");
 		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, samlPayload);
+
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "samlPayload = %s", samlPayload);
 	} else
 		curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
 

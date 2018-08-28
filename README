@@ -284,6 +284,11 @@ Description:	This directive determines whether an optional authorization directi
 		NOTE: This directive is unavailable with Apache 2.4. See the RequireAny,
 		RequireNone, and RequireAll directives instead.
 
+Directive:	CASValidateSAML
+Default:	Off
+Description:	If enabled, the response from the CAS Server will be parsed for SAML
+		attributes which will be associated with the user.
+
 Valid Directory/.htaccess Directives
 ------------------------------------
 Directive:	CASScope
@@ -342,11 +347,6 @@ Default:	Off
 Description:	If enabled, this activates support for Single Sign Out within the CAS
 		protocol.  Please note that this feature is currently experimental and
 		may mangle POST data.
-
-Directive:	CASValidateSAML
-Default:	Off
-Description:	If enabled, the response from the CAS Server will be parsed for SAML
-		attributes which will be associated with the user.
 
 Directive:	CASAttributePrefix
 Default:	CAS_

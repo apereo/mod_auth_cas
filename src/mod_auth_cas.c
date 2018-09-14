@@ -1571,6 +1571,7 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 															const char *attr_value = NULL;
 															apr_xml_to_text(r->pool, attr_node, APR_XML_X2T_INNER, NULL, NULL, &attr_value, NULL);
 															cas_attr_builder_add(builder, attr_name, attr_value);
+															ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: attribute %s=%s", attr_name, attr_value);
 														}
 														attr_node = attr_node->next;
 													}
@@ -1637,7 +1638,7 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 									const char *attr_value = NULL;
 									apr_xml_to_text(r->pool, node_attr, APR_XML_X2T_INNER, NULL, NULL, &attr_value, NULL);
 									cas_attr_builder_add(builder, node_attr->name, attr_value);
-									ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: attribute %s %s", node_attr->name, attr_value);
+									ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: attribute %s=%s", node_attr->name, attr_value);
 									node_attr = node_attr->next;
 								}
 							}

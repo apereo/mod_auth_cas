@@ -2845,4 +2845,7 @@ module AP_MODULE_DECLARE_DATA auth_cas_module = {
 	cas_merge_server_config,                  /* merge  per-server config structures */
 	cas_cmds,                  /* table of config file commands       */
 	cas_register_hooks  /* register hooks                      */
+#ifdef AP_MODULE_FLAG_NONE
+	, AP_MODULE_FLAG_NONE
+#endif
 };

@@ -1,51 +1,124 @@
-====================================================================
-MOD_AUTH_CAS 1.0.10 README
-====================================================================
-Apache CAS Authentication Module
+========================================================================
+MOD_AUTH_CAS 1.1 README
+========================================================================
+Apache CAS Authentication Module for the JASIG/Apereo CAS Server.
 
-====================================================================
+========================================================================
 LICENSE
-====================================================================
+========================================================================
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-   http://www.apache.org/licenses/LICENSE-2.0
+ http://www.apache.org/licenses/LICENSE-2.0
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
 
-====================================================================
-INTRODUCTION 
-====================================================================
+========================================================================
+INTRODUCTION
+========================================================================
 The purpose of this module is to allow an Apache web server to interact
 with an authentication server that conforms to the CAS version 1 or 2
-protocol as specified by Yale/JA-SIG.  At the time of this writing, the CAS
-protocol specification is here:
+protocol or SAML protocol as used by the JASIG/Apereo CAS Server.
+At the time of this writing, the CAS protocol specification is here:
 
-http://www.ja-sig.org/products/cas/overview/protocol/index.html
+http://apereo.github.io/cas/development/protocol/CAS-Protocol-Specification.html
 
-====================================================================
-NEW FEATURES AND FUNCTIONS IN THIS RELEASE 
-====================================================================
-* Unit tests added for a significant portion of functionality.
+========================================================================
+Getting Started
+========================================================================
 
-* Improved automake suport.
+--------------------------------------------------------------------
+Linux Distribution Packaging
+--------------------------------------------------------------------
+mod_auth_cas is available in most major Linux distributions, including
+Debian, Ubuntu, Fedora, and is available from EPEL for CentOS and RHEL.
 
-====================================================================
-BUG FIXES 
-====================================================================
-* Fixed security bug impacting users of CAS attributes in a CGI
-  environment (MAS-62) reported by Josh Hoyt.
 
-* Assorted other stability fixes.
+--------------------------------------------------------------------
+Building from Source
+--------------------------------------------------------------------
 
-====================================================================
+The following development libraries and utilities must be installed:
+* OpenSSL - 0.9.8c or higher
+* Apache Portable Runtime - 1.2.8 or higher
+* Apache Portable Runtime Utilities - 1.2.7 or higher
+* Apache Web Server - 2.2.3 or higher
+* libcurl - 7.18.2 or higher
+* libpcre - 7.8 or higher
+
+Download the distribution via git or tarball.  Because git does not
+preserve timestamps, autoconf may determine it is necessary to bootstrap
+the project.  If building from source, please start with:
+
+	autoreconf -ivf
+
+Build is performed with the standard Autoconf incantation:
+
+	./configure && make && sudo make install
+
+Edit your Apache configuration to load the mod_auth_cas module:
+
+	LoadModule auth_cas_module /path/to/mod_auth_cas.so
+
+Set a few required parameters in your Apache configuration:
+
+	CASCookiePath /var/cache/apache2/mod_auth_cas/
+	CASLoginURL https://login.example.org/cas/login
+	CASValidateURL https://login.example.org/cas/serviceValidate
+
+Protect a "Location" or "Directory" block in your Apache
+configuration:
+
+	<Location /secured>
+		Authtype CAS
+		Require valid-user
+	</Location>
+
+If attribute-based authorization is also desired, specify cas-attribute
+name:value in your Require rule (please note: both attribute name and value are
+case-sensitive):
+
+	CASCookiePath /var/cache/apache2/mod_auth_cas/
+	CASLoginURL https://login.example.org/cas/login
+	CASValidateURL https://login.example.org/cas/samlValidate
+	CASValidateSAML On
+
+	<Location /secured>
+		Authtype CAS
+		Require cas-attribute edupersonaffiliation:staff
+	</Location>
+
+Both the CAS 2.0 and SAML 1.1 protocols support including additional attributes
+in the CAS validation response, which may also be added as HTTP headers (see
+CASAttributePrefix and CASAttributeDelimiter). This example uses the SAML
+protocol and requires that the 'edupersonaffiliation' attribute is set to
+'staff'.
+
+
+========================================================================
+NEW FEATURES AND FUNCTIONS IN THIS RELEASE
+========================================================================
+* Apache 2.4 support
+* Improved SAML support
+* New expanded Project Team - welcome David Hawes!  Many thanks to
+David for driving this release.
+* Many many bugs fixed since last official release in 2010.
+https://github.com/Jasig/mod_auth_cas/issues?q=is%3Aissue+is%3Aclosed
+
+========================================================================
+KNOWN ISSUES
+========================================================================
+* Autoconf does not work well on code freshly checked out of git.  Autoconf
+ artifacts must be rebuilt using `autoreconf -ivf` .
+
+========================================================================
 KNOWN LIMITATIONS
-====================================================================
+========================================================================
 These limitations are known to exists in this release of the software:
 
 * CAS Proxy Validation is not implemented in this version.
@@ -76,68 +149,11 @@ These limitations are known to exists in this release of the software:
   development resources, and seemingly minimal community usage.
   You are welcome to try it, but YMMV for success.
 
-====================================================================
-GETTING STARTED
-====================================================================
-
-SOFTWARE DEPENDENCIES
---------------------------------------------------------------------
-The module was built and tested on the following libraries/versions:
-
-OpenSSL - 0.9.8c
-Apache Portable Runtime - 1.2.8
-Apache Portable Runtime Utilities - 1.2.7
-Apache Web Server - 2.2.3
-libcurl - 7.18.2
-
-Additionally, GNU Make and the auto* tools are necessary for building
-mod_auth_cas.
-
-Compatibility with other versions will depend on those other libraries.
-
-To develop/test mod_auth_cas, the following Debian packages are necessary:
-apache2-threaded-dev
-autoconf
-automake
-check
-libapr1-dev
-libaprutil1-dev
-libcurl4-openssl-dev
-make
-pkg-config
-
-(this list should not be considered exhaustive)
 
 
-INSTALLATION INSTRUCTIONS
---------------------------------------------------------------------
-Ensure that the follow files are in the working directory:
-mod_auth_cas.c
-mod_auth_cas.h
-
-COMPILE INSTRUCTIONS
---------------------------------------------------------------------
-Use the APache eXtenSion tool (APXS) to compile and install this 
-object as a dynamically shared object (DSO), by either:
-
-apxs -i -lssl -lcurl -c mod_auth_cas.c
-or
-apxs2 -i -lssl -lcurl -c mod_auth_cas.c
-
-depending on your Linux distribution.
-
-This release of mod_auth_cas includes support for autoconf.  Note that
-you must use GNU Make - other Make implementations may work, but are
-untested and not recommended.  Use the standard commands below to
-compile and install:
-
-./configure; make; make install
-
-configure can take an optional --with-apxs=/path/to/apxs argument to
-specify the path to your APXS binary.
-
-CONFIGURING THE SOFTWARE
---------------------------------------------------------------------
+========================================================================
+Configuration
+========================================================================
 First, you must tell Apache to load the module.  In your httpd.conf,
 add:
 
@@ -164,28 +180,13 @@ Description:	The version of the CAS protocol to adhere to (1 or 2).
 Directive: 	CASDebug
 Default:	Off
 Description:	Enable or disable debugging mode for troubleshooting.  Please
-              note that LogLevel must be set to Debug for the VirtualHost in
-              order for these logs to be visible.
-
-Directive: 	CASValidateServer
-Default:	On
-Description:	If set to 'On', mod_auth_cas will validate that the certificate
-		presented by the server specified in CASLoginURL is both
-		signed by the Certificate Authority specified in CASCertificatePath
-		and that the hostname matches the Common Name of the certificate.
+		note that LogLevel must be set to Debug for the VirtualHost in
+		order for these logs to be visible.
 
 Directive:	CASValidateDepth
 Default:	9
 Description:	This directive will set the maximum depth for chained certificate
 		validation.  The default (according to OpenSSL documentation) is 9.
-
-Directive:	CASAllowWildcardCert
-Default:	Off
-Description:	This directive determines whether a wildcard certificate can be trusted
-		to verify the CAS server.  For instance, if the CAS server presents a
-		certificate for *.example.com and the hostname portion of the CASValidateURL
-		is 'cas.login.example.com', this directive (if enabled) will accept that
-		certificate.
 
 Directive: 	CASCertificatePath
 Default:	/etc/ssl/certs/
@@ -220,7 +221,7 @@ Description:	This URL represents the URL that end users may see in the event tha
 		prefix.  As an example: If the site being protected is http://example.com/
 		and the Apache instance of this server is http://internal.example.com:8080,
 		setting CASRootProxiedAs to http://example.com would result in proper
-		service parameter generation. 
+		service parameter generation.
 
 Directive: 	CASCookiePath
 Default:	/dev/null
@@ -274,17 +275,31 @@ Default:	NULL
 Description:	Specify the value for the 'Domain=' parameter in the Set-Cookie header.
 
 Directive:	CASCookieHttpOnly
-Default:	Off
+Default:	On
 Description:	Set the optional 'HttpOnly' flag for cookies issues by mod_auth_cas.
-		This parameter may break RFC compliance since HttpOnly is not defined
-		in RFC 2109.  See http://msdn2.microsoft.com/en-us/library/ms533046.aspx
-		for more information.  Please note this feature is not honored by all
-		browsers.
+		Set the HttpOnly flag as described in in RFC 6265.  This flag prevents the
+		mod_auth_cas cookies from being accessed by client side Javascript.
+
+Directive:	CASAuthoritative
+Default:	Off
+Description:	This directive determines whether an optional authorization directive
+		(see 'Require cas-attribute') is authoritative and thus binding or
+		if other authorization modules will also be applied.
+		'On' means authoritative, 'Off' means not authoritative.
+		NOTE: This directive is unavailable with Apache 2.4. See the RequireAny,
+		RequireNone, and RequireAll directives instead.
+
+Directive:	CASValidateSAML
+Default:	Off
+Description:	If enabled, the response from the CAS Server will be parsed for SAML
+		attributes which will be associated with the user.  Requires setting
+		CASValidateURL appropriately; typical URLs are of the form
+		https://login.example.org/cas/samlValidate.
 
 Valid Directory/.htaccess Directives
 ------------------------------------
 Directive:	CASScope
-Default:	Off	
+Default:	Off
 Description:	Use this directive with an argument as a relative path (e.g. /application/) to specify
 		the scope for which a mod_auth_cas cookie is valid.  This is beneficial to prevent
 		additional round trips to the CAS server.  Assume someone authenticates to /application/subdir/
@@ -331,8 +346,11 @@ Description:	The name of the cookie used to store whether or not the user has at
 
 Directive:	CASAuthNHeader
 Default:	None
-Description:	If enabled, this will store the user returned by CAS in an HTTP header
-		accessible to your web applications.
+Description:	If enabled, this will store the user returned by CAS in the specified
+		HTTP header accessible to your web applications, and any additional
+		attributes received in headers named according to CASAttributePrefix.
+		This is in addition to the REMOTE_USER environment variable, which is
+		always set to the CAS user.
 
 Directive:	CASSSOEnabled
 Default:	Off
@@ -340,16 +358,14 @@ Description:	If enabled, this activates support for Single Sign Out within the C
 		protocol.  Please note that this feature is currently experimental and
 		may mangle POST data.
 
-Directive:	CASValidateSAML
-Default:	Off
-Description:	If enabled, the response from the CAS Server will be parsed for SAML
-		attributes which will be associated with the user.
-
 Directive:	CASAttributePrefix
 Default:	CAS_
-Description:	mod_auth_cas will add a header named  <CASAttributePrefix><attr_name>
-		with the value of this header being the attribute values when SAML
-		validation is enabled.
+Description:	The prefix to use when adding CAS or SAML attributes to the HTTP headers,
+		which will be named <CASAttributePrefix><attr_name>.  CASAuthNHeader
+		must be set for this directive to be used.
+		NOTE: In Apache 2.4 and newer, headers containing "invalid" characters
+		(including underscores) are silently dropped, so you must set this to
+		a "valid" name containing only alphabetic characters and hyphens.
 
 Directive:	CASAttributeDelimiter
 Default:	,
@@ -361,15 +377,36 @@ Directive:	CASScrubRequestHeaders
 Default:	Off
 Description:	mod_auth_cas will strip request inbound request headers that may have
 		special meaning, such as those set with the CASAttributePrefix or the
-		CASAuthNHeader value. 
+		CASAuthNHeader value.
 
-====================================================================
+Directive:	Require cas-attribute <attribute>:<value>
+Default:	NULL
+Description:	Use this directive to authorize based on CAS or SAML attributes
+		returned via the session validation call. Multiple directives
+		are OR-ed. If directive is present with no attributes defined,
+		the request is declined. If value has spaces, wrap the pair in quotes.
+		See also CASAuthoritative.
+
+Directive:	Require cas-attribute <attribute>~<value>
+Default:	NULL
+Description:	Use this form of the directive to authorize based on CAS or SAML
+		attributes returned via the session validation call. Multiple
+		directives are OR-ed. If directive is present with no attributes
+		defined, the request is declined. The value is interpreted as a
+		Perl-Compatible Regular Expression (PCRE) using case-sensitive
+		matching. See also CASAuthoritative.
+
+========================================================================
 CONTACT INFORMATION AND WEBSITE
-====================================================================
+========================================================================
 We welcome your feedback, suggestions and contributions. Contact us
-via email if you have questions, feedback, code submissions, 
+via email if you have questions, feedback, code submissions,
 and bug reports.  To reach the development team, send an e-mail to:
 
-mod-auth-cas-dev [at] lists [dot] jasig [dot] org
+cas-user [at] apereo [dot] org
 
-====================================================================
+Google Group link:
+
+https://groups.google.com/a/apereo.org/forum/#!forum/cas-user
+
+========================================================================

@@ -18,7 +18,7 @@
  * Apache CAS Authentication Module
  * Version 1.0.10
  *
- * Contact: mod-auth-cas-dev@lists.jasig.org
+ * Contact: cas-user@apereo.org
  *
  */
 
@@ -26,9 +26,11 @@
 #define MOD_AUTH_CAS_H
 
 #include <stddef.h>
+#include <http_core.h>
 #include "ap_release.h"
 
 #define OPENSSL_THREAD_DEFINES
+#include <openssl/crypto.h>
 #include <openssl/opensslconf.h>
 #include <openssl/crypto.h>
 
@@ -41,6 +43,10 @@
 #include "curl/curlver.h"
 #if (LIBCURL_VERSION_NUM < 0x071304)
 #define LIBCURL_NO_CURLPROTO
+#endif
+
+#if MODULE_MAGIC_NUMBER_MAJOR >= 20120211
+#include "mod_auth.h"
 #endif
 
 #include "cas_saml_attr.h"
@@ -71,7 +77,6 @@
 #define CAS_DEFAULT_ATTRIBUTE_DELIMITER ","
 #define CAS_DEFAULT_ATTRIBUTE_PREFIX "CAS_"
 #define CAS_DEFAULT_VALIDATE_DEPTH 9
-#define CAS_DEFAULT_ALLOW_WILDCARD_CERT 0
 #define CAS_DEFAULT_CA_PATH "/etc/ssl/certs/"
 #define CAS_DEFAULT_COOKIE_PATH "/dev/null"
 #define CAS_DEFAULT_LOGIN_URL NULL
@@ -82,7 +87,7 @@
 #define CAS_DEFAULT_ROOT_PROXIED_AS_URL NULL
 #define CAS_DEFAULT_COOKIE_ENTROPY 32
 #define CAS_DEFAULT_COOKIE_DOMAIN NULL
-#define CAS_DEFAULT_COOKIE_HTTPONLY 0
+#define CAS_DEFAULT_COOKIE_HTTPONLY 1
 #define CAS_DEFAULT_COOKIE_TIMEOUT 7200 /* 2 hours */
 #define CAS_DEFAULT_COOKIE_IDLE_TIMEOUT 3600 /* 1 hour */
 #define CAS_DEFAULT_CACHE_CLEAN_INTERVAL  1800 /* 30 minutes */
@@ -92,10 +97,17 @@
 #define CAS_DEFAULT_AUTHN_HEADER NULL
 #define CAS_DEFAULT_SCRUB_REQUEST_HEADERS NULL
 #define CAS_DEFAULT_SSO_ENABLED FALSE
+#define CAS_DEFAULT_AUTHORITATIVE FALSE
 
-#define CAS_MAX_RESPONSE_SIZE 16384
+#define CAS_MAX_RESPONSE_SIZE 65536
 #define CAS_MAX_ERROR_SIZE 1024
 #define CAS_MAX_XML_SIZE 1024
+
+#define CAS_ATTR_MATCH 0
+#define CAS_ATTR_NO_MATCH 1
+
+#define CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT -1
+#define CAS_SESSION_EXPIRE_COOKIE_NOW 0
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
@@ -112,6 +124,9 @@ typedef struct cas_cfg {
 	unsigned int CASTimeout;
 	unsigned int CASIdleTimeout;
 	unsigned int CASCookieHttpOnly;
+	unsigned int CASSSOEnabled;
+	unsigned int CASAuthoritative;
+	unsigned int CASValidateSAML;
 	char *CASCertificatePath;
 	char *CASCookieDomain;
 	char *CASAttributeDelimiter;
@@ -153,10 +168,11 @@ typedef struct cas_curl_buffer {
 } cas_curl_buffer;
 
 typedef enum {
-	cmd_version, cmd_debug, cmd_validate_server, cmd_validate_depth, cmd_wildcard_cert,
-	cmd_ca_path, cmd_cookie_path, cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy,
-	cmd_session_timeout, cmd_idle_timeout, cmd_cache_interval, cmd_cookie_domain, cmd_cookie_httponly,
-	cmd_sso, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix, cmd_root_proxied_as
+	cmd_version, cmd_debug, cmd_validate_server, cmd_validate_depth, cmd_wildcard_cert, cmd_ca_path, cmd_cookie_path,
+	cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy, cmd_session_timeout,
+	cmd_idle_timeout, cmd_cache_interval, cmd_cookie_domain, cmd_cookie_httponly,
+	cmd_sso, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix,
+	cmd_root_proxied_as, cmd_authoritative
 } valid_cmds;
 
 module AP_MODULE_DECLARE_DATA auth_cas_module;
@@ -187,7 +203,7 @@ char *getCASPath(request_rec *r);
 void CASSAMLLogout(request_rec *r, char *body);
 apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes);
 void deleteCASCacheFile(request_rec *r, char *cookieName);
-void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure);
+void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure, apr_time_t expireTime);
 char *escapeString(const request_rec *r, const char *str);
 char *urlEncode(const request_rec *r, const char *str, const char *charsToEncode);
 char *getCASGateway(request_rec *r);
@@ -206,7 +222,6 @@ void cas_ssl_id_callback(CRYPTO_THREADID *id);
 int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec *s);
 void cas_register_hooks(apr_pool_t *p);
 
-
 char *getCASScope(request_rec *r);
 void expireCASST(request_rec *r, const char *ticketname);
 void cas_scrub_request_headers(request_rec *r, const cas_cfg *const c, const cas_dir_cfg *const d);
@@ -219,6 +234,21 @@ int merged_vhost_configs_exist(server_rec *s);
 #if (defined(OPENSSL_THREADS) && APR_HAS_THREADS)
 void cas_ssl_locking_callback(int mode, int type, const char *file, int line);
 #endif
+/* Access per-request CAS SAML attributes */
+void cas_set_attributes(request_rec *r, cas_saml_attr *const attrs);
+const cas_saml_attr *cas_get_attributes(request_rec *r);
+int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const attributes, struct request_rec *r);
+
+/* Authorization check */
+#if MODULE_MAGIC_NUMBER_MAJOR < 20120211
+int cas_authorize(request_rec *r);
+int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const require_line *const reqs, int nelts, const cas_cfg *const c);
+#else
+authz_status cas_check_authorization(request_rec *r, const char *require_line, const void *parsed_require_line);
+#endif
+
+/* Fancy wrapper around flock() */
+int cas_flock(apr_file_t *fileHandle, int lockOperation, request_rec *r);
 
 /* apr forward compatibility */
 #ifndef APR_FOPEN_READ

@@ -3,7 +3,10 @@ README.win32
 
 !!! Please read the README file first !!!
 
-This is a *very* rough and dirty description of how to build 
+### THIS README IS MAINTAINED FOR HISTORICAL REFERENCE ONLY AND
+### HAS NOT BEEN KNOWN TO WORK SINCE v1.0.8
+
+This is a *very* rough and dirty description of how to build
 mod_auth_cas for Apache on Windows.  If you are not familiar with
 building DLLs in Visual Studio for Windows, I suggest you wait
 until the method is improved, likely using MinGW
@@ -19,8 +22,8 @@ This has only been tested with:
 NOTE:	As of mod_auth_cas 1.0.9, Win32 support has been dropped due
 	to lack of development resources and low community interest.
 	As a result, these instructions may be inaccurate.  As an
-	explicit example, the additional curl dependency is not
-	addressed in these instructions at all.
+	explicit example, the additional curl and libpcre dependencies are
+	not addressed in these instructions at all.
 
 ====================================================================
 DOWNLOADS
@@ -33,7 +36,7 @@ Apache with SSL for Windows:
 	http://httpd.apache.org/download.cgi
 	"Other Files"
 		binaries/win32/apache_2.xxx-win32-x86-openssl-yyy.msi
-		
+
 OpenSSL for Windows:
 	http://openssl.org/related/binaries.html
 ====================================================================
@@ -46,7 +49,7 @@ OpenSSL for Windows:
 6) Open VC++
 7) File -> New -> Project from Existing Code
 8) What type of project would you like to create?: "Visual C++"
-9) 
+9)
 	Project file location: location of mod_auth_cas working copy
 	Project name: mod_auth_cas
 10) How do you want to build the project?:
@@ -72,7 +75,7 @@ OpenSSL for Windows:
 21) Copy DLL from working_copy\Release\mod_auth_cas.dll to Apache modules directory, C:\Program Files\Apache Group\Apache2\modules
 22) edit httpd.conf to include a block similar to the following:
 
-	CASLoginURL https://login.example.com/cas/login 
+	CASLoginURL https://login.example.com/cas/login
 	CASValidateURL https://login.example.com/cas/serviceValidate
 	CASCertificatePath c:/cacert.pem
 	CASCookiePath c:/temp/
@@ -80,4 +83,3 @@ OpenSSL for Windows:
 		AuthType CAS
 		Require valid-user
 	</Location>
-

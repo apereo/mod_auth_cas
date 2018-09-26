@@ -14,8 +14,8 @@ install: mod_auth_cas.la
 	if test ! -d ${DESTDIR}${APXS_LIBEXECDIR}; then mkdir -p ${DESTDIR}${APXS_LIBEXECDIR}; fi
 	@APXS@ -i -S LIBEXECDIR=${DESTDIR}${APXS_LIBEXECDIR} mod_auth_cas.la
 
-clean:
+clean-local:
 	rm -rf mod_auth_cas.slo mod_auth_cas.la mod_auth_cas.lo cas_saml_attr.lo cas_saml_attr.slo .libs
-
-distclean: clean
-	rm Makefile
+	
+pretty:
+	@indent --continuation-indentation1 --continue-at-parentheses --no-tabs --tab-size2 --indent-level2 --line-length80 --comment-line-length80 --space-after-for --space-after-if --space-after-while -v *.c *.h

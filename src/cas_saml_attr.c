@@ -18,7 +18,7 @@
  * Apache CAS Authentication Module
  * Version 1.0.10
  *
- * Contact: mod-auth-cas-dev@lists.jasig.org
+ * Contact: cas-user@apereo.org
  *
  */
 

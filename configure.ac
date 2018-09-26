@@ -2,10 +2,11 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.61])
-AC_INIT([mod_auth_cas], [1.0.10], [mod-auth-cas-dev@lists.jasig.org])
+AC_INIT([mod_auth_cas], [1.1], [cas-user@apereo.org])
 AC_CONFIG_SRCDIR([Makefile.am])
 AC_CONFIG_MACRO_DIR([m4])
-AM_CONFIG_HEADER([config.h])
+AC_CONFIG_HEADERS([config.h])
+AM_MAINTAINER_MODE([disable])
 
 AC_LIBTOOL_DLOPEN
 AC_CANONICAL_BUILD
@@ -13,7 +14,7 @@ AC_CANONICAL_HOST
 AC_GNU_SOURCE
 AC_ISC_POSIX
 
-AM_INIT_AUTOMAKE([foreign 1.7])
+AM_INIT_AUTOMAKE([foreign 1.7 subdir-objects])
 #Backward compatability, allows for silent-rules in AM<1.11
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES])
 
@@ -36,139 +37,56 @@ AC_SUBST(INCLTDL)
 AC_SUBST(LIBLTDL)
 
 #### Locate APXS
-## First, check --with-apxs
-AC_DEFUN([CHECK_APXS],[
-    AC_MSG_CHECKING(for Apache apxs)
-    AC_ARG_WITH(
-        apxs,
-        [  --with-apxs=FILE        location of the Apache apxs utility],  
-    [if test -x "${with_apxs}" ; then
-        apxs_found="${with_apxs}"
-            AC_MSG_RESULT([$apxs_found])
-    fi]
-        ,
-        [ 
-        APXS_NAMES=apxs2
-        if test "${apache_version}"="2"; then
-            APXS_NAMES="$APXS_NAMES apxs2"
-        fi
-        for apxs_file in ${APXS_NAMES}; do 
-            for apxs_path in bin sbin; do 
-                 if test -x "${apache_base}"/"${apxs_path}"/"${apxs_file}"; then
-                        apxs_found="${apache_base}"/"${apxs_path}"/"${apxs_file}" 
-                        break 2
-                  fi
-            done
-        done
-        if test x"$apxs_found" = x; then
-            AC_PATH_PROGS(with_apxs, apxs2)
-            if test "${with_apxs+set}" = set ; then
-                apxs_found="${with_apxs}"
-            fi
-        fi
-        if test x"${apxs_found}" = x; then
-            AC_MSG_ERROR([Could not find apxs.  apxs must be in your PATH or you must specify the location of the apxs script using --with-apxs])
-        else
-            AC_MSG_RESULT([$apxs_found])
-        fi
-       ]
-    )
-    if test "${apxs_found+set}" = set ; then
-        dnl At this point we already have apr sorted out
-        export PATH=$PATH:`dirname $apxs_found`
-        APXS_CPPFLAGS=`${apxs_found} -q CFLAGS`
+# Accept parameter of --with-apxs.  If not supplied, search path for apxs or apxs2
+AC_ARG_WITH(
+	[apxs],
+	[AS_HELP_STRING([--with-apxs=PATH/TO/APXS],[location of the Apache apxs (or apxs2) utility, instead of searching path])],
+	[AC_SUBST(APXS,$with_apxs)],
+	[AC_PATH_PROGS(APXS,[apxs apxs2])])
+
+AS_IF([ test "x$APXS" != "x" -a -x "$APXS" ],[
+		AC_MSG_NOTICE([apxs found at $APXS])
+        APXS_CPPFLAGS=`$APXS -q CFLAGS`
         AC_SUBST(APXS_CPPFLAGS)
-        APXS_LDFLAGS=`${apxs_found} -q LDFLAGS_SHLIB`
+        APXS_LDFLAGS=`$APXS -q LDFLAGS_SHLIB`
         AC_SUBST(APXS_LDFLAGS)
-        APXS_LIBS=`${apxs_found} -q LIBS_SHLIB`
+        APXS_LIBS=`$APXS -q LIBS_SHLIB`
         AC_SUBST(APXS_LIBS)
-        APXS_INCLUDES=-I`${apxs_found} -q INCLUDEDIR`
+        APXS_INCLUDES=-I`$APXS -q INCLUDEDIR`
         AC_SUBST(APXS_INCLUDES)
-        APXS_CPPFLAGS_SHLIB=`${apxs_found} -q CFLAGS_SHLIB`
+        APXS_CPPFLAGS_SHLIB=`$APXS -q CFLAGS_SHLIB`
         AC_SUBST(APXS_CPPFLAGS_SHLIB)
-        APXS_LD_SHLIB=`${apxs_found} -q LD_SHLIB`
+        APXS_LD_SHLIB=`$APXS -q LD_SHLIB`
         AC_SUBST(APXS_LD_SHLIB)
-        APXS_LIBEXECDIR=`${apxs_found} -q LIBEXECDIR`
+        APXS_LIBEXECDIR=`$APXS -q LIBEXECDIR`
         AC_SUBST(APXS_LIBEXECDIR)
-        APXS_SYSCONFDIR=`${apxs_found} -q SYSCONFDIR`
+        APXS_SYSCONFDIR=`$APXS -q SYSCONFDIR`
         AC_SUBST(APXS_SYSCONFDIR)
-        APXS_PREFIX=`${apxs_found} -q PREFIX`
+        APXS_PREFIX=`$APXS -q PREFIX`
         AC_SUBST(APXS_PREFIX)
-    else 
-        AC_MSG_ERROR([Could not find apxs.  apxs must be in your PATH or you must specify the location of the apxs script using --with-apxs])
-    fi
-])
-
-CHECK_APXS
-
-if test -f "$WITH_APXS" && test -x "$WITH_APXS"
-then
-	APXS=$WITH_APXS
-else
-	AC_PATH_PROGS([APXS],[apxs apxs2])
-fi
-
-if test "$APXS"
-then
-	AC_MSG_NOTICE([apxs found at $APXS])
-	AC_SUBST([APXS])
-else
-	AC_MSG_FAILURE([apxs not found])
-fi
-
+	],
+	AC_MSG_FAILURE(["useable apxs not found - please use --with-apxs=/path/to/apxs"])
+)
 #### Done locating APXS
 
-AC_DEFUN([APACHE_INCL],[
-  AC_ARG_WITH(
-    apache_include,
-    [  --with-apache-include[=DIR]     Apache server directory],
-     [APACHE_INCLUDES="${with_apache_include}"]
-    ,[APACHE_INCLUDES="${APXS_INCLUDES}"]
-  )
-    AC_SUBST(APACHE_INCLUDES)
-])
-APACHE_INCL
+#### Locate APR
+# Accept parameter of --with-apr.  If not supplied, search path for apr-1-config
+AC_ARG_WITH(
+	[apr],
+	[AS_HELP_STRING([--with-apr=PATH/TO/APR-1-CONFIG],[location of the Apache APR config utility, instead of searching path])],
+	[AC_SUBST(APR,$with_apr)],
+	[AC_PATH_PROGS(APR,[apr-1-config])])
 
-AC_DEFUN([APR_HANDLING],[
-  AC_MSG_CHECKING(for Apache apr)
-  AC_ARG_WITH(
-   apr_config,
-    [  --with-apr-config=FILE     apr portable apr-1-config path],
-     [if test -x "${with_apr_config}"; then
-         apr_found="${with_apr_config}"
-     fi]
-         ,
-    [if test -x "${apache_base}/bin/apr-1-config" ; then
-         apr_found="${apache_base}/bin/apr-1-config"
-    elif test -x "/usr/bin/apr-1-config" ; then
-         apr_found="/usr/bin/apr-1-config"
-    elif test -x "${apache_base}/sbin/apr-1-config" ; then
-         apr_found="${apache_base}/sbin/apr-1-config"
-    elif test "${apache_base+set}" = set; then
-        AC_PATH_PROGS(with_apr_config, apr-1-config)
-        if test "${with_apr_config+set}" = set ; then
-            apr_found="${with_apr_config}"
-        fi
-    else
-        AC_MSG_ERROR( Specify the apr-1-config path using --with-apr-config, 1)
-    fi]
-)
-    if test "${apr_found+set}" = set ; then
-            AC_MSG_RESULT([$apr_found])
-        dnl At this point we already have apr sorted out
-        dnl It actually calls another script, so the PATH needs to be set.
-        export PATH=$PATH:`dirname ${apr_found}`
-        APR_CPPFLAGS=`${apr_found} --cppflags`
+AS_IF([ test "x$APR" != "x" -a -x "$APR" ],[
+		APR_CPPFLAGS=`$APR --cppflags`
         AC_SUBST(APR_CPPFLAGS)
-        APR_INCLUDES=`${apr_found} --includes`
+        APR_INCLUDES=`$APR --includes`
         AC_SUBST(APR_INCLUDES)
-        APR_LDFLAGS=`${apr_found} --link-libtool --libs`
+        APR_LDFLAGS=`$APR --link-libtool --libs`
         AC_SUBST(APR_LDFLAGS)
-    else
-        AC_MSG_ERROR([Could not find apr-1-config. apr-1-config must be in your PATH or you must specify the location of the apr script using --with-apr-config])
-    fi
-])
-APR_HANDLING
+	],
+	AC_MSG_FAILURE(["useable apr-1-config not found - please use --with-apr=/path/to/apr-1-config"])
+)
 
 # Checks for libraries.
 
@@ -202,26 +120,15 @@ AS_IF(
 	[AS_IF(
 		[test "x$with_check" = xyes],
 		[TEST_COVERAGE_CFLAGS="-fprofile-arcs -ftest-coverage"],
-		[AC_MSG_WARN(
-			[Test coverage requested when not building tests (--with-check=no)]
-		)]
+		[AC_MSG_WARN([Test coverage requested when not building tests (--with-check=no)])]
 	)]
 )
 
 AC_SUBST(TEST_COVERAGE_CFLAGS)
 
 #### Find OpenSSL
-AC_MSG_CHECKING([for --with-openssl])
-AC_ARG_WITH(
-	[openssl],
-	[AS_HELP_STRING([--with-openssl],[/absolute/path/to/openssl-base])],
-	[ LDFLAGS="$LDFLAGS -L$with_openssl/lib";
-	  CPPLAGS="$CPPLAGS -I$with_openssl/include/";
-	  LIBS="-lssl";
-	  AC_MSG_RESULT([$with_openssl])
-	],
-	[AC_MSG_RESULT([no])]
-)
+
+AX_CHECK_OPENSSL
 
 AC_CHECK_LIB([crypto],[CRYPTO_new_ex_data], [], [AC_MSG_ERROR([OpenSSL libraries required])])
 AC_CHECK_LIB([ssl],[SSL_library_init], [], [AC_MSG_ERROR([OpenSSL libraries required])])
@@ -230,6 +137,9 @@ AC_CHECK_HEADERS([openssl/crypto.h openssl/x509.h openssl/pem.h openssl/ssl.h op
 
 #### Check for libcurl
 LIBCURL_CHECK_CONFIG([yes],[],[],[AC_MSG_ERROR([libcurl development files required])])
+
+# Checks for libpcre
+AC_CHECK_LIB([pcre], [pcre_compile], [], [AC_MSG_ERROR([libpcre required])])
 
 # Checks for header files.
 AC_CHECK_HEADERS([netdb.h stddef.h sys/socket.h unistd.h])

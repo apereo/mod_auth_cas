@@ -296,6 +296,13 @@ Description:	If enabled, the response from the CAS Server will be parsed for SAM
 		CASValidateURL appropriately; typical URLs are of the form
 		https://login.example.org/cas/samlValidate.
 
+Directive:	CASAllowSubAuth
+Default:	Off
+Description:	This directive determines whether subsequent CAS authentication
+		responses are allowed pass through, leaving the ticket parameter intact.
+		Helps prevent infinite redirect loops when CAS protection is being used
+		at multiple levels.
+
 Valid Directory/.htaccess Directives
 ------------------------------------
 Directive:	CASScope

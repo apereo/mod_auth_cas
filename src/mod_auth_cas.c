@@ -2050,6 +2050,28 @@ char *normalizeHeaderName(const request_rec *r, const char *str)
 	return ns;
 }
 
+/* store CAS user and any additional CAS attributes as HTTP headers */
+static void set_http_headers(request_rec *r, cas_cfg *c, cas_dir_cfg *d, cas_saml_attr *a)
+{
+	if(d->CASAuthNHeader != NULL) {
+		apr_table_set(r->headers_in, d->CASAuthNHeader, r->user);
+		while(a != NULL) {
+			cas_saml_attr_val *av = a->values;
+			char *csvs = NULL;
+			while(av != NULL) {
+				if(csvs != NULL) {
+					csvs = apr_psprintf(r->pool, "%s%s%s", csvs, c->CASAttributeDelimiter, av->value);
+				} else {
+					csvs = apr_psprintf(r->pool, "%s", av->value);
+				}
+				av = av->next;
+			}
+			apr_table_set(r->headers_in, apr_psprintf(r->pool, "%s%s", c->CASAttributePrefix, normalizeHeaderName(r, a->attr)), csvs);
+			a = a->next;
+		}
+	}
+}
+
 /* basic CAS module logic */
 int cas_authenticate(request_rec *r)
 {
@@ -2095,8 +2117,7 @@ int cas_authenticate(request_rec *r)
 	if(c->CASAllowSubAuth && (ticket != NULL) && (cookieString != NULL) && ap_is_initial_req(r) && isValidCASCookie(r, c, cookieString, &remoteUser, &attrs)) {
 		cas_set_attributes(r, attrs);
 		r->user = remoteUser;
-		if(d->CASAuthNHeader != NULL)
-			apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);
+		set_http_headers(r, c, d, attrs);
 		if (c->CASDebug)
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Passing sub-auth response through with ticket parameter intact");
 		return OK;
@@ -2212,26 +2233,7 @@ int cas_authenticate(request_rec *r)
 
 		if(remoteUser) {
 			r->user = remoteUser;
-			if(d->CASAuthNHeader != NULL) {
-				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);
- 				if(attrs != NULL) {
- 					cas_saml_attr *a = attrs;
- 					while(a != NULL) {
- 						cas_saml_attr_val *av = a->values;
- 						char *csvs = NULL;
- 						while(av != NULL) {
- 							if(csvs != NULL) {
- 								csvs = apr_psprintf(r->pool, "%s%s%s", csvs, c->CASAttributeDelimiter, av->value);
- 							} else {
- 								csvs = apr_psprintf(r->pool, "%s", av->value);
- 							}
- 							av = av->next;
- 						}
- 						apr_table_set(r->headers_in, apr_psprintf(r->pool, "%s%s", c->CASAttributePrefix, normalizeHeaderName(r, a->attr)), csvs);
- 						a = a->next;
- 					}
- 				}
- 			}
+			set_http_headers(r, c, d, attrs);
 			return OK;
 		} else {
 			/* maybe the cookie expired, have the user get a new service ticket */

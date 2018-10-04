@@ -2859,7 +2859,7 @@ const command_rec cas_cmds [] = {
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	AP_INIT_TAKE1("CASAuthoritative", cfg_readCASParameter, (void *) cmd_authoritative, RSRC_CONF, "Set 'On' to reject if access isn't allowed based on our rules; 'Off' (default) to allow checking against other modules too."),
 #endif
-	AP_INIT_TAKE1("CASAllowSubAuth", cfg_readCASParameter, (void *) cmd_allow_sub_auth, RSRC_CONF, "Allow subsequent CAS authentication responses to pass through, leaving the ticket parameter intact. Helps prevent infinite redirect loops when CAS protection is being used at multiple levels."),
+	AP_INIT_TAKE1("CASAllowSubAuth", cfg_readCASParameter, (void *) cmd_allow_sub_auth, RSRC_CONF, "Leave CAS ticket parameters intact when a valid session cookie exists. This helps prevent infinite redirect loops when CAS protection is being used at multiple levels."),
 	AP_INIT_TAKE1(0, 0, 0, 0, 0)
 };
 

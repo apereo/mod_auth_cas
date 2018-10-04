@@ -2116,8 +2116,10 @@ int cas_authenticate(request_rec *r)
 	// prevent infinite redirect loops by allowing subsequent authentication responses to pass through, leaving the ticket parameter intact
 	if(c->CASAllowSubAuth && (ticket != NULL) && (cookieString != NULL) && ap_is_initial_req(r) && isValidCASCookie(r, c, cookieString, &remoteUser, &attrs)) {
 		cas_set_attributes(r, attrs);
-		r->user = remoteUser;
-		set_http_headers(r, c, d, attrs);
+		if(remoteUser) {
+			r->user = remoteUser;
+			set_http_headers(r, c, d, attrs);
+		}
 		if (c->CASDebug)
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Passing sub-auth response through with ticket parameter intact");
 		return OK;

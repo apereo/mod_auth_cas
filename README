@@ -296,7 +296,7 @@ Description:	If enabled, the response from the CAS Server will be parsed for SAM
 		CASValidateURL appropriately; typical URLs are of the form
 		https://login.example.org/cas/samlValidate.
 
-Directive:	CASAllowSubAuth
+Directive:	CASPreserveTicket
 Default:	Off
 Description:	This directive leaves CAS ticket parameters intact when a valid
 		session cookie exists. This helps prevent infinite redirect loops when

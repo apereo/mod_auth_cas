@@ -122,7 +122,7 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	c->CASAuthoritative = CAS_DEFAULT_AUTHORITATIVE;
 #endif
-	c->CASAllowSubAuth = CAS_DEFAULT_ALLOW_SUB_AUTH;
+	c->CASPreserveTicket = CAS_DEFAULT_PRESERVE_TICKET;
 	cas_setURL(pool, &(c->CASLoginURL), CAS_DEFAULT_LOGIN_URL);
 	cas_setURL(pool, &(c->CASValidateURL), CAS_DEFAULT_VALIDATE_URL);
 	cas_setURL(pool, &(c->CASProxyValidateURL), CAS_DEFAULT_PROXY_VALIDATE_URL);
@@ -156,7 +156,7 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	c->CASAuthoritative = (add->CASAuthoritative != CAS_DEFAULT_AUTHORITATIVE ? add->CASAuthoritative : base->CASAuthoritative);
 #endif
-	c->CASAllowSubAuth = (add->CASAllowSubAuth != CAS_DEFAULT_ALLOW_SUB_AUTH ? add->CASAllowSubAuth : base->CASAllowSubAuth);
+	c->CASPreserveTicket = (add->CASPreserveTicket != CAS_DEFAULT_PRESERVE_TICKET ? add->CASPreserveTicket : base->CASPreserveTicket);
 	c->CASAttributeDelimiter = (apr_strnatcasecmp(add->CASAttributeDelimiter, CAS_DEFAULT_ATTRIBUTE_DELIMITER) != 0 ? add->CASAttributeDelimiter : base->CASAttributeDelimiter);
 	c->CASAttributePrefix = (apr_strnatcasecmp(add->CASAttributePrefix, CAS_DEFAULT_ATTRIBUTE_PREFIX) != 0 ? add->CASAttributePrefix : base->CASAttributePrefix);
 
@@ -394,13 +394,13 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASAuthoritative - must be 'On' or 'Off'"));
 		break;
 #endif
-		case cmd_allow_sub_auth:
+		case cmd_preserve_ticket:
 			if(apr_strnatcasecmp(value, "On") == 0)
-				c->CASAllowSubAuth = TRUE;
+				c->CASPreserveTicket = TRUE;
 			else if(apr_strnatcasecmp(value, "Off") == 0)
-				c->CASAllowSubAuth = FALSE;
+				c->CASPreserveTicket = FALSE;
 			else
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASAllowSubAuth - must be 'On' or 'Off'"));
+				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASPreserveTicket - must be 'On' or 'Off'"));
 		break;
 		default:
 			/* should not happen */
@@ -2114,7 +2114,7 @@ int cas_authenticate(request_rec *r)
 	cookieString = getCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie));
 
 	// prevent infinite redirect loops by allowing subsequent authentication responses to pass through, leaving the ticket parameter intact
-	if(c->CASAllowSubAuth && (ticket != NULL) && (cookieString != NULL) && ap_is_initial_req(r) && isValidCASCookie(r, c, cookieString, &remoteUser, &attrs) && (remoteUser != NULL)) {
+	if(c->CASPreserveTicket && (ticket != NULL) && (cookieString != NULL) && ap_is_initial_req(r) && isValidCASCookie(r, c, cookieString, &remoteUser, &attrs) && (remoteUser != NULL)) {
 		cas_set_attributes(r, attrs);
 		r->user = remoteUser;
 		set_http_headers(r, c, d, attrs);
@@ -2857,7 +2857,7 @@ const command_rec cas_cmds [] = {
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	AP_INIT_TAKE1("CASAuthoritative", cfg_readCASParameter, (void *) cmd_authoritative, RSRC_CONF, "Set 'On' to reject if access isn't allowed based on our rules; 'Off' (default) to allow checking against other modules too."),
 #endif
-	AP_INIT_TAKE1("CASAllowSubAuth", cfg_readCASParameter, (void *) cmd_allow_sub_auth, RSRC_CONF, "Leave CAS ticket parameters intact when a valid session cookie exists. This helps prevent infinite redirect loops when CAS protection is being used at multiple levels."),
+	AP_INIT_TAKE1("CASPreserveTicket", cfg_readCASParameter, (void *) cmd_preserve_ticket, RSRC_CONF, "Leave CAS ticket parameters intact when a valid session cookie exists. This helps prevent infinite redirect loops when CAS protection is being used at multiple levels."),
 	AP_INIT_TAKE1(0, 0, 0, 0, 0)
 };
 

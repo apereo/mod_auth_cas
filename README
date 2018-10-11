@@ -359,7 +359,8 @@ Description:	If enabled, this activates support for Single Sign Out within the C
 		may mangle POST data.
 
 Directive:	CASAttributePrefix
-Default:	CAS_
+Default:	CAS_ (Apache < 2.4)
+		CAS- (Apache 2.4)
 Description:	The prefix to use when adding CAS or SAML attributes to the HTTP headers,
 		which will be named <CASAttributePrefix><attr_name>.  CASAuthNHeader
 		must be set for this directive to be used.

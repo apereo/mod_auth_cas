@@ -71,10 +71,10 @@
 
 #include "mod_auth_cas.h"
 
-#if defined(OPENSSL_THREADS) && APR_HAS_THREADS
+#if OPENSSL_VERSION_NUMBER < 0x10100000L && defined(OPENSSL_THREADS) && APR_HAS_THREADS
 static apr_thread_mutex_t **ssl_locks;
 static int ssl_num_locks;
-#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
+#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L && defined(OPENSSL_THREADS) && APR_HAS_THREADS */
 
 #ifdef APLOG_USE_MODULE
 APLOG_USE_MODULE(auth_cas);
@@ -2544,7 +2544,7 @@ int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const
 
 #endif
 
-#if (defined(OPENSSL_THREADS) && APR_HAS_THREADS)
+#if OPENSSL_VERSION_NUMBER < 0x10100000L && defined(OPENSSL_THREADS) && APR_HAS_THREADS
 
 /* shamelessly based on code from mod_ssl */
 void cas_ssl_locking_callback(int mode, int type, const char *file, int line) {
@@ -2568,14 +2568,14 @@ void cas_ssl_id_callback(CRYPTO_THREADID *id)
 #endif /* OPENSSL_NO_THREADID */
 
 
-#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
+#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L && defined(OPENSSL_THREADS) && APR_HAS_THREADS */
 
 apr_status_t cas_cleanup(void *data)
 {
 	server_rec *s = (server_rec *) data;
 	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "entering cas_cleanup()");
 
-#if (defined (OPENSSL_THREADS) && APR_HAS_THREADS)
+#if OPENSSL_VERSION_NUMBER < 0x10100000L && defined(OPENSSL_THREADS) && APR_HAS_THREADS
 	if(CRYPTO_get_locking_callback() == cas_ssl_locking_callback)
 		CRYPTO_set_locking_callback(NULL);
 #ifdef OPENSSL_NO_THREADID
@@ -2586,7 +2586,7 @@ apr_status_t cas_cleanup(void *data)
 		CRYPTO_THREADID_set_callback(NULL);
 #endif /* OPENSSL_NO_THREADID */
 
-#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
+#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L && defined(OPENSSL_THREADS) && APR_HAS_THREADS */
 	curl_global_cleanup();
 	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "exiting cas_cleanup()");
 	return APR_SUCCESS;
@@ -2664,7 +2664,9 @@ int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec
 {
 	const char *userdata_key = "auth_cas_init";
 	void *data;
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
 	int i;
+#endif
 
 	/* Since the post_config hook is invoked twice (once
 	 * for 'sanity checking' of the config and once for
@@ -2676,7 +2678,7 @@ int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec
 	if(data) {
 		curl_global_init(CURL_GLOBAL_ALL);
 
-#if (defined(OPENSSL_THREADS) && APR_HAS_THREADS)
+#if OPENSSL_VERSION_NUMBER < 0x10100000L && (defined(OPENSSL_THREADS) && APR_HAS_THREADS)
 		ssl_num_locks = CRYPTO_num_locks();
 		ssl_locks = apr_pcalloc(s->process->pool, ssl_num_locks * sizeof(*ssl_locks));
 
@@ -2694,7 +2696,7 @@ int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec
 			CRYPTO_THREADID_set_callback(cas_ssl_id_callback);
 		}
 #endif /* OPENSSL_NO_THREADID */
-#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
+#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L && defined(OPENSSL_THREADS) && APR_HAS_THREADS */
 		apr_pool_cleanup_register(pool, s, cas_cleanup, apr_pool_cleanup_null);
 	}
 

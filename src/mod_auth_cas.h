@@ -209,11 +209,13 @@ void redirectRequest(request_rec *r, cas_cfg *c);
 char *getCASTicket(request_rec *r);
 apr_byte_t removeCASParams(request_rec *r);
 int cas_authenticate(request_rec *r);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
 #ifdef OPENSSL_NO_THREADID
 unsigned long cas_ssl_id_callback(void);
 #else
 void cas_ssl_id_callback(CRYPTO_THREADID *id);
 #endif
+#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L */
 int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec *s);
 void cas_register_hooks(apr_pool_t *p);
 

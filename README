@@ -296,6 +296,22 @@ Description:	If enabled, the response from the CAS Server will be parsed for SAM
 		CASValidateURL appropriately; typical URLs are of the form
 		https://login.example.org/cas/samlValidate.
 
+Directive:	CASAttributePrefix
+Default:	CAS_ (Apache < 2.4)
+		CAS- (Apache 2.4)
+Description:	The prefix to use when adding CAS or SAML attributes to the HTTP headers,
+		which will be named <CASAttributePrefix><attr_name>.  CASAuthNHeader
+		must be set for this directive to be used.
+		NOTE: In Apache 2.4 and newer, headers containing "invalid" characters
+		(including underscores) are silently dropped, so you must set this to
+		a "valid" name containing only alphabetic characters and hyphens.
+
+Directive:	CASAttributeDelimiter
+Default:	,
+Description:	mod_auth_cas will set the value of the attribute header (as described
+		in CASAttributePrefix) to <attrvalue><CASAttributeDelimiter><attrvalue>
+		in the case of multiple attribute values.
+
 Valid Directory/.htaccess Directives
 ------------------------------------
 Directive:	CASScope
@@ -357,21 +373,6 @@ Default:	Off
 Description:	If enabled, this activates support for Single Sign Out within the CAS
 		protocol.  Please note that this feature is currently experimental and
 		may mangle POST data.
-
-Directive:	CASAttributePrefix
-Default:	CAS_
-Description:	The prefix to use when adding CAS or SAML attributes to the HTTP headers,
-		which will be named <CASAttributePrefix><attr_name>.  CASAuthNHeader
-		must be set for this directive to be used.
-		NOTE: In Apache 2.4 and newer, headers containing "invalid" characters
-		(including underscores) are silently dropped, so you must set this to
-		a "valid" name containing only alphabetic characters and hyphens.
-
-Directive:	CASAttributeDelimiter
-Default:	,
-Description:	mod_auth_cas will set the value of the attribute header (as described
-		in CASAttributePrefix) to <attrvalue><CASAttributeDelimiter><attrvalue>
-		in the case of multiple attribute values.
 
 Directive:	CASScrubRequestHeaders
 Default:	Off

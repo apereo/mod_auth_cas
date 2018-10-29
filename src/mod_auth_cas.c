@@ -1745,9 +1745,19 @@ size_t cas_curl_write(const void *ptr, size_t size, size_t nmemb, void *stream)
 	size_t realsize = size * nmemb;
 	cas_curl_buffer *curlBuffer = (cas_curl_buffer *) stream;
 	char *oldBuf = curlBuffer->buf;
+	apr_pool_t *oldPool = curlBuffer->subpool;
 
-	curlBuffer->buf = apr_pcalloc(curlBuffer->pool, curlBuffer->written + realsize + 1);
-	if(curlBuffer->buf == NULL) {
+	if (curlBuffer->written + realsize >= CAS_MAX_RESPONSE_SIZE) {
+		return 0;
+	}
+
+	/* create a new pool so we can destroy the old one after copying the buffer */
+	if (apr_pool_create(&curlBuffer->subpool, curlBuffer->pool)) {
+		return 0;
+	}
+
+	curlBuffer->buf = apr_pcalloc(curlBuffer->subpool, curlBuffer->written + realsize + 1);
+	if (curlBuffer->buf == NULL) {
 		return 0;
 	}
 
@@ -1756,6 +1766,11 @@ size_t cas_curl_write(const void *ptr, size_t size, size_t nmemb, void *stream)
 
 	curlBuffer->written += realsize;
 	curlBuffer->buf[curlBuffer->written] = 0;
+
+	/* destroy the old pool */
+	if (oldPool) {
+		apr_pool_destroy(oldPool);
+	}
 
 	return realsize;
 }
@@ -1803,6 +1818,8 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	curlBuffer.buf = NULL;
 	curlBuffer.written = 0;
 	curlBuffer.pool = r->pool;
+	curlBuffer.subpool = NULL;
+
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &curlBuffer);
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cas_curl_write);
 	curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, cas_curl_ssl_ctx);

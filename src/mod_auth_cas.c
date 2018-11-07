@@ -1747,7 +1747,8 @@ size_t cas_curl_write(const void *ptr, size_t size, size_t nmemb, void *stream)
 	char *oldBuf = curlBuffer->buf;
 	apr_pool_t *oldPool = curlBuffer->subpool;
 
-	if (curlBuffer->written + realsize >= CAS_MAX_RESPONSE_SIZE) {
+	if (curlBuffer->written + realsize + 1 <= curlBuffer->written ||
+		curlBuffer->written + realsize >= CAS_MAX_RESPONSE_SIZE) {
 		return 0;
 	}
 

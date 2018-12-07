@@ -102,7 +102,7 @@
 #define CAS_DEFAULT_SSO_ENABLED FALSE
 #define CAS_DEFAULT_AUTHORITATIVE FALSE
 
-#define CAS_MAX_RESPONSE_SIZE 65536
+#define CAS_MAX_RESPONSE_SIZE 2147483648
 #define CAS_MAX_ERROR_SIZE 1024
 #define CAS_MAX_XML_SIZE 1024
 
@@ -162,8 +162,10 @@ typedef struct cas_cache_entry {
 } cas_cache_entry;
 
 typedef struct cas_curl_buffer {
-	char buf[CAS_MAX_RESPONSE_SIZE];
+	char *buf;
 	size_t written;
+	apr_pool_t *pool;
+	apr_pool_t *subpool;
 } cas_curl_buffer;
 
 typedef enum {

@@ -122,6 +122,7 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	c->CASAuthoritative = CAS_DEFAULT_AUTHORITATIVE;
 #endif
+	c->CASPreserveTicket = CAS_DEFAULT_PRESERVE_TICKET;
 	cas_setURL(pool, &(c->CASLoginURL), CAS_DEFAULT_LOGIN_URL);
 	cas_setURL(pool, &(c->CASValidateURL), CAS_DEFAULT_VALIDATE_URL);
 	cas_setURL(pool, &(c->CASProxyValidateURL), CAS_DEFAULT_PROXY_VALIDATE_URL);
@@ -155,6 +156,7 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	c->CASAuthoritative = (add->CASAuthoritative != CAS_DEFAULT_AUTHORITATIVE ? add->CASAuthoritative : base->CASAuthoritative);
 #endif
+	c->CASPreserveTicket = (add->CASPreserveTicket != CAS_DEFAULT_PRESERVE_TICKET ? add->CASPreserveTicket : base->CASPreserveTicket);
 	c->CASAttributeDelimiter = (apr_strnatcasecmp(add->CASAttributeDelimiter, CAS_DEFAULT_ATTRIBUTE_DELIMITER) != 0 ? add->CASAttributeDelimiter : base->CASAttributeDelimiter);
 	c->CASAttributePrefix = (apr_strnatcasecmp(add->CASAttributePrefix, CAS_DEFAULT_ATTRIBUTE_PREFIX) != 0 ? add->CASAttributePrefix : base->CASAttributePrefix);
 
@@ -392,6 +394,14 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASAuthoritative - must be 'On' or 'Off'"));
 		break;
 #endif
+		case cmd_preserve_ticket:
+			if(apr_strnatcasecmp(value, "On") == 0)
+				c->CASPreserveTicket = TRUE;
+			else if(apr_strnatcasecmp(value, "Off") == 0)
+				c->CASPreserveTicket = FALSE;
+			else
+				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASPreserveTicket - must be 'On' or 'Off'"));
+		break;
 		default:
 			/* should not happen */
 			return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: invalid command '%s'", cmd->directive->directive));
@@ -1532,7 +1542,7 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 										ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: unsupported SAML StatusCode");
 										// We can proceed no further, so bail.
 										return FALSE;
-									} 
+									}
 								}
 							}
 						}
@@ -2066,6 +2076,28 @@ char *normalizeHeaderName(const request_rec *r, const char *str)
 	return ns;
 }
 
+/* store CAS user and any additional CAS attributes as HTTP headers */
+static void set_http_headers(request_rec *r, cas_cfg *c, cas_dir_cfg *d, cas_saml_attr *a)
+{
+	if(d->CASAuthNHeader != NULL) {
+		apr_table_set(r->headers_in, d->CASAuthNHeader, r->user);
+		while(a != NULL) {
+			cas_saml_attr_val *av = a->values;
+			char *csvs = NULL;
+			while(av != NULL) {
+				if(csvs != NULL) {
+					csvs = apr_psprintf(r->pool, "%s%s%s", csvs, c->CASAttributeDelimiter, av->value);
+				} else {
+					csvs = apr_psprintf(r->pool, "%s", av->value);
+				}
+				av = av->next;
+			}
+			apr_table_set(r->headers_in, apr_psprintf(r->pool, "%s%s", c->CASAttributePrefix, normalizeHeaderName(r, a->attr)), csvs);
+			a = a->next;
+		}
+	}
+}
+
 /* basic CAS module logic */
 int cas_authenticate(request_rec *r)
 {
@@ -2106,6 +2138,16 @@ int cas_authenticate(request_rec *r)
 	/* the presence of a ticket overrides all */
 	ticket = getCASTicket(r);
 	cookieString = getCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie));
+
+	// prevent infinite redirect loops by allowing subsequent authentication responses to pass through, leaving the ticket parameter intact
+	if(c->CASPreserveTicket && (ticket != NULL) && (cookieString != NULL) && ap_is_initial_req(r) && isValidCASCookie(r, c, cookieString, &remoteUser, &attrs) && (remoteUser != NULL)) {
+		cas_set_attributes(r, attrs);
+		r->user = remoteUser;
+		set_http_headers(r, c, d, attrs);
+		if (c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Passing sub-auth response through with ticket parameter intact");
+		return OK;
+	}
 
 	// only remove parameters if a ticket was found (makes no sense to do this otherwise)
 	if(ticket != NULL)
@@ -2217,26 +2259,7 @@ int cas_authenticate(request_rec *r)
 
 		if(remoteUser) {
 			r->user = remoteUser;
-			if(d->CASAuthNHeader != NULL) {
-				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);
- 				if(attrs != NULL) {
- 					cas_saml_attr *a = attrs;
- 					while(a != NULL) {
- 						cas_saml_attr_val *av = a->values;
- 						char *csvs = NULL;
- 						while(av != NULL) {
- 							if(csvs != NULL) {
- 								csvs = apr_psprintf(r->pool, "%s%s%s", csvs, c->CASAttributeDelimiter, av->value);
- 							} else {
- 								csvs = apr_psprintf(r->pool, "%s", av->value);
- 							}
- 							av = av->next;
- 						}
- 						apr_table_set(r->headers_in, apr_psprintf(r->pool, "%s%s", c->CASAttributePrefix, normalizeHeaderName(r, a->attr)), csvs);
- 						a = a->next;
- 					}
- 				}
- 			}
+			set_http_headers(r, c, d, attrs);
 			return OK;
 		} else {
 			/* maybe the cookie expired, have the user get a new service ticket */
@@ -2383,7 +2406,7 @@ authz_status cas_check_authorization(request_rec *r,
 
 	const char *t, *w;
 	unsigned int count_casattr = 0;
-    
+
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
 			      "Entering cas_check_authorization.");
@@ -2404,9 +2427,9 @@ authz_status cas_check_authorization(request_rec *r,
 			return AUTHZ_GRANTED;
 		}
 	}
-    
+
 	if (count_casattr == 0) {
-		if(c->CASDebug)	
+		if(c->CASDebug)
 			ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
 				      "'Require cas-attribute' missing specification(s) in configuration. Declining.");
 	}
@@ -2862,6 +2885,7 @@ const command_rec cas_cmds [] = {
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	AP_INIT_TAKE1("CASAuthoritative", cfg_readCASParameter, (void *) cmd_authoritative, RSRC_CONF, "Set 'On' to reject if access isn't allowed based on our rules; 'Off' (default) to allow checking against other modules too."),
 #endif
+	AP_INIT_TAKE1("CASPreserveTicket", cfg_readCASParameter, (void *) cmd_preserve_ticket, RSRC_CONF, "Leave CAS ticket parameters intact when a valid session cookie exists. This helps prevent infinite redirect loops when CAS protection is being used at multiple levels."),
 	AP_INIT_TAKE1(0, 0, 0, 0, 0)
 };
 

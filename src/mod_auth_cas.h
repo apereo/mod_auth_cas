@@ -101,6 +101,7 @@
 #define CAS_DEFAULT_SCRUB_REQUEST_HEADERS NULL
 #define CAS_DEFAULT_SSO_ENABLED FALSE
 #define CAS_DEFAULT_AUTHORITATIVE FALSE
+#define CAS_DEFAULT_PRESERVE_TICKET FALSE
 
 #define CAS_MAX_RESPONSE_SIZE 2147483648
 #define CAS_MAX_ERROR_SIZE 1024
@@ -127,6 +128,7 @@ typedef struct cas_cfg {
 	unsigned int CASCookieHttpOnly;
 	unsigned int CASSSOEnabled;
 	unsigned int CASAuthoritative;
+	unsigned int CASPreserveTicket;
 	unsigned int CASValidateSAML;
 	char *CASCertificatePath;
 	char *CASCookiePath;
@@ -173,7 +175,7 @@ typedef enum {
 	cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy, cmd_session_timeout,
 	cmd_idle_timeout, cmd_cache_interval, cmd_cookie_domain, cmd_cookie_httponly,
 	cmd_sso, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix,
-	cmd_root_proxied_as, cmd_authoritative
+	cmd_root_proxied_as, cmd_authoritative, cmd_preserve_ticket
 } valid_cmds;
 
 module AP_MODULE_DECLARE_DATA auth_cas_module;

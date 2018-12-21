@@ -74,7 +74,11 @@
 #define CAS_DEFAULT_GATEWAY NULL
 #define CAS_DEFAULT_VALIDATE_SAML 0
 #define CAS_DEFAULT_ATTRIBUTE_DELIMITER ","
-#define CAS_DEFAULT_ATTRIBUTE_PREFIX "CAS_"
+#if MODULE_MAGIC_NUMBER_MAJOR < 20120211
+	#define CAS_DEFAULT_ATTRIBUTE_PREFIX "CAS_"
+#else
+	#define CAS_DEFAULT_ATTRIBUTE_PREFIX "CAS-"
+#endif
 #define CAS_DEFAULT_VALIDATE_DEPTH 9
 #define CAS_DEFAULT_CA_PATH "/etc/ssl/certs/"
 #define CAS_DEFAULT_COOKIE_PATH "/dev/null"
@@ -99,7 +103,7 @@
 #define CAS_DEFAULT_AUTHORITATIVE FALSE
 #define CAS_DEFAULT_PRESERVE_TICKET FALSE
 
-#define CAS_MAX_RESPONSE_SIZE 65536
+#define CAS_MAX_RESPONSE_SIZE 2147483648
 #define CAS_MAX_ERROR_SIZE 1024
 #define CAS_MAX_XML_SIZE 1024
 
@@ -160,8 +164,10 @@ typedef struct cas_cache_entry {
 } cas_cache_entry;
 
 typedef struct cas_curl_buffer {
-	char buf[CAS_MAX_RESPONSE_SIZE];
+	char *buf;
 	size_t written;
+	apr_pool_t *pool;
+	apr_pool_t *subpool;
 } cas_curl_buffer;
 
 typedef enum {
@@ -211,11 +217,13 @@ void redirectRequest(request_rec *r, cas_cfg *c);
 char *getCASTicket(request_rec *r);
 apr_byte_t removeCASParams(request_rec *r);
 int cas_authenticate(request_rec *r);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
 #ifdef OPENSSL_NO_THREADID
 unsigned long cas_ssl_id_callback(void);
 #else
 void cas_ssl_id_callback(CRYPTO_THREADID *id);
 #endif
+#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L */
 int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec *s);
 void cas_register_hooks(apr_pool_t *p);
 

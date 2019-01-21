@@ -46,6 +46,7 @@
 #include "ap_release.h"
 #include "pcre.h"
 #include "apr_buckets.h"
+#include "apr_escape.h"
 #include "apr_file_info.h"
 #include "apr_lib.h"
 #include "apr_md5.h"
@@ -841,17 +842,18 @@ void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_
 
 /*
  * The CAS protocol spec 2.1.1 says the URL value MUST be URL-encoded as described in 2.2 of RFC 1738.
- * The rfc1738 array below represents the 'unsafe' characters from that section.  No encoding is performed
- * on 'control characters' (0x00-0x1F) or characters not used in US-ASCII (0x80-0xFF) - is this a problem?
- * 7/25/2009 - add '+' to list of characters to escape
+ * The apr function 'apr_pescape_urlencoded' encodes the string accordingly.
  */
 
 char *escapeString(const request_rec *r, const char *str)
 {
-	char *rfc1738 = "+ <>\"%{}|\\^~[]`;/?:@=&#";
+	char *rv;
 
-	return(urlEncode(r, str, rfc1738));
+	rv = (char *)apr_pescape_urlencoded(r->pool, str);
 
+	if(rv == NULL) return "";
+
+	return rv;
 }
 
 char *urlEncode(const request_rec *r, const char *str,

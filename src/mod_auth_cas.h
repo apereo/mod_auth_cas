@@ -97,6 +97,7 @@
 #define CAS_DEFAULT_COOKIE "MOD_AUTH_CAS"
 #define CAS_DEFAULT_SCOOKIE "MOD_AUTH_CAS_S"
 #define CAS_DEFAULT_GATEWAY_COOKIE "MOD_CAS_G"
+#define CAS_DEFAULT_GATEWAY_COOKIE_DOMAIN NULL
 #define CAS_DEFAULT_AUTHN_HEADER NULL
 #define CAS_DEFAULT_SCRUB_REQUEST_HEADERS NULL
 #define CAS_DEFAULT_SSO_ENABLED FALSE
@@ -133,6 +134,7 @@ typedef struct cas_cfg {
 	char *CASCertificatePath;
 	char *CASCookiePath;
 	char *CASCookieDomain;
+	char *CASGatewayCookieDomain;
 	char *CASAttributeDelimiter;
 	char *CASAttributePrefix;
 	apr_uri_t CASLoginURL;
@@ -175,7 +177,7 @@ typedef enum {
 	cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy, cmd_session_timeout,
 	cmd_idle_timeout, cmd_cache_interval, cmd_cookie_domain, cmd_cookie_httponly,
 	cmd_sso, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix,
-	cmd_root_proxied_as, cmd_authoritative, cmd_preserve_ticket
+	cmd_root_proxied_as, cmd_authoritative, cmd_preserve_ticket, cmd_gateway_cookie_domain
 } valid_cmds;
 
 module AP_MODULE_DECLARE_DATA auth_cas_module;
@@ -206,7 +208,7 @@ char *getCASPath(request_rec *r);
 void CASSAMLLogout(request_rec *r, char *body);
 apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes);
 void deleteCASCacheFile(request_rec *r, char *cookieName);
-void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure, apr_time_t expireTime);
+void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure, apr_time_t expireTime, char *cookieDomain);
 char *escapeString(const request_rec *r, const char *str);
 char *urlEncode(const request_rec *r, const char *str, const char *charsToEncode);
 char *getCASGateway(request_rec *r);

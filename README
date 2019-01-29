@@ -318,6 +318,11 @@ Description:	This directive leaves CAS ticket parameters intact when a valid
 		session cookie exists. This helps prevent infinite redirect loops when
 		CAS protection is being used at multiple levels.
 
+Directive:	CASGatewayCookieDomain
+Default:	NULL
+Description:	Specify the value for the 'Domain=' parameter in the Set-Cookie header
+		when setting the CASGatewayCookie.
+
 Valid Directory/.htaccess Directives
 ------------------------------------
 Directive:	CASScope

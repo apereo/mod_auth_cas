@@ -103,12 +103,13 @@ protocol and requires that the 'edupersonaffiliation' attribute is set to
 ========================================================================
 NEW FEATURES AND FUNCTIONS IN THIS RELEASE
 ========================================================================
-* Apache 2.4 support
-* Improved SAML support
-* New expanded Project Team - welcome David Hawes!  Many thanks to
-David for driving this release.
-* Many many bugs fixed since last official release in 2010.
-https://github.com/Jasig/mod_auth_cas/issues?q=is%3Aissue+is%3Aclosed
+* OpenSSL 1.1 support.
+* CASv2 attributes.
+* CASPreserveTicket, which allows tickets to pass through when a valid session exists.
+* CASGatewayCookieDomain, to set the gateway cookie domain.
+* Use a dynamic buffer to store the CAS validation response.
+* Various bug and documentation fixes.
+https://github.com/apereo/mod_auth_cas/milestone/6?closed=1
 
 ========================================================================
 KNOWN ISSUES

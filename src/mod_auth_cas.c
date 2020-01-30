@@ -46,6 +46,7 @@
 #include "ap_release.h"
 #include "pcre.h"
 #include "apr_buckets.h"
+#include "apr_escape.h"
 #include "apr_file_info.h"
 #include "apr_lib.h"
 #include "apr_md5.h"
@@ -71,10 +72,10 @@
 
 #include "mod_auth_cas.h"
 
-#if defined(OPENSSL_THREADS) && APR_HAS_THREADS
+#if OPENSSL_VERSION_NUMBER < 0x10100000L && defined(OPENSSL_THREADS) && APR_HAS_THREADS
 static apr_thread_mutex_t **ssl_locks;
 static int ssl_num_locks;
-#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
+#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L && defined(OPENSSL_THREADS) && APR_HAS_THREADS */
 
 #ifdef APLOG_USE_MODULE
 APLOG_USE_MODULE(auth_cas);
@@ -114,6 +115,7 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASIdleTimeout = CAS_DEFAULT_COOKIE_IDLE_TIMEOUT;
 	c->CASCacheCleanInterval = CAS_DEFAULT_CACHE_CLEAN_INTERVAL;
 	c->CASCookieDomain = CAS_DEFAULT_COOKIE_DOMAIN;
+	c->CASGatewayCookieDomain = CAS_DEFAULT_GATEWAY_COOKIE_DOMAIN;
 	c->CASCookieHttpOnly = CAS_DEFAULT_COOKIE_HTTPONLY;
 	c->CASSSOEnabled = CAS_DEFAULT_SSO_ENABLED;
 	c->CASValidateSAML = CAS_DEFAULT_VALIDATE_SAML;
@@ -122,6 +124,7 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	c->CASAuthoritative = CAS_DEFAULT_AUTHORITATIVE;
 #endif
+	c->CASPreserveTicket = CAS_DEFAULT_PRESERVE_TICKET;
 	cas_setURL(pool, &(c->CASLoginURL), CAS_DEFAULT_LOGIN_URL);
 	cas_setURL(pool, &(c->CASValidateURL), CAS_DEFAULT_VALIDATE_URL);
 	cas_setURL(pool, &(c->CASProxyValidateURL), CAS_DEFAULT_PROXY_VALIDATE_URL);
@@ -149,12 +152,14 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASIdleTimeout = (add->CASIdleTimeout != CAS_DEFAULT_COOKIE_IDLE_TIMEOUT ? add->CASIdleTimeout : base->CASIdleTimeout);
 	c->CASCacheCleanInterval = (add->CASCacheCleanInterval != CAS_DEFAULT_CACHE_CLEAN_INTERVAL ? add->CASCacheCleanInterval : base->CASCacheCleanInterval);
 	c->CASCookieDomain = (add->CASCookieDomain != CAS_DEFAULT_COOKIE_DOMAIN ? add->CASCookieDomain : base->CASCookieDomain);
+	c->CASGatewayCookieDomain = (add->CASGatewayCookieDomain != CAS_DEFAULT_GATEWAY_COOKIE_DOMAIN ? add->CASGatewayCookieDomain : base->CASGatewayCookieDomain);
 	c->CASCookieHttpOnly = (add->CASCookieHttpOnly != CAS_DEFAULT_COOKIE_HTTPONLY ? add->CASCookieHttpOnly : base->CASCookieHttpOnly);
 	c->CASSSOEnabled = (add->CASSSOEnabled != CAS_DEFAULT_SSO_ENABLED ? add->CASSSOEnabled : base->CASSSOEnabled);
 	c->CASValidateSAML = (add->CASValidateSAML != CAS_DEFAULT_VALIDATE_SAML ? add->CASValidateSAML : base->CASValidateSAML);
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	c->CASAuthoritative = (add->CASAuthoritative != CAS_DEFAULT_AUTHORITATIVE ? add->CASAuthoritative : base->CASAuthoritative);
 #endif
+	c->CASPreserveTicket = (add->CASPreserveTicket != CAS_DEFAULT_PRESERVE_TICKET ? add->CASPreserveTicket : base->CASPreserveTicket);
 	c->CASAttributeDelimiter = (apr_strnatcasecmp(add->CASAttributeDelimiter, CAS_DEFAULT_ATTRIBUTE_DELIMITER) != 0 ? add->CASAttributeDelimiter : base->CASAttributeDelimiter);
 	c->CASAttributePrefix = (apr_strnatcasecmp(add->CASAttributePrefix, CAS_DEFAULT_ATTRIBUTE_PREFIX) != 0 ? add->CASAttributePrefix : base->CASAttributePrefix);
 
@@ -372,6 +377,19 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 			}
 			c->CASCookieDomain = apr_pstrdup(cmd->pool, value);
 		break;
+		case cmd_gateway_cookie_domain:
+			limit = strlen(value);
+			for(sz = 0; sz < limit; sz++) {
+				d = value[sz];
+				if( (d < '0' || d > '9') &&
+					(d < 'a' || d > 'z') &&
+					(d < 'A' || d > 'Z') &&
+					d != '.' && d != '-') {
+						return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid character (%c) in CASGatewayCookieDomain", d));
+				}
+			}
+			c->CASGatewayCookieDomain = apr_pstrdup(cmd->pool, value);
+		break;
 		case cmd_cookie_httponly:
 			if(apr_strnatcasecmp(value, "On") == 0)
 				c->CASCookieHttpOnly = TRUE;
@@ -399,6 +417,14 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASAuthoritative - must be 'On' or 'Off'"));
 		break;
 #endif
+		case cmd_preserve_ticket:
+			if(apr_strnatcasecmp(value, "On") == 0)
+				c->CASPreserveTicket = TRUE;
+			else if(apr_strnatcasecmp(value, "Off") == 0)
+				c->CASPreserveTicket = FALSE;
+			else
+				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASPreserveTicket - must be 'On' or 'Off'"));
+		break;
 		default:
 			/* should not happen */
 			return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: invalid command '%s'", cmd->directive->directive));
@@ -762,7 +788,7 @@ char *getCASCookie(request_rec *r, char *cookieName)
 	return rv;
 }
 
-void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure, apr_time_t expireTime)
+void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure, apr_time_t expireTime, char *cookieDomain)
 {
 	char *headerString, *currentCookies, *pathPrefix = "", *expireTimeString = NULL, *errString, *domainString = "";
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
@@ -783,8 +809,8 @@ void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_
 		}
 	}
 
-	if(NULL != c->CASCookieDomain) {
-		domainString = apr_psprintf(r->pool, ";Domain=%s", c->CASCookieDomain);
+	if(NULL != cookieDomain) {
+		domainString = apr_psprintf(r->pool, ";Domain=%s", cookieDomain);
 	}
 	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s%s%s%s%s",
 		cookieName,
@@ -792,7 +818,7 @@ void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_
 		(secure ? ";Secure" : ""),
 		pathPrefix,
 		urlEncode(r, getCASScope(r), " "),
-		(c->CASCookieDomain != NULL ? domainString : ""),
+		(cookieDomain != NULL ? domainString : ""),
 		(c->CASCookieHttpOnly != FALSE ? "; HttpOnly" : ""),
 		(NULL == expireTimeString) ? "" : apr_psprintf(r->pool, "; expires=%s", expireTimeString));
 
@@ -823,17 +849,18 @@ void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_
 
 /*
  * The CAS protocol spec 2.1.1 says the URL value MUST be URL-encoded as described in 2.2 of RFC 1738.
- * The rfc1738 array below represents the 'unsafe' characters from that section.  No encoding is performed
- * on 'control characters' (0x00-0x1F) or characters not used in US-ASCII (0x80-0xFF) - is this a problem?
- * 7/25/2009 - add '+' to list of characters to escape
+ * The apr function 'apr_pescape_urlencoded' encodes the string accordingly.
  */
 
 char *escapeString(const request_rec *r, const char *str)
 {
-	char *rfc1738 = "+ <>\"%{}|\\^~[]`;/?:@=&#";
+	char *rv;
 
-	return(urlEncode(r, str, rfc1738));
+	rv = (char *)apr_pescape_urlencoded(r->pool, str);
 
+	if(rv == NULL) return "";
+
+	return rv;
 }
 
 char *urlEncode(const request_rec *r, const char *str,
@@ -1539,7 +1566,7 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 										ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: unsupported SAML StatusCode");
 										// We can proceed no further, so bail.
 										return FALSE;
-									} 
+									}
 								}
 							}
 						}
@@ -1578,6 +1605,7 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 															const char *attr_value = NULL;
 															apr_xml_to_text(r->pool, attr_node, APR_XML_X2T_INNER, NULL, NULL, &attr_value, NULL);
 															cas_attr_builder_add(builder, attr_name, attr_value);
+															ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: attribute %s=%s", attr_name, attr_value);
 														}
 														attr_node = attr_node->next;
 													}
@@ -1589,11 +1617,11 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 										// Get the AuthenticationMethod
 										apr_xml_elem *as_node = node->first_child;
 										attr = node->attr;
-										while(attr != NULL && apr_strnatcmp(attr->name, "AuthenticationMethod") != 0) {
+										while(attr != NULL) {
+											if(apr_strnatcmp(attr->name, "AuthenticationMethod") != 0 || apr_strnatcmp(attr->name, "AuthenticationInstant") != 0) {
+												cas_attr_builder_add(builder, attr->name, attr->value);
+											}
 											attr = attr->next;
-										}
-										if(attr != NULL) {
-											cas_attr_builder_add(builder, attr->name, attr->value);
 										}
 										// Get the username
 										while(as_node != NULL) {
@@ -1644,7 +1672,7 @@ apr_byte_t isValidCASTicket(request_rec *r, cas_cfg *c, char *ticket, char **use
 									const char *attr_value = NULL;
 									apr_xml_to_text(r->pool, node_attr, APR_XML_X2T_INNER, NULL, NULL, &attr_value, NULL);
 									cas_attr_builder_add(builder, node_attr->name, attr_value);
-									ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MOD_AUTH_CAS: attribute %s %s", node_attr->name, attr_value);
+									ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: attribute %s=%s", node_attr->name, attr_value);
 									node_attr = node_attr->next;
 								}
 							}
@@ -1748,15 +1776,38 @@ apr_byte_t isValidCASCookie(request_rec *r, cas_cfg *c, char *cookie, char **use
 
 size_t cas_curl_write(const void *ptr, size_t size, size_t nmemb, void *stream)
 {
+	size_t realsize = size * nmemb;
 	cas_curl_buffer *curlBuffer = (cas_curl_buffer *) stream;
+	char *oldBuf = curlBuffer->buf;
+	apr_pool_t *oldPool = curlBuffer->subpool;
 
-	if((nmemb*size) + curlBuffer->written >= CAS_MAX_RESPONSE_SIZE)
+	if (curlBuffer->written + realsize + 1 <= curlBuffer->written ||
+		curlBuffer->written + realsize >= CAS_MAX_RESPONSE_SIZE) {
 		return 0;
+	}
 
-	memcpy((curlBuffer->buf + curlBuffer->written), ptr, (nmemb*size));
-	curlBuffer->written += (nmemb*size);
+	/* create a new pool so we can destroy the old one after copying the buffer */
+	if (apr_pool_create(&curlBuffer->subpool, curlBuffer->pool)) {
+		return 0;
+	}
 
-	return (nmemb*size);
+	curlBuffer->buf = apr_pcalloc(curlBuffer->subpool, curlBuffer->written + realsize + 1);
+	if (curlBuffer->buf == NULL) {
+		return 0;
+	}
+
+	memcpy(curlBuffer->buf, oldBuf, curlBuffer->written);
+	memcpy(&(curlBuffer->buf[curlBuffer->written]), ptr, realsize);
+
+	curlBuffer->written += realsize;
+	curlBuffer->buf[curlBuffer->written] = 0;
+
+	/* destroy the old pool */
+	if (oldPool) {
+		apr_pool_destroy(oldPool);
+	}
+
+	return realsize;
 }
 
 CURLcode cas_curl_ssl_ctx(CURL *curl, void *sslctx, void *parm)
@@ -1779,6 +1830,8 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	char *samlPayload;
 	CURL *curl;
 	char *rv;
+	char *requestId;
+	char buf[16];
 
 	rv = NULL;
 
@@ -1799,8 +1852,11 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 	curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
 
+	curlBuffer.buf = NULL;
 	curlBuffer.written = 0;
-	memset(curlBuffer.buf, '\0', sizeof(curlBuffer.buf));
+	curlBuffer.pool = r->pool;
+	curlBuffer.subpool = NULL;
+
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &curlBuffer);
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cas_curl_write);
 	curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, cas_curl_ssl_ctx);
@@ -1831,7 +1887,9 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 
 	if(c->CASValidateSAML == TRUE) {
 		curl_easy_setopt(curl, CURLOPT_POST, 1L);
-		samlPayload = apr_psprintf(r->pool, "<?xml version=\"1.0\" encoding=\"utf-8\"?><SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\"><SOAP-ENV:Header/><SOAP-ENV:Body><samlp:Request xmlns:samlp=\"urn:oasis:names:tc:SAML:1.0:protocol\"  MajorVersion=\"1\" MinorVersion=\"1\"><samlp:AssertionArtifact>%s%s</samlp:AssertionArtifact></samlp:Request></SOAP-ENV:Body></SOAP-ENV:Envelope>",ticket, getCASRenew(r));
+		apr_generate_random_bytes((unsigned char *) buf, 16);
+		requestId = (char *) ap_md5_binary(r->pool, (unsigned char *) buf, 16);
+		samlPayload = apr_psprintf(r->pool, "<?xml version=\"1.0\" encoding=\"utf-8\"?><SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\"><SOAP-ENV:Header/><SOAP-ENV:Body><samlp:Request xmlns:samlp=\"urn:oasis:names:tc:SAML:1.0:protocol\"  MajorVersion=\"1\" MinorVersion=\"1\" RequestID=\"%s\"><samlp:AssertionArtifact>%s</samlp:AssertionArtifact></samlp:Request></SOAP-ENV:Body></SOAP-ENV:Envelope>", requestId, ticket);
 		headers = curl_slist_append(headers, "soapaction: http://www.oasis-open.org/committees/security");
 		headers = curl_slist_append(headers, "cache-control: no-cache");
 		headers = curl_slist_append(headers, "pragma: no-cache");
@@ -1839,6 +1897,9 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 		headers = curl_slist_append(headers, "content-type: text/xml");
 		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, samlPayload);
+
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "samlPayload = %s", samlPayload);
 	} else
 		curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
 
@@ -2051,6 +2112,28 @@ char *normalizeHeaderName(const request_rec *r, const char *str)
 	return ns;
 }
 
+/* store CAS user and any additional CAS attributes as HTTP headers */
+static void set_http_headers(request_rec *r, cas_cfg *c, cas_dir_cfg *d, cas_saml_attr *a)
+{
+	if(d->CASAuthNHeader != NULL) {
+		apr_table_set(r->headers_in, d->CASAuthNHeader, r->user);
+		while(a != NULL) {
+			cas_saml_attr_val *av = a->values;
+			char *csvs = NULL;
+			while(av != NULL) {
+				if(csvs != NULL) {
+					csvs = apr_psprintf(r->pool, "%s%s%s", csvs, c->CASAttributeDelimiter, av->value);
+				} else {
+					csvs = apr_psprintf(r->pool, "%s", av->value);
+				}
+				av = av->next;
+			}
+			apr_table_set(r->headers_in, apr_psprintf(r->pool, "%s%s", c->CASAttributePrefix, normalizeHeaderName(r, a->attr)), csvs);
+			a = a->next;
+		}
+	}
+}
+
 /* basic CAS module logic */
 int cas_authenticate(request_rec *r)
 {
@@ -2092,6 +2175,16 @@ int cas_authenticate(request_rec *r)
 	ticket = getCASTicket(r);
 	cookieString = getCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie));
 
+	// prevent infinite redirect loops by allowing subsequent authentication responses to pass through, leaving the ticket parameter intact
+	if(c->CASPreserveTicket && (ticket != NULL) && (cookieString != NULL) && ap_is_initial_req(r) && isValidCASCookie(r, c, cookieString, &remoteUser, &attrs) && (remoteUser != NULL)) {
+		cas_set_attributes(r, attrs);
+		r->user = remoteUser;
+		set_http_headers(r, c, d, attrs);
+		if (c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Passing sub-auth response through with ticket parameter intact");
+		return OK;
+	}
+
 	// only remove parameters if a ticket was found (makes no sense to do this otherwise)
 	if(ticket != NULL)
 		parametersRemoved = removeCASParams(r);
@@ -2102,7 +2195,7 @@ int cas_authenticate(request_rec *r)
 		if(cookieString == NULL) { /* they have not made a gateway trip yet */
 			if(c->CASDebug)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Gateway initial access (%s)", r->parsed_uri.path);
-			setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT);
+			setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT, c->CASGatewayCookieDomain);
 			redirectRequest(r, c);
 			return HTTP_MOVED_TEMPORARILY;
 		} else {
@@ -2127,10 +2220,10 @@ int cas_authenticate(request_rec *r)
 			if(cookieString == NULL)
 				return HTTP_INTERNAL_SERVER_ERROR;
 
-			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), cookieString, ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT);
+			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), cookieString, ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT, c->CASCookieDomain);
 			/* remove gateway cookie so they can reauthenticate later */
 			if (getCASCookie(r, d->CASGatewayCookie)) {
-				setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl, CAS_SESSION_EXPIRE_COOKIE_NOW);
+				setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl, CAS_SESSION_EXPIRE_COOKIE_NOW, c->CASGatewayCookieDomain);
 			}
 			r->user = remoteUser;
 			if(d->CASAuthNHeader != NULL)
@@ -2208,31 +2301,12 @@ int cas_authenticate(request_rec *r)
 
 		if(remoteUser) {
 			r->user = remoteUser;
-			if(d->CASAuthNHeader != NULL) {
-				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);
- 				if(attrs != NULL) {
- 					cas_saml_attr *a = attrs;
- 					while(a != NULL) {
- 						cas_saml_attr_val *av = a->values;
- 						char *csvs = NULL;
- 						while(av != NULL) {
- 							if(csvs != NULL) {
- 								csvs = apr_psprintf(r->pool, "%s%s%s", csvs, c->CASAttributeDelimiter, av->value);
- 							} else {
- 								csvs = apr_psprintf(r->pool, "%s", av->value);
- 							}
- 							av = av->next;
- 						}
- 						apr_table_set(r->headers_in, apr_psprintf(r->pool, "%s%s", c->CASAttributePrefix, normalizeHeaderName(r, a->attr)), csvs);
- 						a = a->next;
- 					}
- 				}
- 			}
+			set_http_headers(r, c, d, attrs);
 			return OK;
 		} else {
 			/* maybe the cookie expired, have the user get a new service ticket */
 			redirectRequest(r, c);
-			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), "", ssl, CAS_SESSION_EXPIRE_COOKIE_NOW);
+			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), "", ssl, CAS_SESSION_EXPIRE_COOKIE_NOW, c->CASCookieDomain);
 			return HTTP_MOVED_TEMPORARILY;
 		}
 	}
@@ -2374,7 +2448,7 @@ authz_status cas_check_authorization(request_rec *r,
 
 	const char *t, *w;
 	unsigned int count_casattr = 0;
-    
+
 	if(c->CASDebug)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
 			      "Entering cas_check_authorization.");
@@ -2395,9 +2469,9 @@ authz_status cas_check_authorization(request_rec *r,
 			return AUTHZ_GRANTED;
 		}
 	}
-    
+
 	if (count_casattr == 0) {
-		if(c->CASDebug)	
+		if(c->CASDebug)
 			ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
 				      "'Require cas-attribute' missing specification(s) in configuration. Declining.");
 	}
@@ -2561,7 +2635,7 @@ int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const
 
 #endif
 
-#if (defined(OPENSSL_THREADS) && APR_HAS_THREADS)
+#if OPENSSL_VERSION_NUMBER < 0x10100000L && defined(OPENSSL_THREADS) && APR_HAS_THREADS
 
 /* shamelessly based on code from mod_ssl */
 void cas_ssl_locking_callback(int mode, int type, const char *file, int line) {
@@ -2585,14 +2659,14 @@ void cas_ssl_id_callback(CRYPTO_THREADID *id)
 #endif /* OPENSSL_NO_THREADID */
 
 
-#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
+#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L && defined(OPENSSL_THREADS) && APR_HAS_THREADS */
 
 apr_status_t cas_cleanup(void *data)
 {
 	server_rec *s = (server_rec *) data;
 	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "entering cas_cleanup()");
 
-#if (defined (OPENSSL_THREADS) && APR_HAS_THREADS)
+#if OPENSSL_VERSION_NUMBER < 0x10100000L && defined(OPENSSL_THREADS) && APR_HAS_THREADS
 	if(CRYPTO_get_locking_callback() == cas_ssl_locking_callback)
 		CRYPTO_set_locking_callback(NULL);
 #ifdef OPENSSL_NO_THREADID
@@ -2603,7 +2677,7 @@ apr_status_t cas_cleanup(void *data)
 		CRYPTO_THREADID_set_callback(NULL);
 #endif /* OPENSSL_NO_THREADID */
 
-#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
+#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L && defined(OPENSSL_THREADS) && APR_HAS_THREADS */
 	curl_global_cleanup();
 	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "exiting cas_cleanup()");
 	return APR_SUCCESS;
@@ -2681,7 +2755,9 @@ int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec
 {
 	const char *userdata_key = "auth_cas_init";
 	void *data;
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
 	int i;
+#endif
 
 	/* Since the post_config hook is invoked twice (once
 	 * for 'sanity checking' of the config and once for
@@ -2693,7 +2769,7 @@ int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec
 	if(data) {
 		curl_global_init(CURL_GLOBAL_ALL);
 
-#if (defined(OPENSSL_THREADS) && APR_HAS_THREADS)
+#if OPENSSL_VERSION_NUMBER < 0x10100000L && (defined(OPENSSL_THREADS) && APR_HAS_THREADS)
 		ssl_num_locks = CRYPTO_num_locks();
 		ssl_locks = apr_pcalloc(s->process->pool, ssl_num_locks * sizeof(*ssl_locks));
 
@@ -2711,7 +2787,7 @@ int cas_post_config(apr_pool_t *pool, apr_pool_t *p1, apr_pool_t *p2, server_rec
 			CRYPTO_THREADID_set_callback(cas_ssl_id_callback);
 		}
 #endif /* OPENSSL_NO_THREADID */
-#endif /* defined(OPENSSL_THREADS) && APR_HAS_THREADS */
+#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L && defined(OPENSSL_THREADS) && APR_HAS_THREADS */
 		apr_pool_cleanup_register(pool, s, cas_cleanup, apr_pool_cleanup_null);
 	}
 
@@ -2837,6 +2913,7 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASCookiePath", cfg_readCASParameter, (void *) cmd_cookie_path, RSRC_CONF, "Path to store the CAS session cookies in (must end in trailing /)"),
 	AP_INIT_TAKE1("CASCookieEntropy", cfg_readCASParameter, (void *) cmd_cookie_entropy, RSRC_CONF, "Number of random bytes to use when generating a session cookie (larger values may result in slow cookie generation)"),
 	AP_INIT_TAKE1("CASCookieDomain", cfg_readCASParameter, (void *) cmd_cookie_domain, RSRC_CONF, "Specify domain header for mod_auth_cas cookie"),
+	AP_INIT_TAKE1("CASGatewayCookieDomain", cfg_readCASParameter, (void *) cmd_gateway_cookie_domain, RSRC_CONF, "Specify domain header for mod_auth_cas gateway cookie"),
 	AP_INIT_TAKE1("CASCookieHttpOnly", cfg_readCASParameter, (void *) cmd_cookie_httponly, RSRC_CONF, "Enable 'HttpOnly' flag for mod_auth_cas cookie (may break RFC compliance)"),
 	AP_INIT_TAKE1("CASCookie", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASCookie), ACCESS_CONF|OR_AUTHCFG, "Define the cookie name for HTTP sessions"),
 	AP_INIT_TAKE1("CASSecureCookie", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASSecureCookie), ACCESS_CONF|OR_AUTHCFG, "Define the cookie name for HTTPS sessions"),
@@ -2852,6 +2929,7 @@ const command_rec cas_cmds [] = {
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	AP_INIT_TAKE1("CASAuthoritative", cfg_readCASParameter, (void *) cmd_authoritative, RSRC_CONF, "Set 'On' to reject if access isn't allowed based on our rules; 'Off' (default) to allow checking against other modules too."),
 #endif
+	AP_INIT_TAKE1("CASPreserveTicket", cfg_readCASParameter, (void *) cmd_preserve_ticket, RSRC_CONF, "Leave CAS ticket parameters intact when a valid session cookie exists. This helps prevent infinite redirect loops when CAS protection is being used at multiple levels."),
 	AP_INIT_TAKE1(0, 0, 0, 0, 0)
 };
 
@@ -2864,4 +2942,7 @@ module AP_MODULE_DECLARE_DATA auth_cas_module = {
 	cas_merge_server_config,                  /* merge  per-server config structures */
 	cas_cmds,                  /* table of config file commands       */
 	cas_register_hooks  /* register hooks                      */
+#ifdef AP_MODULE_FLAG_NONE
+	, AP_MODULE_FLAG_NONE
+#endif
 };

@@ -1,5 +1,6 @@
 #include <openssl/ssl.h>
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
 unsigned long (*CRYPTO_get_id_callback(void))(void) {
 
   return 0L;
@@ -24,6 +25,7 @@ void CRYPTO_set_locking_callback(void (*func)(int mode,int type, const char
 {
   return;
 }
+#endif
 
 void SSL_CTX_set_verify_depth(SSL_CTX *ctx,int depth) {
   return;

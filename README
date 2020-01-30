@@ -1,5 +1,5 @@
 ========================================================================
-MOD_AUTH_CAS 1.1 README
+MOD_AUTH_CAS 1.2 README
 ========================================================================
 Apache CAS Authentication Module for the JASIG/Apereo CAS Server.
 
@@ -72,38 +72,44 @@ Set a few required parameters in your Apache configuration:
 	CASValidateURL https://login.example.org/cas/serviceValidate
 
 Protect a "Location" or "Directory" block in your Apache
-  configuration:
+configuration:
 
 	<Location /secured>
 		Authtype CAS
-		require valid-user
+		Require valid-user
 	</Location>
 
-If SAML-delivered attribute authorization is also desired, use the
-  samlValidate URL, enable SAML validation, and specify cas-attribute
-  in your require rule (please note: both attribute name and value are
-  case-sensitive):
+If attribute-based authorization is also desired, specify cas-attribute
+name:value in your Require rule (please note: both attribute name and value are
+case-sensitive):
 
-   	CASCookiePath /var/cache/apache2/mod_auth_cas/
+	CASCookiePath /var/cache/apache2/mod_auth_cas/
 	CASLoginURL https://login.example.org/cas/login
 	CASValidateURL https://login.example.org/cas/samlValidate
-    CASValidateSAML On
+	CASValidateSAML On
 
-    <Location /secured>
+	<Location /secured>
 		Authtype CAS
-        require cas-attribute edupersonaffiliation:staff
-     </Location>
+		Require cas-attribute edupersonaffiliation:staff
+	</Location>
+
+Both the CAS 2.0 and SAML 1.1 protocols support including additional attributes
+in the CAS validation response, which may also be added as HTTP headers (see
+CASAttributePrefix and CASAttributeDelimiter). This example uses the SAML
+protocol and requires that the 'edupersonaffiliation' attribute is set to
+'staff'.
 
 
 ========================================================================
 NEW FEATURES AND FUNCTIONS IN THIS RELEASE
 ========================================================================
-* Apache 2.4 support
-* Improved SAML support
-* New expanded Project Team - welcome David Hawes!  Many thanks to
-David for driving this release.
-* Many many bugs fixed since last official release in 2010.
-https://github.com/Jasig/mod_auth_cas/issues?q=is%3Aissue+is%3Aclosed
+* OpenSSL 1.1 support.
+* CASv2 attributes.
+* CASPreserveTicket, which allows tickets to pass through when a valid session exists.
+* CASGatewayCookieDomain, to set the gateway cookie domain.
+* Use a dynamic buffer to store the CAS validation response.
+* Various bug and documentation fixes.
+https://github.com/apereo/mod_auth_cas/milestone/6?closed=1
 
 ========================================================================
 KNOWN ISSUES
@@ -175,8 +181,8 @@ Description:	The version of the CAS protocol to adhere to (1 or 2).
 Directive: 	CASDebug
 Default:	Off
 Description:	Enable or disable debugging mode for troubleshooting.  Please
-              note that LogLevel must be set to Debug for the VirtualHost in
-              order for these logs to be visible.
+		note that LogLevel must be set to Debug for the VirtualHost in
+		order for these logs to be visible.
 
 Directive:	CASValidateDepth
 Default:	9
@@ -292,6 +298,40 @@ Description:	This directive determines whether an optional authorization directi
 		NOTE: This directive is unavailable with Apache 2.4. See the RequireAny,
 		RequireNone, and RequireAll directives instead.
 
+Directive:	CASValidateSAML
+Default:	Off
+Description:	If enabled, the response from the CAS Server will be parsed for SAML
+		attributes which will be associated with the user.  Requires setting
+		CASValidateURL appropriately; typical URLs are of the form
+		https://login.example.org/cas/samlValidate.
+
+Directive:	CASAttributePrefix
+Default:	CAS_ (Apache < 2.4)
+		CAS- (Apache 2.4)
+Description:	The prefix to use when adding CAS or SAML attributes to the HTTP headers,
+		which will be named <CASAttributePrefix><attr_name>.  CASAuthNHeader
+		must be set for this directive to be used.
+		NOTE: In Apache 2.4 and newer, headers containing "invalid" characters
+		(including underscores) are silently dropped, so you must set this to
+		a "valid" name containing only alphabetic characters and hyphens.
+
+Directive:	CASAttributeDelimiter
+Default:	,
+Description:	mod_auth_cas will set the value of the attribute header (as described
+		in CASAttributePrefix) to <attrvalue><CASAttributeDelimiter><attrvalue>
+		in the case of multiple attribute values.
+
+Directive:	CASPreserveTicket
+Default:	Off
+Description:	This directive leaves CAS ticket parameters intact when a valid
+		session cookie exists. This helps prevent infinite redirect loops when
+		CAS protection is being used at multiple levels.
+
+Directive:	CASGatewayCookieDomain
+Default:	NULL
+Description:	Specify the value for the 'Domain=' parameter in the Set-Cookie header
+		when setting the CASGatewayCookie.
+
 Valid Directory/.htaccess Directives
 ------------------------------------
 Directive:	CASScope
@@ -342,31 +382,17 @@ Description:	The name of the cookie used to store whether or not the user has at
 
 Directive:	CASAuthNHeader
 Default:	None
-Description:	If enabled, this will store the user returned by CAS in an HTTP header
-		accessible to your web applications.
+Description:	If enabled, this will store the user returned by CAS in the specified
+		HTTP header accessible to your web applications, and any additional
+		attributes received in headers named according to CASAttributePrefix.
+		This is in addition to the REMOTE_USER environment variable, which is
+		always set to the CAS user.
 
 Directive:	CASSSOEnabled
 Default:	Off
 Description:	If enabled, this activates support for Single Sign Out within the CAS
 		protocol.  Please note that this feature is currently experimental and
 		may mangle POST data.
-
-Directive:	CASValidateSAML
-Default:	Off
-Description:	If enabled, the response from the CAS Server will be parsed for SAML
-		attributes which will be associated with the user.
-
-Directive:	CASAttributePrefix
-Default:	CAS_
-Description:	mod_auth_cas will add a header named  <CASAttributePrefix><attr_name>
-		with the value of this header being the attribute values when SAML
-		validation is enabled.
-
-Directive:	CASAttributeDelimiter
-Default:	,
-Description:	mod_auth_cas will set the value of the attribute header (as described
-		in CASAttributePrefix) to <attrvalue><CASAttributeDelimiter><attrvalue>
-		in the case of multiple attribute values.
 
 Directive:	CASScrubRequestHeaders
 Default:	Off
@@ -376,7 +402,7 @@ Description:	mod_auth_cas will strip request inbound request headers that may ha
 
 Directive:	Require cas-attribute <attribute>:<value>
 Default:	NULL
-Description:	Use this directive to authorize based on SAML cas attributes
+Description:	Use this directive to authorize based on CAS or SAML attributes
 		returned via the session validation call. Multiple directives
 		are OR-ed. If directive is present with no attributes defined,
 		the request is declined. If value has spaces, wrap the pair in quotes.
@@ -384,7 +410,7 @@ Description:	Use this directive to authorize based on SAML cas attributes
 
 Directive:	Require cas-attribute <attribute>~<value>
 Default:	NULL
-Description:	Use this form of the directive to authorize based on SAML cas
+Description:	Use this form of the directive to authorize based on CAS or SAML
 		attributes returned via the session validation call. Multiple
 		directives are OR-ed. If directive is present with no attributes
 		defined, the request is declined. The value is interpreted as a

@@ -172,13 +172,13 @@ The following are valid configuration options and their default:
 
 Valid Server/VirtualHost Directives
 -----------------------------------
-Directive: 	CASVersion
+Directive:	CASVersion
 Default:	2
 Description:	The version of the CAS protocol to adhere to (1 or 2).
 		This affects whether Gateway mode is available and how
 		the CAS validation response is parsed.
 
-Directive: 	CASDebug
+Directive:	CASDebug
 Default:	Off
 Description:	Enable or disable debugging mode for troubleshooting.  Please
 		note that LogLevel must be set to Debug for the VirtualHost in
@@ -189,32 +189,32 @@ Default:	9
 Description:	This directive will set the maximum depth for chained certificate
 		validation.  The default (according to OpenSSL documentation) is 9.
 
-Directive: 	CASCertificatePath
+Directive:	CASCertificatePath
 Default:	/etc/ssl/certs/
 Description:	The path to the X509 certificate of the Certificate Authority for
 		the server in CASLoginURL and CASValidateURL.  This may be either
 		a file, or a directory containing the certificate files linked to
 		by their hashed names.
 
-Directive: 	CASLoginURL
+Directive:	CASLoginURL
 Default:	NULL
 Description:	The URL to redirect users to when they attempt to access a CAS
 		protected resource and do not have an existing session.  The
 		'service', 'renew', and 'gateway' parameters will be appended to
 		this by mod_auth_cas if necessary.  Include 'http[s]://...'
 
-Directive: 	CASValidateURL
+Directive:	CASValidateURL
 Default:	NULL
 Description:	The URL to use when validating a ticket presented by a client in
 		the HTTP query string (ticket=...).  Must include 'https://' and
 		must be an HTTPS URL.
 
-Directive: 	CASProxyValidateURL
+Directive:	CASProxyValidateURL
 Default:	NULL
 Description:	The URL to use when performing a proxy validation.  This is currently
 		an unimplemented feature, so setting this will have no effect.
 
-Directive: 	CASRootProxiedAs
+Directive:	CASRootProxiedAs
 Default:	NULL
 Description:	This URL represents the URL that end users may see in the event that
 		access to this Apache server is proxied.  This will override the
@@ -224,7 +224,18 @@ Description:	This URL represents the URL that end users may see in the event tha
 		setting CASRootProxiedAs to http://example.com would result in proper
 		service parameter generation.
 
-Directive: 	CASCookiePath
+Directive:	CASForceHTTPS
+Default:	Off
+Description:	If 'On' then automatically generated service URLs and any CAS-related
+		redirects will always use https:// (regardless of the current protocol
+		being used by the client), and HTTP requests which contain a CAS ticket
+		will be redirected back to CAS again for re-authentication via HTTPS (to
+		ensure that all authenticated requests use HTTPS, and ensure that
+		authenticated session cookies are always created as "secure" cookies which
+		will only be transmitted via HTTPS).  This may be used to prevent some
+		HTTP downgrade attacks.
+
+Directive:	CASCookiePath
 Default:	/dev/null
 Description:	When users first authenticate to mod_auth_cas with a valid service ticket,
 		a local session is established.  Information about this session (the
@@ -238,14 +249,14 @@ Description:	When users first authenticate to mod_auth_cas with a valid service 
 		cookie information until that directory is created.  To avoid this, try
 		using a different location, such as /var/cache/apache2/mod_auth_cas/
 
-Directive: 	CASCookieEntropy
+Directive:	CASCookieEntropy
 Default:	32
 Description:	When creating a local session, this many random bytes are used to
 		create a unique session identifier.  Using large values for this
 		field may result in delays when generating session IDs if not
 		enough entropy is available.
 
-Directive: 	CASTimeout
+Directive:	CASTimeout
 Default:	7200 (2 hours)
 Description:	This is the hard limit, in seconds, for a mod_auth_cas session (whether
 		it is idle or not).  When a session has reached this age and a new
@@ -254,14 +265,14 @@ Description:	This is the hard limit, in seconds, for a mod_auth_cas session (whe
 		they will be assigned a new mod_auth_cas session.  Set this value to '0'
 		in order to allow a non-idle session to not expire.
 
-Directive: 	CASIdleTimeout
+Directive:	CASIdleTimeout
 Default:	3600 (1 hour)
 Description:	This is a limit, in seconds, of how long a mod_auth_cas session can be idle.
 		When a request comes in, if it has been inactive for CASIdleTimeout
 		seconds, the user is redirected to the CASLoginURL to obtain a new
 		service ticket.
 
-Directive: 	CASCacheCleanInterval
+Directive:	CASCacheCleanInterval
 Default:	1800 (30 minutes)
 Description:	This is the minimum amount of time that must pass inbetween cache
 		cleanings.  When a new ticket is issued, or when an expired session
@@ -274,6 +285,23 @@ Description:	This is the minimum amount of time that must pass inbetween cache
 Directive:	CASCookieDomain
 Default:	NULL
 Description:	Specify the value for the 'Domain=' parameter in the Set-Cookie header.
+		SECURITY WARNING:
+		The 'Domain=' parameter is used to expand the scope of a cookie.  In most
+		browsers, a cookie that was set without a 'Domain=' parameter will
+		only be sent to the hostname that set the cookie, while a cookie that was
+		set with a 'Domain=' parameter will be sent to the specified name and any
+		sub-domains of the specified name.  (A notable exception is Internet
+		Explorer, which will also send a cookie that was set without a 'Domain='
+		parameter to sub-domains of the hostname that set the cookie.)  If
+		CASCookieDomain is set and there are any sub-domains of the specified name
+		which are not hosted on this server, then it may be possible for another
+		server to receive our authentication cookie.  If that other server is
+		compromised, it would then be able to use that cookie to authenticate to
+		this server as if it were the user associated with that cookie.
+		Therefore, you should not use CASCookieDomain unless you control all
+		sub-domains of the specified name and you are willing to accept the risk
+		that the compromise of any one sub-domain under the specified name could
+		allow an attacker to authenticate to this service as a legitimate user.
 
 Directive:	CASCookieHttpOnly
 Default:	On
@@ -339,7 +367,7 @@ Description:	Use this directive with an argument as a relative path (e.g. /appli
 		the special argument 'Off' will return to per-directory cookie paths for this directory
 		and subdirectories.
 
-Directive: 	CASRenew
+Directive:	CASRenew
 Default:	Off
 Description:	Use this directive with an argument as a relative path (e.g. /application/secure/
 		for http://www.example.com/application/secure/*) to force a user to renew their
@@ -347,26 +375,26 @@ Description:	Use this directive with an argument as a relative path (e.g. /appli
 		To disable this requirement, the special argument 'Off' will disable this requirement
 		for this directory and subdirectories.
 
-Directive: 	CASGateway
+Directive:	CASGateway
 Default:	Off
 Description:	Use this directive with an argument as a relative path (e.g. /application/insecure/
 		for http://www.example.com/application/insecure/*) to allow anonymous access to that directory.
 		The argument MUST be a relative path. To disable this feature, the special argument 'Off'
 		will reinstate the requirement for authentication.
 
-Directive: 	CASCookie
+Directive:	CASCookie
 Default:	MOD_AUTH_CAS
 Description:	The name of the cookie used to store the session ID over HTTP connections.
 		It should be changed if it will interfere with the application protected
 		by mod_auth_cas.
 
-Directive: 	CASSecureCookie
+Directive:	CASSecureCookie
 Default:	MOD_AUTH_CAS_S
 Description:	The name of the cookie used to store the session ID over HTTPS connections.
 		It should be changed if it will interfere with the application protected
 		by mod_auth_cas.
 
-Directive: 	CASGatewayCookie
+Directive:	CASGatewayCookie
 Default:	MOD_AUTH_CAS_G
 Description:	The name of the cookie used to store whether or not the user has attempted
 		to access this resource before.  It should be changed if it will interfere

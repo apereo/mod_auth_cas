@@ -73,6 +73,7 @@
 #define CAS_DEFAULT_RENEW NULL
 #define CAS_DEFAULT_GATEWAY NULL
 #define CAS_DEFAULT_VALIDATE_SAML 0
+#define CAS_DEFAULT_FORCE_HTTPS FALSE
 #define CAS_DEFAULT_ATTRIBUTE_DELIMITER ","
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
 	#define CAS_DEFAULT_ATTRIBUTE_PREFIX "CAS_"
@@ -131,6 +132,7 @@ typedef struct cas_cfg {
 	unsigned int CASAuthoritative;
 	unsigned int CASPreserveTicket;
 	unsigned int CASValidateSAML;
+	unsigned int CASForceHTTPS;
 	char *CASCertificatePath;
 	char *CASCookiePath;
 	char *CASCookieDomain;
@@ -176,7 +178,7 @@ typedef enum {
 	cmd_version, cmd_debug, cmd_validate_depth, cmd_ca_path, cmd_cookie_path,
 	cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy, cmd_session_timeout,
 	cmd_idle_timeout, cmd_cache_interval, cmd_cookie_domain, cmd_cookie_httponly,
-	cmd_sso, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix,
+	cmd_sso, cmd_force_https, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix,
 	cmd_root_proxied_as, cmd_authoritative, cmd_preserve_ticket, cmd_gateway_cookie_domain
 } valid_cmds;
 
@@ -196,7 +198,7 @@ apr_table_t *cas_scrub_headers(apr_pool_t *p, const char *const attr_prefix,
 	const char *const authn_header, const apr_table_t *const headers,
 	const apr_table_t **const dirty_headers_ptr);
 char *normalizeHeaderName(const request_rec *r, const char *str);
-apr_byte_t isSSL(const request_rec *r);
+apr_byte_t isSSL(const request_rec *r, const cas_cfg *c);
 apr_byte_t readCASCacheFile(request_rec *r, cas_cfg *c, char *name, cas_cache_entry *cache);
 void CASCleanCache(request_rec *r, cas_cfg *c);
 apr_byte_t writeCASCacheEntry(request_rec *r, char *name, cas_cache_entry *cache, apr_byte_t exists);

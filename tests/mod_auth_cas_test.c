@@ -452,31 +452,31 @@ END_TEST
 
 START_TEST(validCASTicketFormat_test) {
   const char *valid[] = {
+    "ST-",
     "ST-1234",
     "ST-1234-login.example.com"
   };
   const char *invalid[] = {
-    "ST-<^>",
-    "ST-\x22qwe", /* ST-"qwe */
-    "ST-\x25qwe", /* ST-<nak>qwe */
-    "ST-\xc8qwe"  /* ST-<ascii 200>qwe */
+    "",
+    "ST",
+    "T-invalid",
+    "S-invalid",
+    "STinvalid",
   };
   unsigned int i;
 
   for (i = 0; i < ARRAY_SIZE(valid); i++)
-    fail_unless(validCASTicketFormat(valid[i]) == TRUE);
+    fail_unless(validCASTicketFormat(valid[i]) == TRUE, valid[i]);
 
   for (i = 0; i < ARRAY_SIZE(invalid); i++)
-    fail_unless(validCASTicketFormat(invalid[i]) == FALSE);
+    fail_unless(validCASTicketFormat(invalid[i]) == FALSE, invalid[i]);
 }
 END_TEST
 
 START_TEST(getCASTicket_test) {
   char *args = "foo=bar&ticket=ST-1234&baz=zot";
-  char *dupargs = "foo=bar&ticket=ST-^<>&baz=zot&ticket=ST-1234";
-  char *badargs = "foo=bar&ticket=ST-^<>&baz=zot";
+  char *dupargs = "foo=bar&ticket=invalid&baz=zot&ticket=ST-1234";
   char *emptyargs = "";
-  char *truncated_args = "ST-";
   char *rv;
   const char *expected = "ST-1234";
 
@@ -489,15 +489,7 @@ START_TEST(getCASTicket_test) {
   rv = getCASTicket(request);
   fail_unless(strcmp(rv, expected) == 0);
 
-  request->args = apr_pstrdup(request->pool, badargs);
-  rv = getCASTicket(request);
-  fail_unless(rv == NULL);
-
   request->args = apr_pstrdup(request->pool, emptyargs);
-  rv = getCASTicket(request);
-  fail_unless(rv == NULL);
-
-  request->args = apr_pstrdup(request->pool, truncated_args);
   rv = getCASTicket(request);
   fail_unless(rv == NULL);
 

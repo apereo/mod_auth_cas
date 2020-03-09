@@ -688,48 +688,13 @@ apr_byte_t removeCASParams(request_rec *r)
 
 apr_byte_t validCASTicketFormat(const char *ticket)
 {
-  enum ticket_state {
-    ps,
-    t,
-    dash,
-    postfix,
-    illegal
-  } state = ps;
-
-  if (!*ticket)
-    goto bail;
-
-  while (state != illegal && *ticket) {
-    switch (state) {
-      case ps:
-        if (*ticket != 'P' && *ticket != 'S')
-          goto bail;
-        state = t;
-        break;
-      case t:
-        if (*ticket != 'T')
-          goto bail;
-        state = dash;
-        break;
-      case dash:
-        if (*ticket != '-')
-          goto bail;
-        state = postfix;
-        break;
-      case postfix:
-        if (*ticket != '-' && *ticket != '.' && !isalnum(*ticket))
-          goto bail;
-        break;
-      default:
-        goto bail;
-        break;
-    }
-    ticket++;
-  }
-
+  if (ticket[0] != 'S' && ticket[0] != 'P')
+    return FALSE;
+  if (ticket[1] != 'T')
+    return FALSE;
+  if (ticket[2] != '-')
+    return FALSE;
   return TRUE;
-bail:
-  return FALSE;
 }
 
 char *getCASTicket(request_rec *r)

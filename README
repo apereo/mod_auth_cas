@@ -275,6 +275,11 @@ Directive:	CASCookieDomain
 Default:	NULL
 Description:	Specify the value for the 'Domain=' parameter in the Set-Cookie header.
 
+Directive:	CASCookieSameSite
+Default:	NULL
+Description:	Specify the value for the 'SameSite=' parameter in the Set-Cookie header.
+		Allowed values are 'None', 'Lax', and 'Strict'.
+
 Directive:	CASCookieHttpOnly
 Default:	On
 Description:	Set the optional 'HttpOnly' flag for cookies issues by mod_auth_cas.

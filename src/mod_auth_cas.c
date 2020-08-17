@@ -115,6 +115,7 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASIdleTimeout = CAS_DEFAULT_COOKIE_IDLE_TIMEOUT;
 	c->CASCacheCleanInterval = CAS_DEFAULT_CACHE_CLEAN_INTERVAL;
 	c->CASCookieDomain = CAS_DEFAULT_COOKIE_DOMAIN;
+	c->CASCookieSameSite = CAS_DEFAULT_COOKIE_SAMESITE;
 	c->CASGatewayCookieDomain = CAS_DEFAULT_GATEWAY_COOKIE_DOMAIN;
 	c->CASCookieHttpOnly = CAS_DEFAULT_COOKIE_HTTPONLY;
 	c->CASSSOEnabled = CAS_DEFAULT_SSO_ENABLED;
@@ -152,6 +153,7 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASIdleTimeout = (add->CASIdleTimeout != CAS_DEFAULT_COOKIE_IDLE_TIMEOUT ? add->CASIdleTimeout : base->CASIdleTimeout);
 	c->CASCacheCleanInterval = (add->CASCacheCleanInterval != CAS_DEFAULT_CACHE_CLEAN_INTERVAL ? add->CASCacheCleanInterval : base->CASCacheCleanInterval);
 	c->CASCookieDomain = (add->CASCookieDomain != CAS_DEFAULT_COOKIE_DOMAIN ? add->CASCookieDomain : base->CASCookieDomain);
+	c->CASCookieSameSite = (add->CASCookieSameSite != CAS_DEFAULT_COOKIE_SAMESITE ? add->CASCookieSameSite : base->CASCookieSameSite);
 	c->CASGatewayCookieDomain = (add->CASGatewayCookieDomain != CAS_DEFAULT_GATEWAY_COOKIE_DOMAIN ? add->CASGatewayCookieDomain : base->CASGatewayCookieDomain);
 	c->CASCookieHttpOnly = (add->CASCookieHttpOnly != CAS_DEFAULT_COOKIE_HTTPONLY ? add->CASCookieHttpOnly : base->CASCookieHttpOnly);
 	c->CASSSOEnabled = (add->CASSSOEnabled != CAS_DEFAULT_SSO_ENABLED ? add->CASSSOEnabled : base->CASSSOEnabled);
@@ -369,6 +371,15 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 				}
 			}
 			c->CASCookieDomain = apr_pstrdup(cmd->pool, value);
+		break;
+		case cmd_cookie_samesite:
+			if (!((apr_strnatcasecmp(value, "None") == 0)
+					|| (apr_strnatcasecmp(value, "Lax") == 0)
+					|| (apr_strnatcasecmp(value, "Strict") == 0)))
+			{
+				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASCookieSameSite - must be 'None', 'Lax', or 'Strict'"));
+			}
+			c->CASCookieSameSite = apr_pstrdup(cmd->pool, value);
 		break;
 		case cmd_gateway_cookie_domain:
 			limit = strlen(value);
@@ -781,9 +792,9 @@ char *getCASCookie(request_rec *r, char *cookieName)
 	return rv;
 }
 
-void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure, apr_time_t expireTime, char *cookieDomain)
+void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure, apr_time_t expireTime, char *cookieDomain, char *cookieSameSite)
 {
-	char *headerString, *currentCookies, *pathPrefix = "", *expireTimeString = NULL, *errString, *domainString = "";
+	char *headerString, *currentCookies, *pathPrefix = "", *expireTimeString = NULL, *errString, *domainString = "", *sameSiteString = "";
 	cas_cfg *c = ap_get_module_config(r->server->module_config, &auth_cas_module);
 	apr_status_t retVal;
 
@@ -805,13 +816,17 @@ void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_
 	if(NULL != cookieDomain) {
 		domainString = apr_psprintf(r->pool, ";Domain=%s", cookieDomain);
 	}
-	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s%s%s%s%s",
+	if(NULL != cookieSameSite) {
+		sameSiteString = apr_psprintf(r->pool, ";SameSite=%s", cookieSameSite);
+	}
+	headerString = apr_psprintf(r->pool, "%s=%s%s;Path=%s%s%s%s%s%s",
 		cookieName,
 		cookieValue,
 		(secure ? ";Secure" : ""),
 		pathPrefix,
 		urlEncode(r, getCASScope(r), " "),
 		(cookieDomain != NULL ? domainString : ""),
+		(cookieSameSite != NULL ? sameSiteString : ""),
 		(c->CASCookieHttpOnly != FALSE ? "; HttpOnly" : ""),
 		(NULL == expireTimeString) ? "" : apr_psprintf(r->pool, "; expires=%s", expireTimeString));
 
@@ -2183,7 +2198,7 @@ int cas_authenticate(request_rec *r)
 		if(cookieString == NULL) { /* they have not made a gateway trip yet */
 			if(c->CASDebug)
 				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Gateway initial access (%s)", r->parsed_uri.path);
-			setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT, c->CASGatewayCookieDomain);
+			setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT, c->CASGatewayCookieDomain, c->CASCookieSameSite);
 			redirectRequest(r, c);
 			return HTTP_MOVED_TEMPORARILY;
 		} else {
@@ -2208,10 +2223,10 @@ int cas_authenticate(request_rec *r)
 			if(cookieString == NULL)
 				return HTTP_INTERNAL_SERVER_ERROR;
 
-			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), cookieString, ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT, c->CASCookieDomain);
+			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), cookieString, ssl, CAS_SESSION_EXPIRE_SESSION_SCOPE_TIMEOUT, c->CASCookieDomain, c->CASCookieSameSite);
 			/* remove gateway cookie so they can reauthenticate later */
 			if (getCASCookie(r, d->CASGatewayCookie)) {
-				setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl, CAS_SESSION_EXPIRE_COOKIE_NOW, c->CASGatewayCookieDomain);
+				setCASCookie(r, d->CASGatewayCookie, "TRUE", ssl, CAS_SESSION_EXPIRE_COOKIE_NOW, c->CASGatewayCookieDomain, c->CASCookieSameSite);
 			}
 			r->user = remoteUser;
 			if(d->CASAuthNHeader != NULL)
@@ -2288,7 +2303,7 @@ int cas_authenticate(request_rec *r)
 		} else {
 			/* maybe the cookie expired, have the user get a new service ticket */
 			redirectRequest(r, c);
-			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), "", ssl, CAS_SESSION_EXPIRE_COOKIE_NOW, c->CASCookieDomain);
+			setCASCookie(r, (ssl ? d->CASSecureCookie : d->CASCookie), "", ssl, CAS_SESSION_EXPIRE_COOKIE_NOW, c->CASCookieDomain, c->CASCookieSameSite);
 			return HTTP_MOVED_TEMPORARILY;
 		}
 	}
@@ -2895,6 +2910,7 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASCookiePath", cfg_readCASParameter, (void *) cmd_cookie_path, RSRC_CONF, "Path to store the CAS session cookies in (must end in trailing /)"),
 	AP_INIT_TAKE1("CASCookieEntropy", cfg_readCASParameter, (void *) cmd_cookie_entropy, RSRC_CONF, "Number of random bytes to use when generating a session cookie (larger values may result in slow cookie generation)"),
 	AP_INIT_TAKE1("CASCookieDomain", cfg_readCASParameter, (void *) cmd_cookie_domain, RSRC_CONF, "Specify domain header for mod_auth_cas cookie"),
+	AP_INIT_TAKE1("CASCookieSameSite", cfg_readCASParameter, (void *) cmd_cookie_samesite, RSRC_CONF, "Specify SameSite flag header for mod_auth_cas cookie"),
 	AP_INIT_TAKE1("CASGatewayCookieDomain", cfg_readCASParameter, (void *) cmd_gateway_cookie_domain, RSRC_CONF, "Specify domain header for mod_auth_cas gateway cookie"),
 	AP_INIT_TAKE1("CASCookieHttpOnly", cfg_readCASParameter, (void *) cmd_cookie_httponly, RSRC_CONF, "Enable 'HttpOnly' flag for mod_auth_cas cookie (may break RFC compliance)"),
 	AP_INIT_TAKE1("CASCookie", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASCookie), ACCESS_CONF|OR_AUTHCFG, "Define the cookie name for HTTP sessions"),

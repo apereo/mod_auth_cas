@@ -118,6 +118,7 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASCookieSameSite = CAS_DEFAULT_COOKIE_SAMESITE;
 	c->CASGatewayCookieDomain = CAS_DEFAULT_GATEWAY_COOKIE_DOMAIN;
 	c->CASCookieHttpOnly = CAS_DEFAULT_COOKIE_HTTPONLY;
+	c->CASCookieSecureAttribute = CAS_DEFAULT_COOKIE_SECUREATTRIBUTE;
 	c->CASSSOEnabled = CAS_DEFAULT_SSO_ENABLED;
 	c->CASValidateSAML = CAS_DEFAULT_VALIDATE_SAML;
 	c->CASAttributeDelimiter = CAS_DEFAULT_ATTRIBUTE_DELIMITER;
@@ -156,6 +157,7 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASCookieSameSite = (add->CASCookieSameSite != CAS_DEFAULT_COOKIE_SAMESITE ? add->CASCookieSameSite : base->CASCookieSameSite);
 	c->CASGatewayCookieDomain = (add->CASGatewayCookieDomain != CAS_DEFAULT_GATEWAY_COOKIE_DOMAIN ? add->CASGatewayCookieDomain : base->CASGatewayCookieDomain);
 	c->CASCookieHttpOnly = (add->CASCookieHttpOnly != CAS_DEFAULT_COOKIE_HTTPONLY ? add->CASCookieHttpOnly : base->CASCookieHttpOnly);
+	c->CASCookieSecureAttribute = (add->CASCookieSecureAttribute != CAS_DEFAULT_COOKIE_SECUREATTRIBUTE ? add->CASCookieSecureAttribute : base->CASCookieSecureAttribute);
 	c->CASSSOEnabled = (add->CASSSOEnabled != CAS_DEFAULT_SSO_ENABLED ? add->CASSSOEnabled : base->CASSSOEnabled);
 	c->CASValidateSAML = (add->CASValidateSAML != CAS_DEFAULT_VALIDATE_SAML ? add->CASValidateSAML : base->CASValidateSAML);
 #if MODULE_MAGIC_NUMBER_MAJOR < 20120211
@@ -401,7 +403,16 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 				c->CASCookieHttpOnly = FALSE;
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASCookieHttpOnly - must be 'On' or 'Off'"));
-
+		break;
+		case cmd_cookie_secureattribute:
+			if(apr_strnatcasecmp(value, "On") == 0)
+				c->CASCookieSecureAttribute = TRUE;
+			else if(apr_strnatcasecmp(value, "Off") == 0)
+				c->CASCookieSecureAttribute = FALSE;
+			else if(apr_strnatcasecmp(value, "Auto") == 0)
+				c->CASCookieSecureAttribute = CAS_SECURE_AUTO;
+			else
+				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASCookieSecureAttribute - must be 'Auto', 'On' or 'Off'"));
 		break;
 		case cmd_sso:
 			if(apr_strnatcasecmp(value, "On") == 0)
@@ -815,6 +826,9 @@ void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_
 
 	if(NULL != cookieDomain) {
 		domainString = apr_psprintf(r->pool, ";Domain=%s", cookieDomain);
+	}
+	if(CAS_SECURE_AUTO != c->CASCookieSecureAttribute) {
+		secure = c->CASCookieSecureAttribute;
 	}
 	if(NULL != cookieSameSite) {
 		sameSiteString = apr_psprintf(r->pool, ";SameSite=%s", cookieSameSite);
@@ -2913,6 +2927,7 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASCookieSameSite", cfg_readCASParameter, (void *) cmd_cookie_samesite, RSRC_CONF, "Specify SameSite flag header for mod_auth_cas cookie"),
 	AP_INIT_TAKE1("CASGatewayCookieDomain", cfg_readCASParameter, (void *) cmd_gateway_cookie_domain, RSRC_CONF, "Specify domain header for mod_auth_cas gateway cookie"),
 	AP_INIT_TAKE1("CASCookieHttpOnly", cfg_readCASParameter, (void *) cmd_cookie_httponly, RSRC_CONF, "Enable 'HttpOnly' flag for mod_auth_cas cookie (may break RFC compliance)"),
+	AP_INIT_TAKE1("CASCookieSecureAttribute", cfg_readCASParameter, (void *) cmd_cookie_secureattribute, RSRC_CONF, "Enable 'Secure' attribute for mod_auth_cas cookie (may break RFC compliance)"),
 	AP_INIT_TAKE1("CASCookie", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASCookie), ACCESS_CONF|OR_AUTHCFG, "Define the cookie name for HTTP sessions"),
 	AP_INIT_TAKE1("CASSecureCookie", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASSecureCookie), ACCESS_CONF|OR_AUTHCFG, "Define the cookie name for HTTPS sessions"),
 	AP_INIT_TAKE1("CASGatewayCookie", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASGatewayCookie), ACCESS_CONF|OR_AUTHCFG, "Define the cookie name for a gateway location"),

@@ -288,7 +288,7 @@ Description:	Set the optional 'HttpOnly' flag for cookies issues by mod_auth_cas
 
 Directive:	CASCookieSecureAttribute
 Default:	Auto
-Description:	Set the optional 'Secure' attribute for cookies issues by mod_auth_cas.
+Description:	Set the optional 'Secure' attribute for cookies issued by mod_auth_cas.
 		Set the Secure attribute as described in in RFC 6265. This flag prevents the
 		mod_auth_cas cookies from being sent over an unencrypted HTTP connection.
 		By default, mod_auth_cas sets the 'Secure' attribute depending on information about

@@ -286,7 +286,7 @@ Description:	Set the optional 'HttpOnly' flag for cookies issues by mod_auth_cas
 		Set the HttpOnly flag as described in in RFC 6265.  This flag prevents the
 		mod_auth_cas cookies from being accessed by client side Javascript.
 
-Directive:	CASCookieSecureAttribute
+Directive:	CASCookieSecure
 Default:	Auto
 Description:	Set the optional 'Secure' attribute for cookies issued by mod_auth_cas.
 		Set the Secure attribute as described in in RFC 6265. This flag prevents the

@@ -93,7 +93,7 @@
 #define CAS_DEFAULT_COOKIE_DOMAIN NULL
 #define CAS_DEFAULT_COOKIE_SAMESITE NULL
 #define CAS_DEFAULT_COOKIE_HTTPONLY 1
-#define CAS_DEFAULT_COOKIE_SECUREATTRIBUTE 2
+#define CAS_DEFAULT_COOKIE_SECURE CAS_SECURE_AUTO
 #define CAS_DEFAULT_COOKIE_TIMEOUT 7200 /* 2 hours */
 #define CAS_DEFAULT_COOKIE_IDLE_TIMEOUT 3600 /* 1 hour */
 #define CAS_DEFAULT_CACHE_CLEAN_INTERVAL  1800 /* 30 minutes */
@@ -130,7 +130,7 @@ typedef struct cas_cfg {
 	unsigned int CASTimeout;
 	unsigned int CASIdleTimeout;
 	unsigned int CASCookieHttpOnly;
-	unsigned int CASCookieSecureAttribute;
+	unsigned int CASCookieSecure;
 	unsigned int CASSSOEnabled;
 	unsigned int CASAuthoritative;
 	unsigned int CASPreserveTicket;
@@ -181,7 +181,7 @@ typedef enum {
 	cmd_version, cmd_debug, cmd_validate_depth, cmd_ca_path, cmd_cookie_path,
 	cmd_loginurl, cmd_validateurl, cmd_proxyurl, cmd_cookie_entropy, cmd_session_timeout,
 	cmd_idle_timeout, cmd_cache_interval, cmd_cookie_domain, cmd_cookie_samesite, cmd_cookie_httponly,
-	cmd_sso, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix, cmd_cookie_secureattribute,
+	cmd_sso, cmd_validate_saml, cmd_attribute_delimiter, cmd_attribute_prefix, cmd_cookie_secure,
 	cmd_root_proxied_as, cmd_authoritative, cmd_preserve_ticket, cmd_gateway_cookie_domain
 } valid_cmds;
 

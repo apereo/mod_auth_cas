@@ -2927,7 +2927,7 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASCookieSameSite", cfg_readCASParameter, (void *) cmd_cookie_samesite, RSRC_CONF, "Specify SameSite flag header for mod_auth_cas cookie"),
 	AP_INIT_TAKE1("CASGatewayCookieDomain", cfg_readCASParameter, (void *) cmd_gateway_cookie_domain, RSRC_CONF, "Specify domain header for mod_auth_cas gateway cookie"),
 	AP_INIT_TAKE1("CASCookieHttpOnly", cfg_readCASParameter, (void *) cmd_cookie_httponly, RSRC_CONF, "Enable 'HttpOnly' flag for mod_auth_cas cookie (may break RFC compliance)"),
-	AP_INIT_TAKE1("CASCookieSecure", cfg_readCASParameter, (void *) cmd_cookie_secureattribute, RSRC_CONF, "Set the 'Secure' attribute for the mod_auth_cas cookie (Auto, On, Off)"),
+	AP_INIT_TAKE1("CASCookieSecure", cfg_readCASParameter, (void *) cmd_cookie_secure, RSRC_CONF, "Set the 'Secure' attribute for the mod_auth_cas cookie (Auto, On, Off)"),
 	AP_INIT_TAKE1("CASCookie", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASCookie), ACCESS_CONF|OR_AUTHCFG, "Define the cookie name for HTTP sessions"),
 	AP_INIT_TAKE1("CASSecureCookie", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASSecureCookie), ACCESS_CONF|OR_AUTHCFG, "Define the cookie name for HTTPS sessions"),
 	AP_INIT_TAKE1("CASGatewayCookie", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASGatewayCookie), ACCESS_CONF|OR_AUTHCFG, "Define the cookie name for a gateway location"),

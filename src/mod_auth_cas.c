@@ -899,7 +899,7 @@ char *urlEncode(const request_rec *r, const char *str,
 		escaped = FALSE;
 		for(i = 0; i < limit; i++) {
 			if(*q == charsToEncode[i]) {
-				sprintf(p, "%%%x", charsToEncode[i]);
+				sprintf(p, "%%%02x", charsToEncode[i]);
 				p+= 3;
 				escaped = TRUE;
 				break;

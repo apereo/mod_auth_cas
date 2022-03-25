@@ -711,48 +711,13 @@ apr_byte_t removeCASParams(request_rec *r)
 
 apr_byte_t validCASTicketFormat(const char *ticket)
 {
-  enum ticket_state {
-    ps,
-    t,
-    dash,
-    postfix,
-    illegal
-  } state = ps;
-
-  if (!*ticket)
-    goto bail;
-
-  while (state != illegal && *ticket) {
-    switch (state) {
-      case ps:
-        if (*ticket != 'P' && *ticket != 'S')
-          goto bail;
-        state = t;
-        break;
-      case t:
-        if (*ticket != 'T')
-          goto bail;
-        state = dash;
-        break;
-      case dash:
-        if (*ticket != '-')
-          goto bail;
-        state = postfix;
-        break;
-      case postfix:
-        if (*ticket != '-' && *ticket != '.' && !isalnum(*ticket))
-          goto bail;
-        break;
-      default:
-        goto bail;
-        break;
-    }
-    ticket++;
-  }
-
+  if (ticket[0] != 'S' && ticket[0] != 'P')
+    return FALSE;
+  if (ticket[1] != 'T')
+    return FALSE;
+  if (ticket[2] != '-')
+    return FALSE;
   return TRUE;
-bail:
-  return FALSE;
 }
 
 char *getCASTicket(request_rec *r)
@@ -770,7 +735,7 @@ char *getCASTicket(request_rec *r)
   do {
     if(ticket && strncmp(ticket, k_ticket_param, k_ticket_param_sz) == 0) {
       if (validCASTicketFormat(ticket + k_ticket_param_sz)) {
-        rv = ticket + k_ticket_param_sz;
+        rv = apr_punescape_url(r->pool, ticket + k_ticket_param_sz, NULL, NULL, 0);
         break;
       }
     }
@@ -1833,6 +1798,7 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	cas_curl_buffer curlBuffer;
 	struct curl_slist *headers = NULL;
 	char *samlPayload;
+	const char *ticket_escaped;
 	CURL *curl;
 	char *rv;
 	char *requestId;
@@ -1894,7 +1860,8 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 		curl_easy_setopt(curl, CURLOPT_POST, 1L);
 		apr_generate_random_bytes((unsigned char *) buf, 16);
 		requestId = (char *) ap_md5_binary(r->pool, (unsigned char *) buf, 16);
-		samlPayload = apr_psprintf(r->pool, "<?xml version=\"1.0\" encoding=\"utf-8\"?><SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\"><SOAP-ENV:Header/><SOAP-ENV:Body><samlp:Request xmlns:samlp=\"urn:oasis:names:tc:SAML:1.0:protocol\"  MajorVersion=\"1\" MinorVersion=\"1\" RequestID=\"%s\"><samlp:AssertionArtifact>%s</samlp:AssertionArtifact></samlp:Request></SOAP-ENV:Body></SOAP-ENV:Envelope>", requestId, ticket);
+		ticket_escaped = apr_xml_quote_string(r->pool, ticket, FALSE);
+		samlPayload = apr_psprintf(r->pool, "<?xml version=\"1.0\" encoding=\"utf-8\"?><SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\"><SOAP-ENV:Header/><SOAP-ENV:Body><samlp:Request xmlns:samlp=\"urn:oasis:names:tc:SAML:1.0:protocol\"  MajorVersion=\"1\" MinorVersion=\"1\" RequestID=\"%s\"><samlp:AssertionArtifact>%s</samlp:AssertionArtifact></samlp:Request></SOAP-ENV:Body></SOAP-ENV:Envelope>", requestId, ticket_escaped);
 		headers = curl_slist_append(headers, "soapaction: http://www.oasis-open.org/committees/security");
 		headers = curl_slist_append(headers, "cache-control: no-cache");
 		headers = curl_slist_append(headers, "pragma: no-cache");
@@ -1909,9 +1876,10 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 		curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
 
 	memcpy(&validateURL, &c->CASValidateURL, sizeof(apr_uri_t));
-	if(c->CASValidateSAML == FALSE)
-		validateURL.query = apr_psprintf(r->pool, "service=%s&ticket=%s%s", getCASService(r, c), ticket, getCASRenew(r));
-	else
+	if(c->CASValidateSAML == FALSE) {
+		ticket_escaped = apr_pescape_urlencoded(r->pool, ticket);
+		validateURL.query = apr_psprintf(r->pool, "service=%s&ticket=%s%s", getCASService(r, c), ticket_escaped, getCASRenew(r));
+	} else
 		validateURL.query = apr_psprintf(r->pool, "TARGET=%s%s", getCASService(r, c), getCASRenew(r));
 
 	curl_easy_setopt(curl, CURLOPT_URL, apr_uri_unparse(r->pool, &validateURL, 0));

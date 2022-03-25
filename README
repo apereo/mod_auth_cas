@@ -47,7 +47,7 @@ The following development libraries and utilities must be installed:
 * OpenSSL - 0.9.8c or higher
 * Apache Portable Runtime - 1.5.0 or higher
 * Apache Portable Runtime Utilities - 1.3.0 or higher
-* Apache Web Server - 2.2.3 or higher
+* Apache Web Server - 2.4 or higher
 * libcurl - 7.18.2 or higher
 * libpcre - 7.8 or higher
 

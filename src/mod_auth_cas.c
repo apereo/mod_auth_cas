@@ -53,6 +53,7 @@
 #include "apr_thread_mutex.h"
 #include "apr_strings.h"
 #include "apr_xml.h"
+#include "util_cookies.h"
 
 #include "cas_saml_attr.h"
 
@@ -780,27 +781,9 @@ char *getCASTicket(request_rec *r)
 
 char *getCASCookie(request_rec *r, char *cookieName)
 {
-	char *cookie, *tokenizerCtx, *rv = NULL;
-	char *cookies = apr_pstrdup(r->pool, (char *) apr_table_get(r->headers_in, "Cookie"));
-
-	if(cookies != NULL) {
-		/* tokenize on ; to find the cookie we want */
-		cookie = apr_strtok(cookies, ";", &tokenizerCtx);
-		while (cookie != NULL) {
-			while (*cookie == ' ') {
-				cookie++;
-			}
-			if (strncmp(cookie, cookieName, strlen(cookieName)) == 0) {
-			  /* skip to the meat of the parameter (the value after the '=') */
-				cookie += (strlen(cookieName)+1);
-				rv = apr_pstrdup(r->pool, cookie);
-				break;
-			}
-			cookie = apr_strtok(NULL, ";", &tokenizerCtx);
-		}
-	}
-
-	return rv;
+	const char *rv = NULL;
+	ap_cookie_read(r, cookieName, &rv, 0);
+	return(apr_pstrdup(r->pool, rv));
 }
 
 void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure, apr_time_t expireTime, char *cookieDomain, char *cookieSameSite)
@@ -916,7 +899,7 @@ char *urlEncode(const request_rec *r, const char *str,
 		escaped = FALSE;
 		for(i = 0; i < limit; i++) {
 			if(*q == charsToEncode[i]) {
-				sprintf(p, "%%%x", charsToEncode[i]);
+				sprintf(p, "%%%02x", charsToEncode[i]);
 				p+= 3;
 				escaped = TRUE;
 				break;

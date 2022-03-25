@@ -781,9 +781,9 @@ char *getCASTicket(request_rec *r)
 
 char *getCASCookie(request_rec *r, char *cookieName)
 {
-	char *rv = NULL;
+	const char *rv = NULL;
 	ap_cookie_read(r, cookieName, &rv, 0);
-	return rv;
+	return(apr_pstrdup(r->pool, rv));
 }
 
 void setCASCookie(request_rec *r, char *cookieName, char *cookieValue, apr_byte_t secure, apr_time_t expireTime, char *cookieDomain, char *cookieSameSite)

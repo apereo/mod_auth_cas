@@ -124,9 +124,6 @@ void *cas_create_server_config(apr_pool_t *pool, server_rec *svr)
 	c->CASValidateSAML = CAS_DEFAULT_VALIDATE_SAML;
 	c->CASAttributeDelimiter = CAS_DEFAULT_ATTRIBUTE_DELIMITER;
 	c->CASAttributePrefix = CAS_DEFAULT_ATTRIBUTE_PREFIX;
-#if MODULE_MAGIC_NUMBER_MAJOR < 20120211
-	c->CASAuthoritative = CAS_DEFAULT_AUTHORITATIVE;
-#endif
 	c->CASPreserveTicket = CAS_DEFAULT_PRESERVE_TICKET;
 	cas_setURL(pool, &(c->CASLoginURL), CAS_DEFAULT_LOGIN_URL);
 	cas_setURL(pool, &(c->CASValidateURL), CAS_DEFAULT_VALIDATE_URL);
@@ -161,9 +158,6 @@ void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD)
 	c->CASCookieSecure = (add->CASCookieSecure != CAS_DEFAULT_COOKIE_SECURE ? add->CASCookieSecure : base->CASCookieSecure);
 	c->CASSSOEnabled = (add->CASSSOEnabled != CAS_DEFAULT_SSO_ENABLED ? add->CASSSOEnabled : base->CASSSOEnabled);
 	c->CASValidateSAML = (add->CASValidateSAML != CAS_DEFAULT_VALIDATE_SAML ? add->CASValidateSAML : base->CASValidateSAML);
-#if MODULE_MAGIC_NUMBER_MAJOR < 20120211
-	c->CASAuthoritative = (add->CASAuthoritative != CAS_DEFAULT_AUTHORITATIVE ? add->CASAuthoritative : base->CASAuthoritative);
-#endif
 	c->CASPreserveTicket = (add->CASPreserveTicket != CAS_DEFAULT_PRESERVE_TICKET ? add->CASPreserveTicket : base->CASPreserveTicket);
 	c->CASAttributeDelimiter = (apr_strnatcasecmp(add->CASAttributeDelimiter, CAS_DEFAULT_ATTRIBUTE_DELIMITER) != 0 ? add->CASAttributeDelimiter : base->CASAttributeDelimiter);
 	c->CASAttributePrefix = (apr_strnatcasecmp(add->CASAttributePrefix, CAS_DEFAULT_ATTRIBUTE_PREFIX) != 0 ? add->CASAttributePrefix : base->CASAttributePrefix);
@@ -423,16 +417,6 @@ const char *cfg_readCASParameter(cmd_parms *cmd, void *cfg, const char *value)
 			else
 				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASSSOEnabled - must be 'On' or 'Off'"));
 		break;
-#if MODULE_MAGIC_NUMBER_MAJOR < 20120211
-		case cmd_authoritative:
-			if(apr_strnatcasecmp(value, "On") == 0)
-				c->CASAuthoritative = TRUE;
-			else if(apr_strnatcasecmp(value, "Off") == 0)
-				c->CASAuthoritative = FALSE;
-			else
-				return(apr_psprintf(cmd->pool, "MOD_AUTH_CAS: Invalid argument to CASAuthoritative - must be 'On' or 'Off'"));
-		break;
-#endif
 		case cmd_preserve_ticket:
 			if(apr_strnatcasecmp(value, "On") == 0)
 				c->CASPreserveTicket = TRUE;
@@ -473,11 +457,7 @@ apr_byte_t cas_setURL(apr_pool_t *pool, apr_uri_t *uri, const char *url)
 apr_byte_t isSSL(const request_rec *r)
 {
 
-#ifdef APACHE2_0
-	if(apr_strnatcasecmp("https", ap_http_method(r)) == 0)
-#else
 	if(apr_strnatcasecmp("https", ap_http_scheme(r)) == 0)
-#endif
 		return TRUE;
 
 	return FALSE;
@@ -602,11 +582,7 @@ char *getCASService(const request_rec *r, const cas_cfg *c)
 	char *scheme, *port_str = "", *service;
 	apr_byte_t print_port = TRUE;
 
-#ifdef APACHE2_0
-	scheme = (char *) ap_http_method(r);
-#else
 	scheme = (char *) ap_http_scheme(r);
-#endif
 
 	if (root_proxy->is_initialized) {
 		service = apr_psprintf(r->pool, "%s%s%s%s",
@@ -2238,17 +2214,10 @@ int cas_authenticate(request_rec *r)
 				if(c->CASRootProxiedAs.is_initialized) {
 						newLocation = apr_psprintf(r->pool, "%s%s%s%s", apr_uri_unparse(r->pool, &c->CASRootProxiedAs, 0), r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
 				} else {
-#ifdef APACHE2_0
-					if(printPort == TRUE)
-						newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_method(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-					else
-						newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_method(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-#else
 					if(printPort == TRUE)
 						newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
 					else
 						newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-#endif
 				}
 				apr_table_add(r->headers_out, "Location", newLocation);
 				return HTTP_MOVED_TEMPORARILY;
@@ -2431,7 +2400,6 @@ int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const 
 	}
 	return CAS_ATTR_NO_MATCH;
 }
-#if MODULE_MAGIC_NUMBER_MAJOR >= 20120211
 
 authz_status cas_check_authorization(request_rec *r,
 						const char *require_line,
@@ -2477,157 +2445,6 @@ static const authz_provider authz_cas_provider =
 	&cas_check_authorization,
 	NULL,
 };
-
-#else
-
-/* CAS authorization module, code adopted from Nick Kew's Apache Modules Book, 2007, p. 190f */
-int cas_authorize(request_rec *r)
-{
-	const cas_saml_attr *const attrs = cas_get_attributes(r);
-
-	const apr_array_header_t *const reqs_arr = ap_requires(r);
-	const require_line *const reqs =
-		reqs_arr ? (require_line *) reqs_arr->elts : NULL;
-	const cas_cfg *const c =
-		ap_get_module_config(r->server->module_config,
-				     &auth_cas_module);
-
-	if(c->CASDebug)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-		      "Entering cas_authorize.");
-
-	if (!reqs_arr) {
-		if(c->CASDebug)
-			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-			      "No require statements found, "
-			      "so declining to perform authorization.");
-		return DECLINED;
-	}
-
-	return (cas_authorize_worker(r, attrs, reqs, reqs_arr->nelts, c));
-}
-
-/* Pulled out from cas_authorize to enable unit-testing */
-
-int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const require_line *const reqs, int nelts, const cas_cfg *const c)
-{
-	const int m = r->method_number;
-	const char *token;
-	const char *requirement;
-	int i;
-	int have_casattr = 0;
-	int count_casattr = 0;
-
-	// Q: why don't we use ap_some_auth_required here?? performance?
-
-	/* Go through applicable Require directives */
-	for (i = 0; i < nelts; ++i) {
-		/* Ignore this Require if it's in a <Limit> section
-		 * that exclude this method
-		 */
-
-		if (!(reqs[i].method_mask & (AP_METHOD_BIT << m))) {
-			continue;
-		}
-
-		/* ignore if it's not a "Require cas-attribute ..." */
-		requirement = reqs[i].requirement;
-
-		token = ap_getword_white(r->pool, &requirement);
-
-		if (apr_strnatcasecmp(token, "cas-attribute") != 0) {
-			continue;
-		}
-
-		/* OK, we have a "Require cas-attribute" to satisfy */
-		have_casattr = 1;
-
-		/* If we have an applicable cas-attribute, but no
-		 * attributes were sent in the request, then we can
-		 * just stop looking here, because it's not
-		 * satisfiable. The code after this loop will give the
-		 * appropriate response. */
-		if (!attrs) {
-			break;
-		}
-
-		/* Iterate over the attribute specification strings in this
-		 * require directive searching for a specification that
-		 * matches one of the attributes. */
-		while (*requirement) {
-			token = ap_getword_conf(r->pool, &requirement);
-			count_casattr++;
-
-			if(c->CASDebug)
-				ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-				     "Evaluating attribute specification: %s",
-				     token);
-
-			if (cas_match_attribute(token, attrs, r) ==
-			    CAS_ATTR_MATCH) {
-
-				/* If *any* attribute matches, then
-				 * authorization has succeeded and all
-				 * of the others are ignored. */
-				if(c->CASDebug)
-					ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-					      "Require cas-attribute "
-					      "'%s' matched", token);
-				return OK;
-			}
-		}
-	}
-
-	/* If there weren't any "Require cas-attribute" directives,
-	 * we're irrelevant.
-	 */
-	if (!have_casattr) {
-		if(c->CASDebug)
-			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-			      "No cas-attribute statements found. "
-                              "Not performing authZ.");
-		return DECLINED;
-	}
-
-	/* If we have no attributes to evaluate, it's worth reporting (may be attribute release upstream has yet to be approved)
-	 */
-	if (have_casattr && !attrs) {
-		ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-			      "'Require cas-attribute' cannot be satisfied; no attributes were available for authorization.");
-		return DECLINED;
-	}
-
-	/* If there was a "Require cas-attribute", but no actual attributes,
-	 * that's cause to warn the admin of an iffy configuration.
-	 */
-	if (count_casattr == 0) {
-		if(c->CASDebug)
-			ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-			      "'Require cas-attribute' missing specification(s) in configuration. Declining.");
-		return DECLINED;
-	}
-
-	/* If we're not authoritative, hand over to other authz modules */
-	if (!c->CASAuthoritative) {
-		if(c->CASDebug)
-			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-			      "Authorization failed, but we are not "
-			      "authoritative, thus handing over to other "
-			      "module(s).");
-		return DECLINED;
-	}
-
-	/* OK, our decision is final and binding */
-	if(c->CASDebug)
-		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-		      "Authorization denied for client session");
-
-	ap_note_auth_failure(r);
-
-	return HTTP_UNAUTHORIZED;
-}
-
-#endif
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L && defined(OPENSSL_THREADS) && APR_HAS_THREADS
 
@@ -2849,34 +2666,15 @@ apr_status_t cas_in_filter(ap_filter_t *f, apr_bucket_brigade *bb, ap_input_mode
 
 void cas_register_hooks(apr_pool_t *p)
 {
-#if MODULE_MAGIC_NUMBER_MAJOR >= 20120211
 	ap_register_auth_provider(p, AUTHZ_PROVIDER_GROUP, "cas-attribute",
 		AUTHZ_PROVIDER_VERSION,
 		&authz_cas_provider, AP_AUTH_INTERNAL_PER_CONF);
-#else
-	/* make sure we run before mod_authz_user so that a "require valid-user"
-	 *  directive doesn't just automatically pass us. */
-	static const char *const authzSucc[] = { "mod_authz_user.c", NULL };
-	ap_hook_auth_checker(cas_authorize, NULL, authzSucc, APR_HOOK_MIDDLE);
-#endif
-
-#if MODULE_MAGIC_NUMBER_MAJOR >= 20120211
 	ap_hook_check_authn(
 		cas_authenticate,
 		NULL,
 		NULL,
 		APR_HOOK_MIDDLE,
 		AP_AUTH_INTERNAL_PER_URI);
-#elif MODULE_MAGIC_NUMBER_MAJOR >= 20100714
-	ap_hook_check_access_ex(
-		cas_authenticate,
-		NULL,
-		NULL,
-		APR_HOOK_MIDDLE,
-		AP_AUTH_INTERNAL_PER_URI);
-#else
-	ap_hook_check_user_id(cas_authenticate, NULL, NULL, APR_HOOK_MIDDLE);
-#endif
 	ap_hook_post_config(cas_post_config, NULL, NULL, APR_HOOK_LAST);
 	ap_register_input_filter("CAS", cas_in_filter, NULL, AP_FTYPE_RESOURCE);
 }
@@ -2921,9 +2719,6 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASRootProxiedAs", cfg_readCASParameter, (void *) cmd_root_proxied_as, RSRC_CONF, "URL used to access the root of the virtual server (only needed when the server is proxied)"),
  	AP_INIT_TAKE1("CASScrubRequestHeaders", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASScrubRequestHeaders), ACCESS_CONF, "Scrub CAS user name and SAML attribute headers from the user's request."),
 	/* authorization options */
-#if MODULE_MAGIC_NUMBER_MAJOR < 20120211
-	AP_INIT_TAKE1("CASAuthoritative", cfg_readCASParameter, (void *) cmd_authoritative, RSRC_CONF, "Set 'On' to reject if access isn't allowed based on our rules; 'Off' (default) to allow checking against other modules too."),
-#endif
 	AP_INIT_TAKE1("CASPreserveTicket", cfg_readCASParameter, (void *) cmd_preserve_ticket, RSRC_CONF, "Leave CAS ticket parameters intact when a valid session cookie exists. This helps prevent infinite redirect loops when CAS protection is being used at multiple levels."),
 	AP_INIT_TAKE1(0, 0, 0, 0, 0)
 };

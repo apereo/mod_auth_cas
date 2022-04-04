@@ -295,15 +295,6 @@ Description:	Set the optional 'Secure' attribute for cookies issued by mod_auth_
 		the connection (the 'Auto' option). The options 'On' and 'Off' can be used to override
 		the automatic behaviour.
 
-Directive:	CASAuthoritative
-Default:	Off
-Description:	This directive determines whether an optional authorization directive
-		(see 'Require cas-attribute') is authoritative and thus binding or
-		if other authorization modules will also be applied.
-		'On' means authoritative, 'Off' means not authoritative.
-		NOTE: This directive is unavailable with Apache 2.4. See the RequireAny,
-		RequireNone, and RequireAll directives instead.
-
 Directive:	CASValidateSAML
 Default:	Off
 Description:	If enabled, the response from the CAS Server will be parsed for SAML
@@ -412,7 +403,6 @@ Description:	Use this directive to authorize based on CAS or SAML attributes
 		returned via the session validation call. Multiple directives
 		are OR-ed. If directive is present with no attributes defined,
 		the request is declined. If value has spaces, wrap the pair in quotes.
-		See also CASAuthoritative.
 
 Directive:	Require cas-attribute <attribute>~<value>
 Default:	NULL
@@ -421,7 +411,7 @@ Description:	Use this form of the directive to authorize based on CAS or SAML
 		directives are OR-ed. If directive is present with no attributes
 		defined, the request is declined. The value is interpreted as a
 		Perl-Compatible Regular Expression (PCRE) using case-sensitive
-		matching. See also CASAuthoritative.
+		matching.
 
 ========================================================================
 CONTACT INFORMATION AND WEBSITE

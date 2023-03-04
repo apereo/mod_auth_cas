@@ -14130,13 +14130,13 @@ _ACEOF
 
 
 # Checks for libpcre2
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for pcre2_compile in -lpcre" >&5
-$as_echo_n "checking for pcre2_compile in -lpcre... " >&6; }
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for pcre2_compile in -lpcre2" >&5
+$as_echo_n "checking for pcre2_compile in -lpcre2... " >&6; }
 if ${ac_cv_lib_pcre_pcre_compile+:} false; then :
   $as_echo_n "(cached) " >&6
 else
   ac_check_lib_save_LIBS=$LIBS
-LIBS="-lpcre  $LIBS"
+LIBS="-lpcre2  $LIBS"
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
@@ -14171,7 +14171,7 @@ if test "x$ac_cv_lib_pcre_pcre_compile" = xyes; then :
 #define HAVE_LIBPCRE 1
 _ACEOF
 
-  LIBS="-lpcre $LIBS"
+  LIBS="-lpcre2 $LIBS"
 
 else
   as_fn_error $? "libpcre2 required" "$LINENO" 5

@@ -138,7 +138,7 @@ AC_CHECK_HEADERS([openssl/crypto.h openssl/x509.h openssl/pem.h openssl/ssl.h op
 LIBCURL_CHECK_CONFIG([yes],[],[],[AC_MSG_ERROR([libcurl development files required])])
 
 # Checks for libpcre2
-AC_CHECK_LIB([pcre2], [pcre2_compile], [], [AC_MSG_ERROR([libpcre2 required])])
+AC_CHECK_LIB([pcre2-8], [pcre2_compile_8], [], [AC_MSG_ERROR([libpcre2 required])])
 
 # Checks for header files.
 AC_CHECK_HEADERS([netdb.h stddef.h sys/socket.h unistd.h])

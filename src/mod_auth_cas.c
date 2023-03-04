@@ -44,7 +44,7 @@
 #include "util_md5.h"
 #include "ap_config.h"
 #include "ap_release.h"
-#include "pcre.h"
+#include "pcre2.h"
 #include "apr_buckets.h"
 #include "apr_escape.h"
 #include "apr_file_info.h"
@@ -2403,13 +2403,13 @@ int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const 
 			const cas_saml_attr_val *val;
 			const char *errorptr;
 			int erroffset;
-			pcre *preg;
+			pcre2_code *preg;
 
 			/* Skip the tilde */
 			spec_c++;
 
 			/* Set up the regex */
-			preg = pcre_compile(spec_c, 0, &errorptr, &erroffset, NULL);
+			preg = pcre2_compile(spec_c, 0, &errorptr, &erroffset, NULL);
 			if (NULL == preg) {
 				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "Pattern [%s] is not a valid regular expression", spec_c);
 				continue;
@@ -2420,13 +2420,13 @@ int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const 
 			for ( ; val; val = val->next) {
 				/* PCRE-compare the attribute value. At this point, spec_c
 				 * points to the NULL-terminated value pattern. */
-				if (0 == pcre_exec(preg, NULL, val->value, (int)strlen(val->value), 0, 0, NULL, 0)) {
-					pcre_free(preg);
+				if (0 == pcre2_match(preg, NULL, val->value, (int)strlen(val->value), 0, 0, NULL, 0)) {
+					pcre2_match_data_free(preg);
 					return CAS_ATTR_MATCH;
 				}
 			}
 
-			pcre_free(preg);
+			pcre2_match_data__free(preg);
 		}
 	}
 	return CAS_ATTR_NO_MATCH;

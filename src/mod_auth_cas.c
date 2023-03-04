@@ -2406,6 +2406,7 @@ int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const 
 			PCRE2_SIZE erroffset;
 			pcre2_code *preg;
 			uint32_t options = PCRE2_UTF;
+                        pcre2_match_data *preg_match;
 
 			/* Skip the tilde */
 			spec_c++;
@@ -2418,7 +2419,6 @@ int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const 
 			}
 			
 			/* Compare the attribute values */
-			pcre2_match_data *preg_match;
 			preg_match = pcre2_match_data_create_from_pattern(preg, NULL);
 			val = attr->values;
 			for ( ; val; val = val->next) {

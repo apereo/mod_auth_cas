@@ -32,7 +32,7 @@ AX_CHECK_COMPILE_FLAG([-Wno-unused-parameter],[CFLAGS="${CFLAGS} -Wno-unused-par
 AX_CHECK_COMPILE_FLAG([-Wpointer-arith],[CFLAGS="${CFLAGS} -Wpointer-arith"])
 AX_CHECK_COMPILE_FLAG([-Wstrict-prototypes],[CFLAGS="${CFLAGS} -Wstrict-prototypes"])
 
-AC_PROG_LIBTOOL
+LT_INIT
 AC_SUBST(INCLTDL)
 AC_SUBST(LIBLTDL)
 

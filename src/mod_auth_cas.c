@@ -2402,29 +2402,29 @@ int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const 
 		 * name and the attr_spec is a tilde (denotes a PCRE match). */
 		else if (!(*attr_c) && (*spec_c) == '~') {
 			const cas_saml_attr_val *val;
-			int errorptr;
+			int errorcode;
 			PCRE2_SIZE erroffset;
 			pcre2_code *preg;
 			uint32_t options = PCRE2_UTF;
-                        pcre2_match_data *preg_match;
+			pcre2_match_data *preg_match;
 
 			/* Skip the tilde */
 			spec_c++;
 
 			/* Set up the regex */
-			preg = pcre2_compile((PCRE2_SPTR)spec_c, PCRE2_ZERO_TERMINATED, options, &errorptr, &erroffset, NULL);
+			preg = pcre2_compile((PCRE2_SPTR)spec_c, PCRE2_ZERO_TERMINATED, options, &errorcode, &erroffset, NULL);
 			if (NULL == preg) {
 				ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "Pattern [%s] is not a valid regular expression", spec_c);
 				continue;
 			}
-			
+
 			/* Compare the attribute values */
 			preg_match = pcre2_match_data_create_from_pattern(preg, NULL);
 			val = attr->values;
 			for ( ; val; val = val->next) {
 				/* PCRE-compare the attribute value. At this point, spec_c
 				 * points to the NULL-terminated value pattern. */
-				if (0 == pcre2_match(preg, (PCRE2_SPTR)val->value, (int)strlen(val->value), 0, 0, preg_match, 0)) {
+				if (0 <= pcre2_match(preg, (PCRE2_SPTR)val->value, (int)strlen(val->value), 0, 0, preg_match, 0)) {
 					pcre2_match_data_free(preg_match);
 					return CAS_ATTR_MATCH;
 				}

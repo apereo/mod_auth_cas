@@ -22,7 +22,7 @@ This has only been tested with:
 NOTE:	As of mod_auth_cas 1.0.9, Win32 support has been dropped due
 	to lack of development resources and low community interest.
 	As a result, these instructions may be inaccurate.  As an
-	explicit example, the additional curl and libpcre dependencies are
+	explicit example, the additional curl and libpcre2 dependencies are
 	not addressed in these instructions at all.
 
 ====================================================================

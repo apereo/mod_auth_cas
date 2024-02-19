@@ -49,7 +49,7 @@ The following development libraries and utilities must be installed:
 * Apache Portable Runtime Utilities - 1.3.0 or higher
 * Apache Web Server - 2.4 or higher
 * libcurl - 7.18.2 or higher
-* libpcre - 7.8 or higher
+* libpcre2 - 10 or higher
 
 Download the distribution via git or tarball.  Because git does not
 preserve timestamps, autoconf may determine it is necessary to bootstrap

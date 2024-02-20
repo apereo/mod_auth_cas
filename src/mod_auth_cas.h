@@ -88,6 +88,7 @@
 #define CAS_DEFAULT_VALIDATE_V2_URL NULL
 #define CAS_DEFAULT_VALIDATE_URL CAS_DEFAULT_VALIDATE_V2_URL
 #define CAS_DEFAULT_PROXY_VALIDATE_URL NULL
+#define CAS_DEFAULT_DISABLE_REDIRECT_AFTER_VALIDATION NULL
 #define CAS_DEFAULT_ROOT_PROXIED_AS_URL NULL
 #define CAS_DEFAULT_COOKIE_ENTROPY 32
 #define CAS_DEFAULT_COOKIE_DOMAIN NULL
@@ -157,6 +158,7 @@ typedef struct cas_dir_cfg {
 	char *CASGatewayCookie;
 	char *CASAuthNHeader;
 	char *CASScrubRequestHeaders;
+	char *CASDisableRedirectAfterValidation;
 } cas_dir_cfg;
 
 typedef struct cas_cache_entry {

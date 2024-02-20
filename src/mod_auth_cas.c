@@ -204,6 +204,7 @@ void *cas_create_dir_config(apr_pool_t *pool, char *path)
 	c->CASGatewayCookie = CAS_DEFAULT_GATEWAY_COOKIE;
 	c->CASAuthNHeader = CAS_DEFAULT_AUTHN_HEADER;
 	c->CASScrubRequestHeaders = CAS_DEFAULT_SCRUB_REQUEST_HEADERS;
+	c->CASDisableRedirectAfterValidation = CAS_DEFAULT_DISABLE_REDIRECT_AFTER_VALIDATION;
 	return(c);
 }
 
@@ -246,6 +247,12 @@ void *cas_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD)
 		 base->CASScrubRequestHeaders);
 	if(add->CASScrubRequestHeaders != NULL && apr_strnatcasecmp(add->CASScrubRequestHeaders, "Off") == 0)
 		c->CASScrubRequestHeaders = NULL;
+
+	c->CASDisableRedirectAfterValidation = (add->CASDisableRedirectAfterValidation != CAS_DEFAULT_DISABLE_REDIRECT_AFTER_VALIDATION ?
+		add->CASDisableRedirectAfterValidation :
+		base->CASDisableRedirectAfterValidation);
+	if(add->CASDisableRedirectAfterValidation != NULL && apr_strnatcasecmp(add->CASDisableRedirectAfterValidation, "Off") == 0)
+		c->CASDisableRedirectAfterValidation = NULL;
 
 	return(c);
 }
@@ -1935,11 +1942,16 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	else
 		validateURL.query = apr_psprintf(r->pool, "TARGET=%s%s", getCASService(r, c), getCASRenew(r));
 
+	if(c->CASDebug)
+		ap_log_rerror(APLOG_MARK,APLOG_DEBUG,0,r,"MOD_AUTH_CAS: validateUrl: %s", apr_uri_unparse(r->pool, &validateURL, 0));
+
 	curl_easy_setopt(curl, CURLOPT_URL, apr_uri_unparse(r->pool, &validateURL, 0));
 
 	if(curl_easy_perform(curl) != CURLE_OK) {
-		if(c->CASDebug)
+		if(c->CASDebug) {
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: query: %s", validateURL.query);
 			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "MOD_AUTH_CAS: curl_easy_perform() failed (%s)", curlError);
+		}
 		goto out;
 	}
 
@@ -2250,29 +2262,35 @@ int cas_authenticate(request_rec *r)
 			if(d->CASAuthNHeader != NULL)
 				apr_table_set(r->headers_in, d->CASAuthNHeader, remoteUser);
 
-			if(parametersRemoved == TRUE) {
-				if(ssl == TRUE && port != 443)
-					printPort = TRUE;
-				else if(port != 80)
-					printPort = TRUE;
-
-				if(c->CASRootProxiedAs.is_initialized) {
+			if(d->CASDisableRedirectAfterValidation == NULL) {
+				if(parametersRemoved == TRUE) {
+					if(ssl == TRUE && port != 443)
+						printPort = TRUE;
+					else if(port != 80)
+						printPort = TRUE;
+	
+					if(c->CASRootProxiedAs.is_initialized) {
 						newLocation = apr_psprintf(r->pool, "%s%s%s%s", apr_uri_unparse(r->pool, &c->CASRootProxiedAs, 0), r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-				} else {
+					} else {
 #ifdef APACHE2_0
-					if(printPort == TRUE)
-						newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_method(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-					else
-						newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_method(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
+						if(printPort == TRUE)
+							newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_method(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
+						else
+							newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_method(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
 #else
-					if(printPort == TRUE)
-						newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
-					else
-						newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
+						if(printPort == TRUE)
+							newLocation = apr_psprintf(r->pool, "%s://%s:%u%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->connection->local_addr->port, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
+						else
+							newLocation = apr_psprintf(r->pool, "%s://%s%s%s%s", ap_http_scheme(r), r->server->server_hostname, r->uri, ((r->args != NULL) ? "?" : ""), ((r->args != NULL) ? r->args : ""));
 #endif
+					}
+					if(c->CASDebug) 
+						ap_log_rerror(APLOG_MARK,APLOG_DEBUG,0,r,"Sending 302 redirect (%s)", newLocation);
+					apr_table_add(r->headers_out, "Location", newLocation);
+					return HTTP_MOVED_TEMPORARILY;
+				} else {
+					return OK;
 				}
-				apr_table_add(r->headers_out, "Location", newLocation);
-				return HTTP_MOVED_TEMPORARILY;
 			} else {
 				return OK;
 			}
@@ -2942,6 +2960,7 @@ const command_rec cas_cmds [] = {
 	AP_INIT_TAKE1("CASTimeout", cfg_readCASParameter, (void *) cmd_session_timeout, RSRC_CONF, "Maximum time (in seconds) a session cookie is valid for, regardless of idle time.  Set to 0 to allow non-idle sessions to never expire"),
 	AP_INIT_TAKE1("CASIdleTimeout", cfg_readCASParameter, (void *) cmd_idle_timeout, RSRC_CONF, "Maximum time (in seconds) a session can be idle for"),
 	AP_INIT_TAKE1("CASCacheCleanInterval", cfg_readCASParameter, (void *) cmd_cache_interval, RSRC_CONF, "Amount of time (in seconds) between cache cleanups.  This value is checked when a new local ticket is issued or when a ticket expires."),
+	AP_INIT_TAKE1("CASDisableRedirectAfterValidation", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASDisableRedirectAfterValidation), ACCESS_CONF, "Set 'On' to not send a 302 redirect to remove the ticket parameter after ticket validation"),
 	AP_INIT_TAKE1("CASRootProxiedAs", cfg_readCASParameter, (void *) cmd_root_proxied_as, RSRC_CONF, "URL used to access the root of the virtual server (only needed when the server is proxied)"),
  	AP_INIT_TAKE1("CASScrubRequestHeaders", ap_set_string_slot, (void *) APR_OFFSETOF(cas_dir_cfg, CASScrubRequestHeaders), ACCESS_CONF, "Scrub CAS user name and SAML attribute headers from the user's request."),
 	/* authorization options */

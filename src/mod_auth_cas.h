@@ -104,7 +104,6 @@
 #define CAS_DEFAULT_AUTHN_HEADER NULL
 #define CAS_DEFAULT_SCRUB_REQUEST_HEADERS NULL
 #define CAS_DEFAULT_SSO_ENABLED FALSE
-#define CAS_DEFAULT_AUTHORITATIVE FALSE
 #define CAS_DEFAULT_PRESERVE_TICKET FALSE
 
 #define CAS_MAX_RESPONSE_SIZE 2147483648
@@ -252,12 +251,7 @@ const cas_saml_attr *cas_get_attributes(request_rec *r);
 int cas_match_attribute(const char *const attr_spec, const cas_saml_attr *const attributes, struct request_rec *r);
 
 /* Authorization check */
-#if MODULE_MAGIC_NUMBER_MAJOR < 20120211
-int cas_authorize(request_rec *r);
-int cas_authorize_worker(request_rec *r, const cas_saml_attr *const attrs, const require_line *const reqs, int nelts, const cas_cfg *const c);
-#else
 authz_status cas_check_authorization(request_rec *r, const char *require_line, const void *parsed_require_line);
-#endif
 
 /* Fancy wrapper around flock() */
 int cas_flock(apr_file_t *fileHandle, int lockOperation, request_rec *r);

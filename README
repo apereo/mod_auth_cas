@@ -75,7 +75,7 @@ Protect a "Location" or "Directory" block in your Apache
 configuration:
 
 	<Location /secured>
-		Authtype CAS
+		AuthType CAS
 		Require valid-user
 	</Location>
 
@@ -89,7 +89,7 @@ case-sensitive):
 	CASValidateSAML On
 
 	<Location /secured>
-		Authtype CAS
+		AuthType CAS
 		Require cas-attribute edupersonaffiliation:staff
 	</Location>
 

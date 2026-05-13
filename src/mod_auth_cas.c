@@ -1909,7 +1909,7 @@ char *getResponseFromServer (request_rec *r, cas_cfg *c, char *ticket)
 	}
 
 	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
-	curl_easy_setopt(curl, CURLOPT_USERAGENT, "mod_auth_cas 1.0.10");
+	curl_easy_setopt(curl, CURLOPT_USERAGENT, "mod_auth_cas 1.3");
 
 	if(c->CASValidateSAML == TRUE) {
 		curl_easy_setopt(curl, CURLOPT_POST, 1L);

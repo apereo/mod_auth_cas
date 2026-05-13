@@ -1,5 +1,5 @@
 ========================================================================
-MOD_AUTH_CAS 1.2 README
+MOD_AUTH_CAS 1.3 README
 ========================================================================
 Apache CAS Authentication Module for the JASIG/Apereo CAS Server.
 
@@ -103,13 +103,14 @@ protocol and requires that the 'edupersonaffiliation' attribute is set to
 ========================================================================
 NEW FEATURES AND FUNCTIONS IN THIS RELEASE
 ========================================================================
-* OpenSSL 1.1 support.
-* CASv2 attributes.
-* CASPreserveTicket, which allows tickets to pass through when a valid session exists.
-* CASGatewayCookieDomain, to set the gateway cookie domain.
-* Use a dynamic buffer to store the CAS validation response.
-* Various bug and documentation fixes.
-https://github.com/apereo/mod_auth_cas/milestone/6?closed=1
+* CASCookieSameSite, specify the SameSite parameter.
+* CASCookieSecure, specify the optional 'Secure' attribute for cookies.
+* Use apr_pescape_urlencoded() to URL-encode.
+* Fix escaping for small chars in urlEncode().
+* Add a random RequestID to the SAML payload.
+* Bump required APR versions.
+* Require Apache 2.4.
+https://github.com/apereo/mod_auth_cas/milestone/7?closed=1
 
 ========================================================================
 KNOWN ISSUES

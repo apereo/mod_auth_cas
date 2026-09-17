@@ -1472,7 +1472,15 @@ void deleteCASCacheFile(request_rec *r, char *cookieName)
 		ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "entering deleteCASCacheFile()");
 
 	/* we need this to get the ticket */
-	readCASCacheFile(r, c, cookieName, &e);
+	memset(&e, '\0', sizeof(e));
+	if(readCASCacheFile(r, c, cookieName, &e) == FALSE || e.ticket == NULL) {
+		/* corrupt entry: the ticket can't be recovered, so just remove the cache entry itself */
+		if(c->CASDebug)
+			ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "Could not read cache entry '%s', removing it without its ticket mapping", cookieName);
+		path = apr_psprintf(r->pool, "%s%s", c->CASCookiePath, cookieName);
+		apr_file_remove(path, r->pool);
+		return;
+	}
 
 	/* delete their cache entry */
 	path = apr_psprintf(r->pool, "%s%s", c->CASCookiePath, cookieName);

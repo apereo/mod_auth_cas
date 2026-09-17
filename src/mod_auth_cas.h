@@ -185,7 +185,7 @@ typedef enum {
 	cmd_root_proxied_as, cmd_authoritative, cmd_preserve_ticket, cmd_gateway_cookie_domain
 } valid_cmds;
 
-module AP_MODULE_DECLARE_DATA auth_cas_module;
+extern module AP_MODULE_DECLARE_DATA auth_cas_module;
 apr_byte_t cas_setURL(apr_pool_t *pool, apr_uri_t *uri, const char *url);
 void *cas_create_server_config(apr_pool_t *pool, server_rec *svr);
 void *cas_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD);

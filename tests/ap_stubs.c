@@ -6,6 +6,7 @@
 #include "http_request.h"
 #include "util_filter.h"
 #include <ctype.h>
+#include <apr_strings.h>
 #include "util_md5.h"
 
 /* there seems to be no function protoype for this */
@@ -87,8 +88,8 @@ AP_DECLARE(void) ap_log_rerror(const char *file, int line, int level,
 AP_DECLARE(char *) ap_md5_binary(apr_pool_t *a, const unsigned char *buf,
                                  int len)
 {
-
-  return "md5";
+  /* stub: a syntactically valid, but obviously bogus, digest */
+  return apr_pstrdup(a, "0123456789abcdef0123456789abcdef");
 }
 
 APR_HOOK_STRUCT(APR_HOOK_LINK(post_config))

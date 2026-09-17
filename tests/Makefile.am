@@ -10,9 +10,8 @@ if CHECK
 TESTS += check_mac
 check_PROGRAMS = check_mac
 check_mac_SOURCES = ap_stubs.c curl_stubs.c openssl_stubs.c  mod_auth_cas_test.c cas_saml_attr_test.c #../src/mod_auth_cas.c ../src/cas_saml_attr.c
-check_mac_LDADD = -lcheck -lapr-1 -laprutil-1 ../src/mod_auth_cas.o ../src/cas_saml_attr.o
+check_mac_LDADD = @CHECK_LIBS@ -lapr-1 -laprutil-1 ../src/mod_auth_cas.o ../src/cas_saml_attr.o
 check_mac_CFLAGS = @CHECK_CFLAGS@ ${AM_CFLAGS}
-check_mac_LIBS = @CHECK_LIBS@ ${AM_LIBS}
 check_mac_LDFLAGS = ${AM_LDFLAGS}
 clean-local: clean-local-coverage
 clean-local-coverage:
